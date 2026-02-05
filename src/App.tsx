@@ -27,10 +27,17 @@ import Reports from './pages/admin/Reports'
 
 // Faculty Pages
 // (Add faculty pages imports here when available)
+import FacultyDashboard from './pages/faculty/Dashboard'
+import FacultyCalendar from './pages/faculty/Calendar'
+import FacultyHandbook from './pages/faculty/Handbook'
+
+
 
 // Shared Components
 import StudentLayout from './components/layout/StudentLayout'
 import AdminLayout from './components/layout/AdminLayout'
+import FacultyLayout from './components/layout/FacultyLayout'
+
 
 const AppContent: React.FC = () => {
   const location = useLocation()
@@ -93,6 +100,41 @@ const AppContent: React.FC = () => {
             </PrivateRoute>
           }
         />
+
+        {/* Faculty Routes (reusing Student pages) */}
+        <Route
+    path="/faculty/dashboard"
+    element={
+      <PrivateRoute allowedRoles={['faculty']}>
+        <FacultyLayout>
+          <FacultyDashboard />
+        </FacultyLayout>
+      </PrivateRoute>
+    }
+  />
+      <Route
+    path="/faculty/calendar"
+    element={
+      <PrivateRoute allowedRoles={['faculty']}>
+        <FacultyLayout>
+          <FacultyCalendar />
+        </FacultyLayout>
+      </PrivateRoute>
+    }
+  />
+
+  <Route
+    path="/faculty/handbook"
+    element={
+      <PrivateRoute allowedRoles={['faculty']}>
+        <FacultyLayout>
+          <FacultyHandbook />
+        </FacultyLayout>
+      </PrivateRoute>
+    }
+  />
+
+
 
         {/* Admin Routes */}
         <Route
