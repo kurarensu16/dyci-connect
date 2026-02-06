@@ -1,5 +1,5 @@
 import React from 'react'
-import { FaBookOpen, FaPlus, FaSearch } from 'react-icons/fa'
+import { FaPlus, FaSearch } from 'react-icons/fa'
 
 interface CmsSection {
   id: number

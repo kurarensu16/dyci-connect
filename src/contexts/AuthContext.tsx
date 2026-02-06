@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react'
+import React, { createContext, useState, useContext, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 import type { User } from '../types'
 
@@ -32,13 +33,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Check active sessions and set the user (only when Supabase is configured)
     if (isSupabaseConfigured) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
         setUser(session?.user as User | null)
         setLoading(false)
       })
 
       // Listen for changes on auth state
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
         setUser(session?.user as User | null)
       })
 
