@@ -50,7 +50,7 @@ const StudentDashboard: React.FC = () => {
 
       const totalUnits = grades?.reduce((sum: number, g: Grade) => sum + (g.units || 0), 0) || 0
       const weightedSum = grades?.reduce((sum: number, g: Grade) => sum + (g.grade * (g.units || 0)), 0) || 0
-      const gwa = totalUnits > 0 ? (weightedSum / totalUnits).toFixed(2) : 0
+      const gwa = totalUnits > 0 ? (weightedSum / totalUnits).toFixed(2) : '0'
 
       // Calculate storage used
       const { data: allFiles } = await supabase

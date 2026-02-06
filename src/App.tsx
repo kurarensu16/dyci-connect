@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { Toaster } from 'react-hot-toast'
 import PrivateRoute from './components/auth/PrivateRoute'
@@ -7,6 +7,7 @@ import PrivateRoute from './components/auth/PrivateRoute'
 // Public Pages
 import Home from './pages/Home'
 import Login from './pages/auth/Login'
+import Signup from './pages/auth/Signup'
 
 // Student Pages
 import StudentDashboard from './pages/student/Dashboard'
@@ -40,7 +41,6 @@ import FacultyLayout from './components/layout/FacultyLayout'
 
 
 const AppContent: React.FC = () => {
-  const location = useLocation()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -48,6 +48,7 @@ const AppContent: React.FC = () => {
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/signup/*" element={<Signup />} />
 
         {/* Student Routes */}
         <Route
