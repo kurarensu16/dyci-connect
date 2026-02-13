@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { FaBookOpen, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaBars } from 'react-icons/fa'
+import { FaBookOpen, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaBars, FaUserCircle } from 'react-icons/fa'
 import { useAuth } from '../../contexts/AuthContext'
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import logo from '../../assets/imgs/logo-connect.png'
 import { MdSpaceDashboard } from "react-icons/md";
 
@@ -16,13 +17,38 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
   const { user, signOut } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isVerified, setIsVerified] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    const loadVerification = async () => {
+      if (!isSupabaseConfigured || !user?.id) {
+        setIsVerified(null)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('verified')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (error) {
+        console.error('Error loading verification status (faculty)', error)
+        setIsVerified(null)
+      } else {
+        setIsVerified(data?.verified === true)
+      }
+
+    }
+
+    loadVerification()
+  }, [user?.id])
 
   const handleSignOut = async () => {
     await signOut()
     navigate('/login')
   }
 
-  // Only Calendar + Handbook for now
   const navItems: Array<{
     label: string
     icon: React.ComponentType<{ className?: string }>
@@ -32,7 +58,10 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
     { label: 'Dashboard', icon: MdSpaceDashboard, path: '/faculty/dashboard' },
     { label: 'School Calendar', icon: FaCalendarAlt, path: '/faculty/calendar' },
     { label: 'Handbook', icon: FaBookOpen, path: '/faculty/handbook' },
+    { label: 'Profile', icon: FaUserCircle, path: '/faculty/profile' },
   ]
+
+  const isLocked = isSupabaseConfigured && isVerified === false
 
   return (
     <div className="min-h-screen bg-slate-100 md:flex">
@@ -71,6 +100,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
           {navItems.map((item) => {
             const isActive = location.pathname === item.path
             const Icon = item.icon
+            const itemLocked = isLocked && item.path !== '/faculty/dashboard'
 
             const baseClasses =
               'w-full flex items-center rounded-xl px-3 py-2 text-xs font-medium transition-colors'
@@ -196,7 +226,22 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
           <span className="text-xs font-semibold text-slate-700">Faculty menu</span>
         </div>
 
-        <div className="min-h-screen">{children}</div>
+        {isLocked && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-[11px] text-amber-800">
+            <p className="font-medium">Your account is pending verification.</p>
+            <p className="mt-1">
+              You can view your dashboard, but other features are locked until an
+              administrator verifies your account.
+            </p>
+          </div>
+        )}
+
+        <div className="min-h-screen relative">
+          {isLocked && (
+            <div className="pointer-events-none absolute inset-0 bg-slate-50/70" />
+          )}
+          {children}
+        </div>
       </main>
     </div>
   )

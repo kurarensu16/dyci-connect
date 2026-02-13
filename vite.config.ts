@@ -33,5 +33,8 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
+    host: true,
+    // Allow access via Cloudflare/ngrok tunnels and other hosts in dev
+    allowedHosts: true,
   },
 })

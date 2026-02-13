@@ -48,8 +48,16 @@ const StudentDashboard: React.FC = () => {
         .select('grade, units')
         .eq('user_id', user?.id)
 
-      const totalUnits = grades?.reduce((sum: number, g: Grade) => sum + (g.units || 0), 0) || 0
-      const weightedSum = grades?.reduce((sum: number, g: Grade) => sum + (g.grade * (g.units || 0)), 0) || 0
+      const totalUnits =
+        (grades as Grade[] | null)?.reduce(
+          (sum, g) => sum + (g.units || 0),
+          0
+        ) || 0
+      const weightedSum =
+        (grades as Grade[] | null)?.reduce(
+          (sum, g) => sum + g.grade * (g.units || 0),
+          0
+        ) || 0
       const gwa = totalUnits > 0 ? (weightedSum / totalUnits).toFixed(2) : '0'
 
       // Calculate storage used
@@ -88,17 +96,21 @@ const StudentDashboard: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {user?.user_metadata?.full_name || 'Student'}!
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Here's what's happening with your academic journey today.
-        </p>
-      </div>
+    <>
+      {/* Dark blue header bar, like admin dashboard */}
+      <header className="bg-blue-800 text-white shadow-sm">
+        <div className="max-w-6xl mx-auto px-6 py-3">
+          <h1 className="text-xl font-semibold">
+            Welcome back, {user?.user_metadata?.full_name || 'Student'}!
+          </h1>
+          <p className="mt-1 text-xs text-blue-100">
+            Here&apos;s what&apos;s happening with your academic journey today.
+          </p>
+        </div>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsWidget
           title="Pending Tasks"
           value={stats.todoCount}
@@ -123,18 +135,19 @@ const StudentDashboard: React.FC = () => {
           icon="users"
           color="text-orange-500"
         />
-      </div>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="space-y-8">
-          <ActivityChart data={activityData} />
-          <RecentFiles files={recentFiles} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <ActivityChart data={activityData} />
+            <RecentFiles files={recentFiles} />
+          </div>
+          <div>
+            <TodoList todos={todos} onUpdate={fetchDashboardData} />
+          </div>
         </div>
-        <div>
-          <TodoList todos={todos} onUpdate={fetchDashboardData} />
-        </div>
-      </div>
-    </div>
+      </main>
+    </>
   )
 }
 

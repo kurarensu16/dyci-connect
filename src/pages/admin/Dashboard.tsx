@@ -1,14 +1,52 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { FaPlay } from 'react-icons/fa'
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 
 const AdminDashboard: React.FC = () => {
+  const [activeUsers, setActiveUsers] = useState<number | null>(null)
+
+  useEffect(() => {
+    const loadActiveUsers = async () => {
+      if (!isSupabaseConfigured) return
+
+      const { count, error } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('verified', true)
+
+      if (error) {
+        console.error('Error loading active users count for admin dashboard:', error)
+        return
+      }
+
+      if (typeof count === 'number') {
+        setActiveUsers(count)
+      }
+    }
+
+    loadActiveUsers()
+  }, [])
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
-      {/* Top metric cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <>
+      {/* Dark blue header bar */}
+      <header className="bg-blue-800 text-white shadow-sm">
+        <div className="max-w-6xl mx-auto px-6 py-3">
+          <h1 className="text-xl font-semibold">Admin Dashboard</h1>
+          <p className="mt-1 text-xs text-blue-100">
+            Overview of DYCI Connect activity and quick actions.
+          </p>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-5">
+        {/* Top metric cards */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
           <p className="text-[11px] text-slate-500">Active Users</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">1,247</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-900">
+            {activeUsers !== null ? activeUsers.toLocaleString() : '—'}
+          </p>
         </div>
         <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
           <p className="text-[11px] text-slate-500">Published Sections</p>
@@ -22,9 +60,9 @@ const AdminDashboard: React.FC = () => {
           <p className="text-[11px] text-slate-500">Handbook Views</p>
           <p className="mt-1 text-2xl font-semibold text-slate-900">5,432</p>
         </div>
-      </section>
+        </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left: quick actions + recent activity */}
         <div className="lg:col-span-2 space-y-4">
           {/* Quick actions */}
@@ -158,8 +196,9 @@ const AdminDashboard: React.FC = () => {
             </div>
           ))}
         </aside>
-      </section>
-    </div>
+        </section>
+      </main>
+    </>
   )
 }
 

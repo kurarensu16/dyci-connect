@@ -8,6 +8,8 @@ import PrivateRoute from './components/auth/PrivateRoute'
 import Home from './pages/Home'
 import Login from './pages/auth/Login'
 import Signup from './pages/auth/Signup'
+import ConformePage from './pages/auth/Conforme'
+import AuthCallback from './pages/auth/AuthCallback'
 
 // Student Pages
 import StudentDashboard from './pages/student/Dashboard'
@@ -38,6 +40,7 @@ import FacultyHandbook from './pages/faculty/Handbook'
 import StudentLayout from './components/layout/StudentLayout'
 import AdminLayout from './components/layout/AdminLayout'
 import FacultyLayout from './components/layout/FacultyLayout'
+import StudentProfile from './pages/student/Profile'
 
 
 const AppContent: React.FC = () => {
@@ -48,7 +51,12 @@ const AppContent: React.FC = () => {
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/signup/*" element={<Signup />} />
+        <Route path="/signup/student/*" element={<Signup defaultRole="student" />} />
+        <Route path="/signup/faculty/*" element={<Signup defaultRole="faculty" />} />
+        {/* Fallback for old links */}
+        <Route path="/signup/*" element={<Signup defaultRole="student" />} />
+        <Route path="/signup/conforme" element={<ConformePage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
 
         {/* Student Routes */}
         <Route
@@ -101,6 +109,16 @@ const AppContent: React.FC = () => {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/student/profile"
+          element={
+            <PrivateRoute allowedRoles={['student']}>
+              <StudentLayout>
+                <StudentProfile />
+              </StudentLayout>
+            </PrivateRoute>
+          }
+        />
 
         {/* Faculty Routes (reusing Student pages) */}
         <Route
@@ -136,6 +154,17 @@ const AppContent: React.FC = () => {
   />
 
 
+
+        <Route
+          path="/faculty/profile"
+          element={
+            <PrivateRoute allowedRoles={['faculty']}>
+              <FacultyLayout>
+                <StudentProfile />
+              </FacultyLayout>
+            </PrivateRoute>
+          }
+        />
 
         {/* Admin Routes */}
         <Route
@@ -214,6 +243,17 @@ const AppContent: React.FC = () => {
             <PrivateRoute allowedRoles={['admin']}>
               <AdminLayout>
                 <Reports />
+              </AdminLayout>
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/admin/profile"
+          element={
+            <PrivateRoute allowedRoles={['admin']}>
+              <AdminLayout>
+                <StudentProfile />
               </AdminLayout>
             </PrivateRoute>
           }

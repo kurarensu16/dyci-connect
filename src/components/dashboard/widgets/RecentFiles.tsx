@@ -8,7 +8,7 @@ interface RecentFilesProps {
 
 const RecentFiles: React.FC<RecentFilesProps> = ({ files }) => {
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Files</h2>
       {files.length === 0 ? (
         <p className="text-gray-500 text-sm">No recent uploads yet.</p>

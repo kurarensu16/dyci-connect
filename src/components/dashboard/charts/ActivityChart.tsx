@@ -11,7 +11,7 @@ interface ActivityChartProps {
 
 const ActivityChart: React.FC<ActivityChartProps> = ({ data }) => {
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Weekly Activity</h2>
       <div className="space-y-2">
         {data.map((point) => (
