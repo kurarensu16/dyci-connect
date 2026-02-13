@@ -9,7 +9,7 @@ interface TodoListProps {
 
 const TodoList: React.FC<TodoListProps> = ({ todos }) => {
   return (
-    <div className="bg-white rounded-lg shadow p-6 h-full">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4 h-full">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Academic To-Do List</h2>
       {todos.length === 0 ? (
         <p className="text-gray-500 text-sm">You have no tasks yet. Great job staying on top of things!</p>

@@ -9,6 +9,7 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState<string>('')
   const [password, setPassword] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
+  const [showRoleChooser, setShowRoleChooser] = useState(false)
   const { signIn } = useAuth()
   const navigate = useNavigate()
 
@@ -17,14 +18,24 @@ const Login: React.FC = () => {
     setLoading(true)
 
     try {
-      const { error } = await signIn(email, password)
+      const { data, error } = await signIn(email, password)
       if (error) throw error
 
       toast.success('Login successful!')
-      const lowerEmail = email.toLowerCase()
-      if (lowerEmail.startsWith('admin@')) navigate('/admin/dashboard')
-      else if (lowerEmail.startsWith('faculty@')) navigate('/faculty/dashboard')
-      else navigate('/student/dashboard')
+
+      const user = (data as any)?.user as any
+      const role = user?.user_metadata?.role as string | undefined
+
+      if (role === 'admin') {
+        navigate('/admin/dashboard')
+      } else if (role === 'faculty') {
+        navigate('/faculty/dashboard')
+      } else if (role === 'student') {
+        navigate('/student/dashboard')
+      } else {
+        toast.error('Your account has no role assigned. Please contact the administrator.')
+        navigate('/')
+      }
     } catch (error: any) {
       toast.error(error.message)
     } finally {
@@ -158,12 +169,13 @@ const Login: React.FC = () => {
             {/* Footer */}
             <p className="mt-6 text-center text-xs text-gray-500">
               Don&apos;t have an account?
-              <Link
-                to="/signup"
+              <button
+                type="button"
+                onClick={() => setShowRoleChooser(true)}
                 className="ml-1 font-semibold text-blue-600 hover:text-blue-500"
               >
                 Register
-              </Link>
+              </button>
             </p>
           </div>
         </div>
@@ -187,6 +199,55 @@ const Login: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Role chooser modal */}
+      {showRoleChooser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl px-6 py-6 space-y-4">
+            <h2 className="text-sm font-semibold text-gray-900">
+              Choose how you&apos;d like to join
+            </h2>
+            <p className="text-xs text-gray-500">
+              This helps us customize your DYCI Connect experience.
+            </p>
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRoleChooser(false)
+                  navigate('/signup/student')
+                }}
+                className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left text-xs font-semibold text-blue-800 hover:bg-blue-100"
+              >
+                I&apos;m a Student
+                <span className="block mt-1 text-[11px] font-normal text-blue-700">
+                  Access your handbook, files, tools, and announcements.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRoleChooser(false)
+                  navigate('/signup/faculty')
+                }}
+                className="w-full rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-left text-xs font-semibold text-purple-800 hover:bg-purple-100"
+              >
+                I&apos;m an Educator
+                <span className="block mt-1 text-[11px] font-normal text-purple-700">
+                  Manage classes and connect with your students.
+                </span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowRoleChooser(false)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

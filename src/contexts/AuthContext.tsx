@@ -55,11 +55,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
-          role: role,
-          ...userData
-        }
-      }
+          role,
+          ...userData,
+        },
+      },
     })
     return { data, error }
   }
@@ -91,13 +92,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return { data: { user: mockUser }, error: null }
     }
 
+    // Real Supabase sign in
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
     if (!error && (data as any)?.user) {
-      setUser((data as any).user as User)
+      const signedInUser = (data as any).user as User
+      setUser(signedInUser)
+
+      // Update last_sign_in timestamp in profiles
+      await supabase
+        .from('profiles')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', signedInUser.id)
     }
 
     return { data, error }

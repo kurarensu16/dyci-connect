@@ -20,7 +20,7 @@ const StatsWidget: React.FC<StatsWidgetProps> = ({ title, value, icon, color }) 
   const SelectedIcon = IconComponent[icon] || FaUsers
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-500">{title}</p>

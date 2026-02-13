@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 
 // When env vars are missing, use a mock client so the app can still run
 const createMockSupabase = () => {
@@ -42,12 +42,7 @@ const createMockSupabase = () => {
   }
 }
 
-let supabase: any
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  supabase = createMockSupabase()
-} else {
-  supabase = createClient(supabaseUrl, supabaseAnonKey)
-}
-
-export { supabase }
+export const supabase =
+  isSupabaseConfigured && supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : createMockSupabase()

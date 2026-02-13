@@ -13,6 +13,7 @@ import {
   FaBars,
   FaChevronLeft,
   FaChevronRight,
+  FaUserCircle,
 } from 'react-icons/fa'
 import { MdSpaceDashboard } from "react-icons/md";
 import { useAuth } from '../../contexts/AuthContext'
@@ -42,6 +43,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { label: 'Reports', icon: FaChartBar, path: '/admin/reports' },
     { label: 'CMS', icon: FaCogs, path: '/admin/cms' },
     { label: 'School Calendar', icon: FaCalendarAlt, path: '/admin/calendar' },
+    { label: 'Profile', icon: FaUserCircle, path: '/admin/profile' },
   ]
 
   const handleSignOut = async () => {

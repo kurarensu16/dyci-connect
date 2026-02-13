@@ -1,11 +1,13 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { FaBookOpen, FaFileAlt, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaBars } from 'react-icons/fa'
+import { FaBookOpen, FaFileAlt, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaBars, FaUserCircle } from 'react-icons/fa'
 import { FaScrewdriverWrench } from 'react-icons/fa6'
 import { useAuth } from '../../contexts/AuthContext'
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import logo from '../../assets/imgs/logo-connect.png'
 import { MdSpaceDashboard } from "react-icons/md";
+import StudentChatWidget from '../chat/StudentChatWidget'
 
 interface StudentLayoutProps {
   children: ReactNode
@@ -17,6 +19,32 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
   const { user, signOut } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isVerified, setIsVerified] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    const loadVerification = async () => {
+      if (!isSupabaseConfigured || !user?.id) {
+        setIsVerified(null)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('verified')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (error) {
+        console.error('Error loading verification status', error)
+        setIsVerified(null)
+      } else {
+        setIsVerified(data?.verified === true)
+      }
+
+    }
+
+    loadVerification()
+  }, [user?.id])
 
   const handleSignOut = async () => {
     await signOut()
@@ -34,13 +62,16 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
     { label: 'Handbook', icon: FaBookOpen, path: '/student/handbook' },
     { label: 'Files', icon: FaFileAlt, path: '/student/files' },
     { label: 'Tools', icon: FaScrewdriverWrench, path: '/student/tools' },
+    { label: 'Profile', icon: FaUserCircle, path: '/student/profile' },
   ]
+
+  const isLocked = isSupabaseConfigured && isVerified === false
 
   return (
     <div className="min-h-screen bg-slate-100 md:flex">
       {/* Sidebar (desktop) */}
       <aside
-        className={`hidden md:flex md:flex-col md:h-screen md:sticky md:top-0 md:border-r md:border-slate-200 bg-white transition-all duration-200 ease-in-out ${
+        className={`hidden md:flex md:flex-col md:h-screen md:sticky md:top-0 md:z-30 md:border-r md:border-slate-200 bg-white transition-all duration-200 ease-in-out ${
           collapsed ? 'md:w-20' : 'md:w-64'
         }`}
       >
@@ -61,7 +92,7 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
           <button
             type="button"
             onClick={() => setCollapsed((prev) => !prev)}
-            className="absolute -right-3 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 text-[10px] shadow-sm"
+            className="absolute -right-3 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 text-[10px] shadow-sm z-30"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <FaChevronRight /> : <FaChevronLeft />}
@@ -72,11 +103,12 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
           {navItems.map((item) => {
             const isActive = location.pathname === item.path
             const Icon = item.icon
+            const itemLocked = isLocked && item.path !== '/student/dashboard'
 
             const baseClasses =
               'w-full flex items-center rounded-xl px-3 py-2 text-xs font-medium transition-colors'
 
-            if (item.disabled) {
+            if (item.disabled || itemLocked) {
               return (
                 <button
                   key={item.label}
@@ -91,7 +123,7 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
                     <>
                       <span>{item.label}</span>
                       <span className="ml-auto text-[9px] uppercase tracking-wide">
-                        Soon
+                        {itemLocked ? 'Locked' : 'Soon'}
                       </span>
                     </>
                   )}
@@ -238,7 +270,24 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
           <span className="text-xs font-semibold text-slate-700">Student menu</span>
         </div>
 
-        <div className="min-h-screen">{children}</div>
+        {isLocked && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-[11px] text-amber-800">
+            <p className="font-medium">Your account is pending verification.</p>
+            <p className="mt-1">
+              You can view your dashboard, but other features are locked until an
+              administrator verifies your account.
+            </p>
+          </div>
+        )}
+
+        <div className="min-h-screen relative">
+          {isLocked && (
+            <div className="pointer-events-none absolute inset-0 bg-slate-50/70" />
+          )}
+          {children}
+          {/* Student-only support chat widget, fixed to bottom-right */}
+          <StudentChatWidget />
+        </div>
       </main>
     </div>
   )

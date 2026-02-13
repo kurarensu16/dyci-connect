@@ -13,17 +13,35 @@ interface GradeInput {
   units: string
 }
 
+type TodoPriority = 'High' | 'Medium' | 'Low'
+type TodoFilter = 'all' | 'active' | 'completed'
+
+interface TodoItem {
+  id: number
+  label: string
+  priority: TodoPriority
+  done: boolean
+}
+
 const Tools: React.FC = () => {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<ToolsTab>('gwa')
+
+  // GWA calculator state
   const [grades, setGrades] = useState<Grade[]>([])
+  const [gwa, setGwa] = useState<number | null>(null)
   const [newGrade, setNewGrade] = useState<GradeInput>({
     subject: '',
     grade: '',
     units: '',
   })
-  const [gwa, setGwa] = useState<number>(0)
   const [loading, setLoading] = useState<boolean>(false)
+
+  // Simple in-memory to-do list for students
+  const [todos, setTodos] = useState<TodoItem[]>([])
+  const [newTodoLabel, setNewTodoLabel] = useState<string>('')
+  const [newTodoPriority, setNewTodoPriority] = useState<TodoPriority>('Medium')
+  const [todoFilter, setTodoFilter] = useState<TodoFilter>('all')
 
   useEffect(() => {
     if (activeTab === 'gwa') {
@@ -40,17 +58,18 @@ const Tools: React.FC = () => {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setGrades(data || [])
-      calculateGWA(data || [])
+      const list = data || []
+      setGrades(list)
+      calculateGwa(list)
     } catch (error: any) {
       toast.error('Error loading grades')
     }
   }
 
-  const calculateGWA = (gradeList: Grade[]) => {
+  const calculateGwa = (gradeList: Grade[]) => {
     const validGrades = gradeList.filter((g) => g.grade && g.units)
     if (validGrades.length === 0) {
-      setGwa(0)
+      setGwa(null)
       return
     }
 
@@ -58,6 +77,11 @@ const Tools: React.FC = () => {
       (sum, g) => sum + parseFloat(g.units.toString()),
       0,
     )
+    if (!totalUnits || Number.isNaN(totalUnits)) {
+      setGwa(null)
+      return
+    }
+
     const weightedSum = validGrades.reduce((sum, g) => {
       return (
         sum +
@@ -65,7 +89,8 @@ const Tools: React.FC = () => {
       )
     }, 0)
 
-    setGwa(parseFloat((weightedSum / totalUnits).toFixed(2)))
+    const computed = weightedSum / totalUnits
+    setGwa(Number.isFinite(computed) ? parseFloat(computed.toFixed(2)) : null)
   }
 
   const addGrade = async () => {
@@ -76,7 +101,7 @@ const Tools: React.FC = () => {
 
     setLoading(true)
     try {
-      const { error } = await supabase.from('grades').insert({
+      const { data, error } = await supabase.from('grades').insert({
         user_id: user?.id,
         subject: newGrade.subject,
         grade: parseFloat(newGrade.grade),
@@ -87,7 +112,16 @@ const Tools: React.FC = () => {
 
       toast.success('Grade added successfully')
       setNewGrade({ subject: '', grade: '', units: '' })
-      fetchGrades()
+
+      // Optimistically update local grades & GWA instead of refetching
+      if (data && data[0]) {
+        const inserted = data[0] as Grade
+        const updated = [inserted, ...grades]
+        setGrades(updated)
+        calculateGwa(updated)
+      } else {
+        fetchGrades()
+      }
     } catch (error: any) {
       toast.error('Error adding grade')
     } finally {
@@ -105,19 +139,59 @@ const Tools: React.FC = () => {
       if (error) throw error
 
       toast.success('Grade deleted')
-      fetchGrades()
+      const remaining = grades.filter((g) => g.id !== id)
+      setGrades(remaining)
+      calculateGwa(remaining)
     } catch (error: any) {
       toast.error('Error deleting grade')
     }
   }
 
-  const gwaStatus = gwa === 0 ? 'N/A' : gwa <= 3.0 ? 'PASS' : 'FAILED'
-  const gwaStatusColor =
-    gwa === 0
-      ? 'bg-slate-100 text-slate-600'
-      : gwa <= 3.0
-      ? 'bg-emerald-100 text-emerald-700'
-      : 'bg-rose-100 text-rose-700'
+  const handleAddTodo = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = newTodoLabel.trim()
+    if (!trimmed) return
+
+    // Simple DYCI-flavored auto-suggestions
+    const suggestionLabel =
+      trimmed === 'Request TOR'
+        ? 'Request TOR from Registrar'
+        : trimmed === 'Submit clearance'
+          ? 'Submit clearance to department'
+          : trimmed
+
+    const newTodo: TodoItem = {
+      id: Date.now(),
+      label: suggestionLabel,
+      priority: newTodoPriority,
+      done: false,
+    }
+    setTodos((prev) => [newTodo, ...prev])
+    setNewTodoLabel('')
+  }
+
+  const toggleTodo = (id: number) => {
+    setTodos((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+    )
+  }
+
+  const deleteTodoItem = (id: number) => {
+    setTodos((prev) => prev.filter((t) => t.id !== id))
+  }
+
+  const filteredTodos = todos.filter((t) => {
+    if (todoFilter === 'active') return !t.done
+    if (todoFilter === 'completed') return t.done
+    return true
+  })
+
+  const prioritySelectClasses =
+    newTodoPriority === 'High'
+      ? 'bg-amber-50 text-amber-800 border-amber-200'
+      : newTodoPriority === 'Medium'
+        ? 'bg-blue-50 text-blue-700 border-blue-200'
+        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -167,20 +241,24 @@ const Tools: React.FC = () => {
       <main className="max-w-6xl mx-auto px-6 py-8">
         {activeTab === 'gwa' && (
           <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-6 sm:p-8">
-            {/* Current GWA banner */}
-            <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50 px-5 py-4 flex items-center justify-between">
+            {/* Current GWA summary */}
+            <div className="mb-5 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
               <div>
-                <p className="text-xs font-medium text-slate-600">
-                  Your Current GWA
-                </p>
+                <p className="text-xs font-medium text-slate-600">Your Current GWA</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-900">
-                  {gwa.toFixed(2)}
+                  {gwa !== null ? gwa.toFixed(2) : '—'}
                 </p>
               </div>
               <span
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md ${gwaStatusColor}`}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md ${
+                  gwa === null
+                    ? 'bg-slate-100 text-slate-600'
+                    : gwa <= 3
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-rose-100 text-rose-700'
+                }`}
               >
-                {gwaStatus}
+                {gwa === null ? 'N/A' : gwa <= 3 ? 'PASS' : 'FAILED'}
               </span>
             </div>
 
@@ -297,15 +375,141 @@ const Tools: React.FC = () => {
         )}
 
         {activeTab === 'todo' && (
-          <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-6 sm:p-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-2">
-              Academic To-Do List
-            </h2>
-            <p className="text-sm text-slate-500 mb-4">
-              This section will help you manage tasks, deadlines, and priorities alongside your
-              grades. To-do list tools are coming soon.
-            </p>
-          </div>
+          <>
+            {/* Header + filters card */}
+            <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-5 sm:p-6">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-900">
+                    Today Tasks
+                  </h2>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Lightweight checklist for your DYCI work today.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2" />
+              </div>
+
+              {/* Filter row */}
+              <div className="flex items-center justify-between text-[11px] text-slate-600">
+                <div className="space-x-2">
+                  {(['all', 'active', 'completed'] as TodoFilter[]).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setTodoFilter(f)}
+                      className={`px-2 py-1 rounded-full border text-[11px] ${
+                        todoFilter === f
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Completed'}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[11px] text-slate-500">
+                  {filteredTodos.length} task{filteredTodos.length === 1 ? '' : 's'}
+                </span>
+              </div>
+            </div>
+
+            {/* Task list + add controls card */}
+            <div className="mt-4 bg-white rounded-2xl shadow-md border border-slate-100 p-5 sm:p-6">
+              {/* Todo list styled like simple task rows */}
+              <div className="space-y-1">
+                {filteredTodos.map((todo) => (
+                  <div
+                    key={todo.id}
+                    className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5 text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={todo.done}
+                        onChange={() => toggleTodo(todo.id)}
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <p
+                          className={`text-slate-800 ${
+                            todo.done ? 'line-through text-slate-400' : ''
+                          }`}
+                        >
+                          {todo.label}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          todo.priority === 'High'
+                            ? 'bg-amber-100 text-amber-700'
+                            : todo.priority === 'Medium'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-emerald-100 text-emerald-700'
+                        }`}
+                      >
+                        {todo.priority}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => deleteTodoItem(todo.id)}
+                        className="text-slate-400 hover:text-rose-500"
+                        aria-label="Delete task"
+                      >
+                        <FaTrash className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Bottom action row with add controls */}
+              <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center rounded-xl bg-linear-to-r from-indigo-500 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:from-indigo-600 hover:to-indigo-700"
+                  >
+                    Finish
+                  </button>
+                </div>
+                <form
+                  onSubmit={handleAddTodo}
+                  className="flex flex-1 flex-col sm:flex-row gap-2 justify-end"
+                >
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      value={newTodoLabel}
+                      onChange={(e) => setNewTodoLabel(e.target.value)}
+                      placeholder="Add a task"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={newTodoPriority}
+                      onChange={(e) => setNewTodoPriority(e.target.value as TodoPriority)}
+                      className={`rounded-xl border px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${prioritySelectClasses}`}
+                    >
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+                    >
+                      <FaPlus className="mr-1 h-3 w-3" />
+                      Add Task
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </>
         )}
       </main>
     </div>
@@ -313,5 +517,4 @@ const Tools: React.FC = () => {
 }
 
 export default Tools
-
 
