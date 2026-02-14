@@ -100,7 +100,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
           {navItems.map((item) => {
             const isActive = location.pathname === item.path
             const Icon = item.icon
-            const itemLocked = isLocked && item.path !== '/faculty/dashboard'
+            const locked = isLocked && item.path !== '/faculty/dashboard'
 
             const baseClasses =
               'w-full flex items-center rounded-xl px-3 py-2 text-xs font-medium transition-colors'
@@ -108,10 +108,11 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
             return (
               <Link
                 key={item.label}
-                to={item.path}
+                to={locked ? '#' : item.path}
                 className={`${baseClasses} ${
                   isActive ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'
-                } ${collapsed ? 'justify-center' : 'space-x-3'}`}
+                } ${collapsed ? 'justify-center' : 'space-x-3'} ${locked ? 'pointer-events-none opacity-60' : ''}`}
+                onClick={locked ? (e) => e.preventDefault() : undefined}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {!collapsed && <span>{item.label}</span>}
