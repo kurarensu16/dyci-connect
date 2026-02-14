@@ -409,7 +409,15 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
       navigate('/login')
     } catch (error: any) {
       console.error('Signup error', error)
-      toast.error(error?.message || 'Failed to create your account.')
+      const msg = error?.message
+      const isRetryableFetch = error?.name === 'AuthRetryableFetchError' || msg === 'AuthRetryableFetchError'
+      if (isRetryableFetch) {
+        toast.error(
+          'Unable to reach the server. Check your connection and try again. If the problem continues, try again later.'
+        )
+      } else {
+        toast.error(msg || 'Failed to create your account.')
+      }
     } finally {
       setSubmitting(false)
     }
