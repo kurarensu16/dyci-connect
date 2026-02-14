@@ -6,7 +6,7 @@ import TodoList from '../../components/dashboard/widgets/TodoList'
 import RecentFiles from '../../components/dashboard/widgets/RecentFiles'
 import { supabase } from '../../lib/supabaseClient'
 import toast from 'react-hot-toast'
-import type { FileMetadata, Grade, Todo } from '../../types'
+import type { FileMetadata, Todo } from '../../types'
 
 const FacultyDashboard: React.FC = () => {
   const { user } = useAuth()
@@ -48,8 +48,10 @@ const FacultyDashboard: React.FC = () => {
         .select('grade, units')
         .eq('user_id', user?.id)
 
-      const totalUnits = grades?.reduce((sum: number, g: Grade) => sum + (g.units || 0), 0) || 0
-      const weightedSum = grades?.reduce((sum: number, g: Grade) => sum + (g.grade * (g.units || 0)), 0) || 0
+      type GradeRow = { grade?: number; units?: number }
+      const gradeList = grades ?? []
+      const totalUnits = gradeList.reduce((sum, g: GradeRow) => sum + (g.units ?? 0), 0)
+      const weightedSum = gradeList.reduce((sum, g: GradeRow) => sum + ((g.grade ?? 0) * (g.units ?? 0)), 0)
       const gwa = totalUnits > 0 ? (weightedSum / totalUnits).toFixed(2) : '0'
 
       // Calculate storage used
