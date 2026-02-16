@@ -65,9 +65,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       })
 
     let result = await doSignUp()
+    const err = result.error as { message?: string; name?: string } | null
     const isRetryable =
-      result.error &&
-      (result.error.name === 'AuthRetryableFetchError' || result.error.message === 'AuthRetryableFetchError')
+      err && (err.name === 'AuthRetryableFetchError' || err.message === 'AuthRetryableFetchError')
 
     if (isRetryable) {
       if (import.meta.env.DEV) {
