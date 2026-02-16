@@ -51,18 +51,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [])
 
   const signUp = async (email: string, password: string, role: string, userData: any) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: {
-          role,
-          ...userData,
+    const doSignUp = () =>
+      supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            role,
+            ...userData,
+          },
         },
-      },
-    })
-    return { data, error }
+      })
+
+    let result = await doSignUp()
+    const err = result.error as { message?: string; name?: string } | null
+    const isRetryable =
+      err && (err.name === 'AuthRetryableFetchError' || err.message === 'AuthRetryableFetchError')
+
+    if (isRetryable) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          'Signup request failed (network). Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY. Retrying once...'
+        )
+      }
+      await new Promise((r) => setTimeout(r, 1500))
+      result = await doSignUp()
+    }
+
+    if (result.error && import.meta.env.DEV && isRetryable) {
+      console.warn(
+        'Signup still failed after retry. Ensure Supabase env vars are set (and on Vercel, redeploy after adding them).'
+      )
+    }
+
+    return { data: result.data, error: result.error }
   }
 
   const signIn = async (email: string, password: string) => {
