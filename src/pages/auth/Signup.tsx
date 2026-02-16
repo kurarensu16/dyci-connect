@@ -409,9 +409,16 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
       navigate('/login')
     } catch (error: any) {
       console.error('Signup error', error)
-      const msg = error?.message
+      const msg = error?.message ?? ''
+      const status = error?.status ?? error?.statusCode
       const isRetryableFetch = error?.name === 'AuthRetryableFetchError' || msg === 'AuthRetryableFetchError'
-      if (isRetryableFetch) {
+      const is504 = status === 504 || /504|timeout/i.test(String(msg))
+
+      if (is504) {
+        toast.error(
+          'The server took too long to respond. Please try again in a moment. If it keeps happening, try again later.'
+        )
+      } else if (isRetryableFetch) {
         toast.error(
           'Unable to reach the server. Check your connection and try again. If the problem continues, try again later.'
         )
