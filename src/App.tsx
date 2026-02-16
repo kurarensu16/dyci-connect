@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { Toaster } from 'react-hot-toast'
 import PrivateRoute from './components/auth/PrivateRoute'
@@ -10,6 +10,7 @@ import Login from './pages/auth/Login'
 import Signup from './pages/auth/Signup'
 import ConformePage from './pages/auth/Conforme'
 import AuthCallback from './pages/auth/AuthCallback'
+import NotFound from './pages/NotFound'
 
 // Student Pages
 import StudentDashboard from './pages/student/Dashboard'
@@ -259,8 +260,8 @@ const AppContent: React.FC = () => {
           }
         />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* 404 */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
   )
