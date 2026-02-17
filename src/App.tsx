@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { Toaster } from 'react-hot-toast'
 import PrivateRoute from './components/auth/PrivateRoute'
+import RequireUser from './components/auth/RequireUser'
 
 // Public Pages
 import Home from './pages/Home'
@@ -12,6 +13,10 @@ import ConformePage from './pages/auth/Conforme'
 import AuthCallback from './pages/auth/AuthCallback'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
+import CompleteProfile from './pages/auth/CompleteProfile'
+import CompleteStudentProfile from './pages/auth/CompleteStudentProfile'
+import CompleteFacultyProfile from './pages/auth/CompleteFacultyProfile'
+import PendingApproval from './pages/auth/PendingApproval'
 import NotFound from './pages/NotFound'
 
 // Student Pages
@@ -20,6 +25,7 @@ import Calendar from './pages/student/Calendar'
 import Handbook from './pages/student/Handbook'
 import Files from './pages/student/Files'
 import Tools from './pages/student/Tools'
+import StudentNotifications from './pages/student/Notifications'
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard'
@@ -30,12 +36,14 @@ import AdminCalendar from './pages/admin/Calendar'
 import HandbookPreview from './pages/admin/HandbookPreview'
 import Cms from './pages/admin/Cms'
 import Reports from './pages/admin/Reports'
+import AdminNotifications from './pages/student/Notifications'
 
 // Faculty Pages
 // (Add faculty pages imports here when available)
 import FacultyDashboard from './pages/faculty/Dashboard'
 import FacultyCalendar from './pages/faculty/Calendar'
 import FacultyHandbook from './pages/faculty/Handbook'
+import FacultyNotifications from './pages/student/Notifications'
 
 
 
@@ -62,6 +70,38 @@ const AppContent: React.FC = () => {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route
+          path="/complete-profile"
+          element={
+            <RequireUser>
+              <CompleteProfile />
+            </RequireUser>
+          }
+        />
+        <Route
+          path="/complete-profile/student/*"
+          element={
+            <RequireUser>
+              <CompleteStudentProfile />
+            </RequireUser>
+          }
+        />
+        <Route
+          path="/complete-profile/faculty/*"
+          element={
+            <RequireUser>
+              <CompleteFacultyProfile />
+            </RequireUser>
+          }
+        />
+        <Route
+          path="/pending-approval"
+          element={
+            <RequireUser>
+              <PendingApproval />
+            </RequireUser>
+          }
+        />
 
         {/* Student Routes */}
         <Route
@@ -70,6 +110,16 @@ const AppContent: React.FC = () => {
             <PrivateRoute allowedRoles={['student']}>
               <StudentLayout>
                 <StudentDashboard />
+              </StudentLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/student/notifications"
+          element={
+            <PrivateRoute allowedRoles={['student']}>
+              <StudentLayout>
+                <StudentNotifications />
               </StudentLayout>
             </PrivateRoute>
           }
@@ -137,6 +187,16 @@ const AppContent: React.FC = () => {
     }
   />
       <Route
+    path="/faculty/notifications"
+    element={
+      <PrivateRoute allowedRoles={['faculty']}>
+        <FacultyLayout>
+          <FacultyNotifications />
+        </FacultyLayout>
+      </PrivateRoute>
+    }
+  />
+      <Route
     path="/faculty/calendar"
     element={
       <PrivateRoute allowedRoles={['faculty']}>
@@ -178,6 +238,16 @@ const AppContent: React.FC = () => {
             <PrivateRoute allowedRoles={['admin']}>
               <AdminLayout>
                 <AdminDashboard />
+              </AdminLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/notifications"
+          element={
+            <PrivateRoute allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminNotifications />
               </AdminLayout>
             </PrivateRoute>
           }

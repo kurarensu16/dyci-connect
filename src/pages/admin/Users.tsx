@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 
 type Role = 'Student' | 'Faculty' | 'Admin'
-type Status = 'Active' | 'Inactive'
+type Status = 'Active' | 'Pending'
 
 interface AdminUserRow {
   id: string
@@ -36,7 +36,7 @@ const rolePillClasses: Record<Role, string> = {
 
 const statusPillClasses: Record<Status, string> = {
   Active: 'bg-emerald-50 text-emerald-700',
-  Inactive: 'bg-slate-50 text-slate-500',
+  Pending: 'bg-slate-50 text-slate-500',
 }
 
 const Users: React.FC = () => {
@@ -101,7 +101,7 @@ const Users: React.FC = () => {
               ? 'Active'
               : verified
                 ? 'Active'
-                : 'Inactive'
+                : 'Pending'
 
           return {
             id: row.id,
@@ -345,7 +345,7 @@ const Users: React.FC = () => {
               >
                 <option value="All">All</option>
                 <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
+                <option value="Pending">Pending</option>
               </select>
             </div>
           </div>

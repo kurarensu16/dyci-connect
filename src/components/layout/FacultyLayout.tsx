@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { FaBookOpen, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaBars, FaUserCircle } from 'react-icons/fa'
+import { FaBookOpen, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaBars, FaUserCircle, FaBell } from 'react-icons/fa'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import logo from '../../assets/imgs/logo-connect.png'
@@ -18,6 +18,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isVerified, setIsVerified] = useState<boolean | null>(null)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     const loadVerification = async () => {
@@ -44,6 +45,24 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
     loadVerification()
   }, [user?.id])
 
+  useEffect(() => {
+    const loadUnreadCount = async () => {
+      if (!isSupabaseConfigured || !user?.id) {
+        setUnreadCount(0)
+        return
+      }
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false)
+      setUnreadCount(count || 0)
+    }
+    loadUnreadCount()
+    const interval = setInterval(loadUnreadCount, 30000)
+    return () => clearInterval(interval)
+  }, [user?.id])
+
   const handleSignOut = async () => {
     await signOut()
     navigate('/login')
@@ -54,8 +73,10 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
     icon: React.ComponentType<{ className?: string }>
     path: string
     disabled?: boolean
+    badge?: number
   }> = [
     { label: 'Dashboard', icon: MdSpaceDashboard, path: '/faculty/dashboard' },
+    { label: 'Notifications', icon: FaBell, path: '/faculty/notifications', badge: unreadCount },
     { label: 'School Calendar', icon: FaCalendarAlt, path: '/faculty/calendar' },
     { label: 'Handbook', icon: FaBookOpen, path: '/faculty/handbook' },
     { label: 'Profile', icon: FaUserCircle, path: '/faculty/profile' },
@@ -111,11 +132,16 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
                 to={locked ? '#' : item.path}
                 className={`${baseClasses} ${
                   isActive ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'
-                } ${collapsed ? 'justify-center' : 'space-x-3'} ${locked ? 'pointer-events-none opacity-60' : ''}`}
+                } ${collapsed ? 'justify-center' : 'space-x-3'} ${locked ? 'pointer-events-none opacity-60' : ''} relative`}
                 onClick={locked ? (e) => e.preventDefault() : undefined}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {!collapsed && <span>{item.label}</span>}
+                {Number(item.badge) > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-4 flex items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white px-1">
+                    {Number(item.badge) > 99 ? '99+' : item.badge}
+                  </span>
+                )}
               </Link>
             )
           })}
@@ -184,12 +210,17 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
                       navigate(item.path)
                       setMobileOpen(false)
                     }}
-                    className={`${baseClasses} space-x-3 ${
+                    className={`${baseClasses} space-x-3 relative ${
                       isActive ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'
                     }`}
                   >
                     <Icon className="h-3.5 w-3.5" />
                     <span>{item.label}</span>
+                    {Number(item.badge) > 0 && (
+                      <span className="ml-auto h-4 min-w-4 flex items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white px-1">
+                        {Number(item.badge) > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
                   </button>
                 )
               })}

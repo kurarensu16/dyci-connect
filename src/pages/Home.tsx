@@ -35,7 +35,7 @@ const Home: React.FC = () => {
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleSignIn}
-                className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center justify-center rounded-full bg-[#1434A4] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#102a82] transition-colors"
               >
                 Sign in to DYCI Connect
               </button>

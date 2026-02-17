@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import toast from 'react-hot-toast'
+import ProfileGuard from './ProfileGuard'
 
 interface PrivateRouteProps {
   children: ReactNode
@@ -12,27 +13,21 @@ interface PrivateRouteProps {
 const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, allowedRoles }) => {
   const { user } = useAuth()
 
-  const userRole = user?.user_metadata?.role as string | undefined
-  const isAllowed = !!user && !!userRole && allowedRoles.includes(userRole)
-
-  // Show toasts as a side-effect, not during render, to avoid React warnings
   useEffect(() => {
     if (!user) {
       toast.error('Please login to access this page')
-    } else if (!userRole || !allowedRoles.includes(userRole)) {
-      toast.error('You do not have permission to access this page')
     }
-  }, [user, userRole, allowedRoles])
+  }, [user])
 
   if (!user) {
-    return <Navigate to="/login" />
+    return <Navigate to="/login" replace />
   }
 
-  if (!isAllowed) {
-    return <Navigate to="/" />
-  }
-
-  return <>{children}</>
+  return (
+    <ProfileGuard allowedRoles={allowedRoles}>
+      {children}
+    </ProfileGuard>
+  )
 }
 
 export default PrivateRoute

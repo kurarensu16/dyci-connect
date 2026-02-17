@@ -132,8 +132,20 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
       }
       const data = await res.json()
       setProvinces(data)
+
+      // Some regions (e.g. NCR) have no provinces; load cities directly from the region.
+      if (Array.isArray(data) && data.length === 0) {
+        const cityRes = await fetch(
+          `https://psgc.cloud/api/regions/${value}/cities-municipalities`
+        )
+        if (!cityRes.ok) {
+          throw new Error(`Failed to load cities: ${cityRes.status}`)
+        }
+        const cityData = await cityRes.json()
+        setCities(cityData)
+      }
     } catch (error) {
-      console.error('Error loading PSGC provinces', error)
+      console.error('Error loading PSGC provinces / cities', error)
     }
   }
 
@@ -592,7 +604,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                 <div className="pt-2 space-y-3">
                   <button
                     type="submit"
-                    className="w-full inline-flex justify-center rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="w-full inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Continue
                   </button>
@@ -741,11 +753,15 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                           name="province"
                           value={form.province}
                           onChange={handleProvinceChange}
-                          disabled={!form.region}
+                          disabled={!form.region || provinces.length === 0}
                           className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="">
-                            {form.region ? 'Select province' : 'Select region first'}
+                            {!form.region
+                              ? 'Select region first'
+                              : provinces.length === 0
+                                ? 'No provinces for this region'
+                                : 'Select province'}
                           </option>
                           {provinces.map((p: any) => (
                             <option key={p.code} value={p.code}>
@@ -768,11 +784,15 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                           name="city"
                           value={form.city}
                           onChange={handleCityChange}
-                          disabled={!form.province}
+                          disabled={!form.region || (provinces.length > 0 && !form.province)}
                           className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="">
-                            {form.province ? 'Select city / municipality' : 'Select province first'}
+                            {!form.region
+                              ? 'Select region first'
+                              : provinces.length > 0 && !form.province
+                                ? 'Select province first'
+                                : 'Select city / municipality'}
                           </option>
                           {cities.map((c: any) => (
                             <option key={c.code} value={c.code}>
@@ -854,7 +874,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                     </button>
                     <button
                       type="submit"
-                      className="w-full inline-flex justify-center rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="w-full inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       Continue
                     </button>
@@ -959,7 +979,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                         htmlFor="nickname"
                         className="block text-xs font-medium text-gray-700"
                       >
-                        Nickname (for greetings & dashboard)
+                        Nickname
                       </label>
                       <input
                         id="nickname"
@@ -1168,7 +1188,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full inline-flex justify-center rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="w-full inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {submitting ? 'Creating account…' : 'Create account'}
                     </button>
