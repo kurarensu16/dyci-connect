@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
+import { checkProfileCompleteness, createIncompleteProfileNotification } from '../../utils/profileUtils'
 import toast from 'react-hot-toast'
-import { FaEnvelope, FaLock, FaMicrosoft, FaInfoCircle, FaArrowLeft } from 'react-icons/fa'
+import { FaEnvelope, FaLock, FaGoogle, FaArrowLeft } from 'react-icons/fa'
 import logo from '../../assets/imgs/logo-connect.png'
 
 const Login: React.FC = () => {
@@ -10,7 +12,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [showRoleChooser, setShowRoleChooser] = useState(false)
-  const { signIn } = useAuth()
+  const { signIn, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,6 +27,18 @@ const Login: React.FC = () => {
 
       const user = (data as any)?.user as any
       const role = user?.user_metadata?.role as string | undefined
+
+      if (isSupabaseConfigured && user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, role, first_name, last_name')
+          .eq('id', user.id)
+          .maybeSingle()
+        const completeness = checkProfileCompleteness(profile)
+        if (!profile || !completeness.isComplete) {
+          await createIncompleteProfileNotification(user.id)
+        }
+      }
 
       if (role === 'admin') {
         navigate('/admin/dashboard')
@@ -43,8 +57,12 @@ const Login: React.FC = () => {
     }
   }
 
-  const handleMicrosoftSignIn = () => {
-    toast.error('Microsoft sign-in is not configured yet.')
+  const handleGoogleSignIn = async () => {
+    const { error } = await signInWithGoogle()
+    if (error) {
+      toast.error(error.message || 'Google sign-in is not configured yet.')
+    }
+    // If no error, Supabase redirects to Google then back to /auth/callback
   }
 
   return (
@@ -63,33 +81,20 @@ const Login: React.FC = () => {
               Back to home
             </button>
 
-            {/* Info banner */}
-            <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 flex items-start space-x-3 text-xs text-blue-900">
-              <div className="mt-0.5">
-                <FaInfoCircle className="h-4 w-4 text-blue-500" />
-              </div>
-              <div>
-                <p className="font-medium">Only school email addresses are accepted</p>
-                <p className="mt-1 text-[11px] text-blue-800">
-                  Use your <span className="font-semibold">@dyci.edu.ph</span> email account
-                </p>
-              </div>
-            </div>
-
-            {/* Microsoft sign-in */}
+            {/* Google sign-in */}
             <button
               type="button"
-              onClick={handleMicrosoftSignIn}
-              className="w-full inline-flex items-center justify-center space-x-2 rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-medium py-3 shadow-sm transition-colors"
+              onClick={handleGoogleSignIn}
+              className="w-full inline-flex items-center justify-center space-x-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium py-3 shadow-sm hover:bg-slate-50 transition-colors"
             >
-              <FaMicrosoft className="h-4 w-4" />
-              <span>Sign in with Microsoft</span>
+              <FaGoogle className="h-4 w-4" />
+              <span>Sign in with Google</span>
             </button>
 
             {/* Divider */}
             <div className="my-6 flex items-center text-xs text-gray-400">
               <div className="flex-1 h-px bg-gray-200" />
-              <span className="px-3">Or continue with school email</span>
+              <span className="px-3">Or continue with email</span>
               <div className="flex-1 h-px bg-gray-200" />
             </div>
 
@@ -100,7 +105,7 @@ const Login: React.FC = () => {
                   htmlFor="email"
                   className="block text-xs font-medium text-gray-700"
                 >
-                  School email address
+                  Email address
                 </label>
                 <div className="mt-1 flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                   <FaEnvelope className="h-4 w-4 text-gray-400 mr-3" />
@@ -113,7 +118,7 @@ const Login: React.FC = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full border-0 bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0"
-                    placeholder="student@dyci.edu.ph"
+                    placeholder="you@example.com"
                   />
                 </div>
               </div>
@@ -160,7 +165,7 @@ const Login: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="mt-2 w-full inline-flex justify-center rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="mt-2 w-full inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
@@ -194,7 +199,7 @@ const Login: React.FC = () => {
               DYCI CONNECT
             </h1>
             <p className="mt-2 text-sm text-blue-100">
-              Sign in with your school account
+              Sign in with your account
             </p>
           </div>
         </div>

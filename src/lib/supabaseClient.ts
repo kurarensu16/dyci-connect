@@ -43,6 +43,10 @@ const createMockSupabase = () => {
         data: { session: null },
         error: { message: 'Supabase not configured' },
       }),
+      signInWithOAuth: async () => ({
+        data: null,
+        error: { message: 'Supabase not configured' },
+      }),
     },
     from: () => {
       throw new Error('Supabase not configured')

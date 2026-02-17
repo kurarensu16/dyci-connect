@@ -9,6 +9,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, role: string, userData: any) => Promise<{ data: any; error: any }>
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>
   signOut: () => Promise<{ error: any }>
+  signInWithGoogle: () => Promise<{ error: any }>
   resetPassword: (email: string) => Promise<{ data: any; error: any }>
   updatePassword: (currentPassword: string, newPassword: string) => Promise<{ error: any }>
 }
@@ -149,6 +150,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return { error }
   }
 
+  const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Google sign-in is not configured.' } }
+    }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+    return { error }
+  }
+
   const resetPassword = async (email: string) => {
     const redirectTo = `${window.location.origin}/reset-password`
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
@@ -176,6 +190,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signUp,
     signIn,
     signOut,
+    signInWithGoogle,
     resetPassword,
     updatePassword,
   }

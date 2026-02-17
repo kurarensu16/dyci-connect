@@ -14,9 +14,11 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaUserCircle,
+  FaBell,
 } from 'react-icons/fa'
 import { MdSpaceDashboard } from "react-icons/md";
 import { useAuth } from '../../contexts/AuthContext'
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import logo from '../../assets/imgs/logo-connect.png'
 
 interface AdminLayoutProps {
@@ -29,13 +31,34 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { user, signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  React.useEffect(() => {
+    const loadUnreadCount = async () => {
+      if (!isSupabaseConfigured || !user?.id) {
+        setUnreadCount(0)
+        return
+      }
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false)
+      setUnreadCount(count || 0)
+    }
+    loadUnreadCount()
+    const interval = setInterval(loadUnreadCount, 30000)
+    return () => clearInterval(interval)
+  }, [user?.id])
 
   const navItems: Array<{
     label: string
     icon: React.ComponentType<{ className?: string }>
     path: string
+    badge?: number
   }> = [
     { label: 'Dashboard', icon: MdSpaceDashboard, path: '/admin/dashboard' },
+    { label: 'Notifications', icon: FaBell, path: '/admin/notifications', badge: unreadCount },
     { label: 'User Management', icon: FaUsers, path: '/admin/users' },
     { label: 'Conforme Monitoring', icon: FaCheckSquare, path: '/admin/conforme' },
     { label: 'Support Chat', icon: FaComments, path: '/admin/support' },
@@ -98,10 +121,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 onClick={() => navigate(item.path)}
                 className={`${baseClasses} ${
                   isActive ? 'bg-blue-700 text-white' : 'text-slate-700 hover:bg-slate-100'
-                } ${collapsed ? 'justify-center' : 'space-x-3'}`}
+                } ${collapsed ? 'justify-center' : 'space-x-3'} relative`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {!collapsed && <span>{item.label}</span>}
+                {Number(item.badge) > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-4 flex items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white px-1">
+                    {Number(item.badge) > 99 ? '99+' : item.badge}
+                  </span>
+                )}
               </button>
             )
           })}
@@ -168,7 +196,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                       navigate(item.path)
                       setMobileOpen(false)
                     }}
-                    className={`${baseClasses} ${
+                    className={`${baseClasses} relative ${
                       isActive
                         ? 'bg-blue-700 text-white'
                         : 'text-slate-700 hover:bg-slate-100'
@@ -176,6 +204,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                   >
                     <Icon className="h-3.5 w-3.5" />
                     <span>{item.label}</span>
+                    {Number(item.badge) > 0 && (
+                      <span className="ml-auto h-4 min-w-4 flex items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white px-1">
+                        {Number(item.badge) > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
                   </button>
                 )
               })}
