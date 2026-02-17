@@ -18,10 +18,29 @@ const ResetPassword: React.FC = () => {
       setReady(false)
       return
     }
-    supabase.auth.getSession().then(({ data: { session } }) => {
+
+    const run = async () => {
+      const params = new URLSearchParams(window.location.search)
+      const code = params.get('code')
+
+      // PKCE flow: Supabase redirects with ?code=... instead of #access_token=...
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!error && data.session) {
+          window.history.replaceState({}, '', window.location.pathname)
+          setChecking(false)
+          setReady(true)
+          return
+        }
+      }
+
+      // Implicit flow: tokens in hash; getSession() may already have picked them up
+      const { data: { session } } = await supabase.auth.getSession()
       setChecking(false)
       setReady(!!session)
-    })
+    }
+
+    run()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,12 +77,28 @@ const ResetPassword: React.FC = () => {
   }
 
   if (!ready) {
+    const hasEmptyHash = window.location.hash === '' || window.location.hash === '#'
+    const noParams = !window.location.search && hasEmptyHash
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-xl px-6 sm:px-8 py-8 text-center space-y-4">
-          <h1 className="text-lg font-semibold text-slate-900">Invalid or expired link</h1>
+          <h1 className="text-lg font-semibold text-slate-900">
+            {noParams ? 'Reset link incomplete' : 'Invalid or expired link'}
+          </h1>
           <p className="text-sm text-slate-600">
-            This password reset link is invalid or has expired. Request a new one from the login page.
+            {noParams ? (
+              <>
+                The link opened without the security code. This often happens when the link is
+                truncated or opened from certain email clients. Try:{' '}
+                <strong>request a new link</strong> below, then open it in Chrome or Edge, or copy
+                the full link from the email and paste it into your browser&apos;s address bar. Also
+                ensure <strong>https://dyci-connect.vercel.app/reset-password</strong> is in your
+                Supabase project&apos;s Redirect URLs (Authentication → URL Configuration).
+              </>
+            ) : (
+              'This password reset link is invalid or has expired. Request a new one from the login page.'
+            )}
           </p>
           <Link
             to="/forgot-password"
