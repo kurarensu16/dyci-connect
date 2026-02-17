@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 
 const StudentProfile: React.FC = () => {
-  const { user } = useAuth()
+  const { user, updatePassword } = useAuth()
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +42,13 @@ const StudentProfile: React.FC = () => {
     city?: string
     province?: string
   }>({})
+  const [passwordOpen, setPasswordOpen] = useState(false)
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -427,6 +434,45 @@ const StudentProfile: React.FC = () => {
     setAvatarOpen(true)
   }
 
+  const openPasswordModal = () => {
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    setPasswordOpen(true)
+  }
+
+  const handlePasswordFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setPasswordForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const { currentPassword, newPassword, confirmPassword } = passwordForm
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error('Please fill in all fields.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('New password and confirmation do not match.')
+      return
+    }
+    if (newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters.')
+      return
+    }
+    setPasswordSaving(true)
+    try {
+      const { error } = await updatePassword(currentPassword, newPassword)
+      if (error) {
+        toast.error(error.message || 'Failed to update password.')
+        return
+      }
+      toast.success('Password updated. Use your new password next time you sign in.')
+      setPasswordOpen(false)
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -618,8 +664,10 @@ const StudentProfile: React.FC = () => {
           <button
             type="button"
             className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+            onClick={openPasswordModal}
+            disabled={!isSupabaseConfigured}
           >
-            Change password (coming soon)
+            Change password
           </button>
         </section>
       </div>
@@ -1044,6 +1092,72 @@ const StudentProfile: React.FC = () => {
                     className="w-full sm:w-auto inline-flex justify-center rounded-xl bg-blue-700 hover:bg-blue-800 px-4 py-2 text-[11px] font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {avatarSaving ? 'Saving…' : 'Save picture'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Change password modal */}
+        {passwordOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-6 space-y-4 text-[11px]">
+              <h2 className="text-sm font-semibold text-slate-900">Change password</h2>
+              <p className="text-slate-500">
+                Enter your current password, then choose a new password (at least 6 characters).
+              </p>
+              <form className="space-y-3" onSubmit={handlePasswordSubmit}>
+                <div className="space-y-1">
+                  <label className="block font-medium text-slate-700">Current password</label>
+                  <input
+                    type="password"
+                    name="currentPassword"
+                    value={passwordForm.currentPassword}
+                    onChange={handlePasswordFormChange}
+                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-medium text-slate-700">New password</label>
+                  <input
+                    type="password"
+                    name="newPassword"
+                    value={passwordForm.newPassword}
+                    onChange={handlePasswordFormChange}
+                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-medium text-slate-700">Confirm new password</label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={passwordForm.confirmPassword}
+                    onChange={handlePasswordFormChange}
+                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-2 sm:space-y-0 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setPasswordOpen(false)}
+                    className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={passwordSaving}
+                    className="w-full sm:w-auto inline-flex justify-center rounded-xl bg-blue-700 hover:bg-blue-800 px-4 py-2 text-[11px] font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {passwordSaving ? 'Updating…' : 'Update password'}
                   </button>
                 </div>
               </form>

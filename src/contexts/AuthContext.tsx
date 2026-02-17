@@ -10,6 +10,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>
   signOut: () => Promise<{ error: any }>
   resetPassword: (email: string) => Promise<{ data: any; error: any }>
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<{ error: any }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -149,8 +150,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const resetPassword = async (email: string) => {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email)
+    const redirectTo = `${window.location.origin}/reset-password`
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
     return { data, error }
+  }
+
+  const updatePassword = async (currentPassword: string, newPassword: string) => {
+    if (!isSupabaseConfigured || !user?.email) {
+      return { error: { message: 'Not available in this environment.' } }
+    }
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    })
+    if (signInError) {
+      return { error: { message: 'Current password is incorrect.' } }
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    return { error }
   }
 
   const value: AuthContextType = {
@@ -159,7 +176,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signUp,
     signIn,
     signOut,
-    resetPassword
+    resetPassword,
+    updatePassword,
   }
 
   return (

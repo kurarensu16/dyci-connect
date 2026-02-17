@@ -10,6 +10,8 @@ import Login from './pages/auth/Login'
 import Signup from './pages/auth/Signup'
 import ConformePage from './pages/auth/Conforme'
 import AuthCallback from './pages/auth/AuthCallback'
+import ForgotPassword from './pages/auth/ForgotPassword'
+import ResetPassword from './pages/auth/ResetPassword'
 import NotFound from './pages/NotFound'
 
 // Student Pages
@@ -58,6 +60,8 @@ const AppContent: React.FC = () => {
         <Route path="/signup/*" element={<Signup defaultRole="student" />} />
         <Route path="/signup/conforme" element={<ConformePage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Student Routes */}
         <Route
