@@ -1,5 +1,18 @@
 import { supabase } from '../lib/supabaseClient'
 
+/**
+ * Get auth provider from Supabase user (email vs google).
+ * Uses app_metadata.provider first, then identities[0].provider.
+ */
+export const getAuthProvider = (user: any): string => {
+  if (!user) return 'email'
+  const fromMeta = user?.app_metadata?.provider
+  if (fromMeta) return fromMeta
+  const fromIdentity = user?.identities?.[0]?.provider
+  if (fromIdentity) return fromIdentity
+  return 'email'
+}
+
 export interface ProfileCompleteness {
   isComplete: boolean
   missingFields: string[]

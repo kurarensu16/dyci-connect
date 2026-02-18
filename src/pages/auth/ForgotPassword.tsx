@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import toast from 'react-hot-toast'
 import { FaEnvelope, FaArrowLeft } from 'react-icons/fa'
 
@@ -19,6 +20,19 @@ const ForgotPassword: React.FC = () => {
     }
     setLoading(true)
     try {
+      if (isSupabaseConfigured) {
+        const { data: authProvider } = await supabase.rpc('get_auth_provider_for_email', {
+          em: email.trim(),
+        })
+        if (authProvider === 'google') {
+          toast.error(
+            'This account uses Google sign-in. Password reset is not available. Change your password from your Google Account settings.'
+          )
+          setLoading(false)
+          return
+        }
+      }
+
       const { error } = await resetPassword(email.trim())
       if (error) {
         toast.error(error.message || 'Failed to send reset email.')
@@ -73,7 +87,8 @@ const ForgotPassword: React.FC = () => {
         </button>
         <h1 className="text-lg font-semibold text-slate-900">Forgot password?</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Enter your school email and we’ll send you a link to reset your password.
+          This is only for accounts that sign in with email and password. If you usually sign in
+          with Google, please change your password from your Google Account settings instead.
         </p>
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-1">
