@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 import type { User } from '../types'
+import { getAuthProvider } from '../utils/profileUtils'
 
 interface AuthContextType {
   user: User | null
@@ -127,10 +128,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const signedInUser = (data as any).user as User
       setUser(signedInUser)
 
-      // Update last_sign_in timestamp in profiles
+      // Update last_sign_in and auth_provider (email sign-in) in profiles
       await supabase
         .from('profiles')
-        .update({ last_login: new Date().toISOString() })
+        .update({
+          last_login: new Date().toISOString(),
+          auth_provider: 'email',
+        })
         .eq('id', signedInUser.id)
     }
 
@@ -173,6 +177,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!isSupabaseConfigured || !user?.email) {
       return { error: { message: 'Not available in this environment.' } }
     }
+
+    // For Google (and other OAuth-only) accounts, passwords are managed by the provider.
+    const provider = getAuthProvider(user)
+    if (provider !== 'email') {
+      return {
+        error: {
+          message:
+            'Your account uses Google sign-in. Change your password from your Google Account settings.',
+        },
+      }
+    }
+
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: user.email,
       password: currentPassword,

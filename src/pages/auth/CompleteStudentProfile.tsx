@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { FaArrowLeft, FaUser, FaIdBadge, FaImage } from 'react-icons/fa'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
+import { getAuthProvider } from '../../utils/profileUtils'
 
 const CompleteStudentProfile: React.FC = () => {
   const { user } = useAuth()
@@ -330,11 +331,14 @@ const CompleteStudentProfile: React.FC = () => {
         .filter(Boolean)
         .join(' ')
 
+      const authProvider = getAuthProvider(user)
+
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: user.id,
         email: user.email ?? '',
         student_employee_id: form.idNumber.trim(),
         role: 'student',
+        auth_provider: authProvider,
         first_name: form.firstName.trim(),
         middle_name: form.middleName.trim() || null,
         last_name: form.lastName.trim(),

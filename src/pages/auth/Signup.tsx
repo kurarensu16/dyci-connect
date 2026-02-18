@@ -380,6 +380,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
           email: form.email,
           student_employee_id: form.idNumber,
           role,
+          auth_provider: 'email',
           first_name: form.firstName,
           middle_name: form.middleName,
           last_name: form.lastName,

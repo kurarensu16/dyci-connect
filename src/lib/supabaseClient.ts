@@ -51,6 +51,10 @@ const createMockSupabase = () => {
     from: () => {
       throw new Error('Supabase not configured')
     },
+    rpc: async () => ({
+      data: null,
+      error: { message: 'Supabase not configured' },
+    }),
   }
 }
 

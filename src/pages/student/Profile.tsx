@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
+import { getAuthProvider } from '../../utils/profileUtils'
 
 const StudentProfile: React.FC = () => {
   const { user, updatePassword } = useAuth()
@@ -50,6 +51,9 @@ const StudentProfile: React.FC = () => {
     confirmPassword: '',
   })
 
+  const authProvider = getAuthProvider(user)
+  const isGoogleUser = authProvider === 'google'
+
   useEffect(() => {
     const loadProfile = async () => {
       if (!isSupabaseConfigured || !user?.id) {
@@ -74,6 +78,14 @@ const StudentProfile: React.FC = () => {
         // Load human-readable PSGC names for display
         if (data) {
           loadLocationNames(data)
+        }
+        // Sync auth_provider for Google users (fix rows that were saved as 'email')
+        const provider = getAuthProvider(user)
+        if (provider === 'google' && data?.auth_provider !== 'google') {
+          await supabase
+            .from('profiles')
+            .update({ auth_provider: 'google' })
+            .eq('id', user.id)
         }
       }
 
@@ -435,6 +447,12 @@ const StudentProfile: React.FC = () => {
   }
 
   const openPasswordModal = () => {
+    if (isGoogleUser) {
+      toast.error(
+        'Your account uses Google sign-in. Change your password from your Google Account settings.'
+      )
+      return
+    }
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
     setPasswordOpen(true)
   }
@@ -663,12 +681,17 @@ const StudentProfile: React.FC = () => {
           </button>
           <button
             type="button"
-            className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+            className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={openPasswordModal}
-            disabled={!isSupabaseConfigured}
+            disabled={!isSupabaseConfigured || isGoogleUser}
           >
             Change password
           </button>
+          {isGoogleUser && (
+            <p className="mt-1 text-[10px] text-slate-500">
+              You sign in with Google. To change your password, go to your Google Account settings.
+            </p>
+          )}
         </section>
       </div>
 
