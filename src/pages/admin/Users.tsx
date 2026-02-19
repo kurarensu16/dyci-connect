@@ -21,7 +21,7 @@ interface AdminUserRow {
   email: string
   userId: string
   avatarUrl?: string
-   verified: boolean
+  verified: boolean
   role: Role
   status: Status
   lastLogin: string
@@ -59,7 +59,9 @@ const Users: React.FC = () => {
   const [createSaving, setCreateSaving] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createForm, setCreateForm] = useState({
-    fullName: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
     email: '',
     role: 'student' as 'student' | 'faculty' | 'admin',
     idNumber: '',
@@ -93,7 +95,7 @@ const Users: React.FC = () => {
           if (dbRole === 'admin') role = 'Admin'
           else if (dbRole === 'faculty') role = 'Faculty'
           else role = 'Student'
-        
+
           const verified = row.verified === true
 
           const status: Status =
@@ -285,11 +287,10 @@ const Users: React.FC = () => {
                   key={role}
                   type="button"
                   onClick={() => setRoleFilter(role)}
-                  className={`px-2 py-1 rounded-xl font-medium ${
-                    roleFilter === role
+                  className={`px-2 py-1 rounded-xl font-medium ${roleFilter === role
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'text-slate-600 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   {role}
                 </button>
@@ -301,7 +302,9 @@ const Users: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setCreateForm({
-                    fullName: '',
+                    firstName: '',
+                    middleName: '',
+                    lastName: '',
                     email: '',
                     role: 'student',
                     idNumber: '',
@@ -419,9 +422,8 @@ const Users: React.FC = () => {
                 return (
                   <div
                     key={u.id}
-                    className={`grid grid-cols-1 md:grid-cols-12 px-3 py-3 gap-3 md:gap-0 items-start md:items-center hover:bg-slate-50 ${
-                      isSelected ? 'bg-slate-50' : ''
-                    }`}
+                    className={`grid grid-cols-1 md:grid-cols-12 px-3 py-3 gap-3 md:gap-0 items-start md:items-center hover:bg-slate-50 ${isSelected ? 'bg-slate-50' : ''
+                      }`}
                     onClick={() => openReviewModal(u)}
                   >
                     {/* User info */}
@@ -765,18 +767,45 @@ const Users: React.FC = () => {
                   }, 400)
                 }}
               >
-                <div className="space-y-1">
-                  <label className="block font-medium text-slate-700">Full name</label>
-                  <input
-                    type="text"
-                    value={createForm.fullName}
-                    onChange={(e) =>
-                      setCreateForm((prev) => ({ ...prev, fullName: e.target.value }))
-                    }
-                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="e.g. Juan Dela Cruz"
-                    required
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="block font-medium text-slate-700">First name</label>
+                    <input
+                      type="text"
+                      value={createForm.firstName}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({ ...prev, firstName: e.target.value }))
+                      }
+                      className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Juan"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block font-medium text-slate-700">Middle name</label>
+                    <input
+                      type="text"
+                      value={createForm.middleName}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({ ...prev, middleName: e.target.value }))
+                      }
+                      className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Dela"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block font-medium text-slate-700">Last name</label>
+                    <input
+                      type="text"
+                      value={createForm.lastName}
+                      onChange={(e) =>
+                        setCreateForm((prev) => ({ ...prev, lastName: e.target.value }))
+                      }
+                      className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Cruz"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1">
