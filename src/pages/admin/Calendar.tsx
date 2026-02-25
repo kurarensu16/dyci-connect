@@ -8,21 +8,6 @@ interface CalendarEvent {
   type: EventType
 }
 
-const events: CalendarEvent[] = [
-  { date: '2025-12-15', title: 'Final', type: 'exam' },
-  { date: '2025-12-16', title: 'Final', type: 'exam' },
-  { date: '2025-12-17', title: 'Final', type: 'exam' },
-  { date: '2025-12-18', title: 'Final', type: 'exam' },
-  { date: '2025-12-19', title: 'Final', type: 'exam' },
-  { date: '2025-12-20', title: 'End of First', type: 'class' },
-  { date: '2025-12-21', title: 'Christmas', type: 'holiday' },
-  { date: '2025-12-25', title: 'Christmas', type: 'holiday' },
-  { date: '2025-12-30', title: 'Rizal Day', type: 'holiday' },
-]
-
-const getEventsForDate = (iso: string) =>
-  events.filter((e) => e.date === iso)
-
 const eventBadgeClasses: Record<EventType, string> = {
   holiday: 'bg-rose-500',
   exam: 'bg-orange-500',
@@ -39,11 +24,18 @@ const legendLabel: Record<EventType, string> = {
   event: 'Events',
 }
 
-const AdminCalendar: React.FC = () => {
-  const [selectedDate, setSelectedDate] = useState<string>('2025-12-20')
+const Calendar: React.FC = () => {
+  // STATES
+  const [currentYear, setCurrentYear] = useState(2025)
+  const [currentMonth, setCurrentMonth] = useState(6) // July = 6
+  const [selectedDate, setSelectedDate] = useState<string>('2025-07-01')
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [newEventTitle, setNewEventTitle] = useState('')
+  const [newEventType, setNewEventType] = useState<EventType>('holiday')
 
-  const daysInMonth = 31
-  const firstDayOfWeek = new Date('2025-12-01').getDay()
+  // DYNAMIC DAYS
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+  const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay()
 
   const weeks: Array<Array<number | null>> = []
   let currentDay = 1 - firstDayOfWeek
@@ -60,50 +52,72 @@ const AdminCalendar: React.FC = () => {
     weeks.push(week)
   }
 
+  const getEventsForDate = (iso: string) =>
+    events.filter((e) => e.date === iso)
+
+  const monthName = new Date(currentYear, currentMonth).toLocaleString(
+    'default',
+    { month: 'long' }
+  )
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header bar */}
+      {/* HEADER */}
       <header className="bg-blue-800 text-white shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
           <div>
             <p className="text-xl font-semibold">School Calendar Editor</p>
             <p className="mt-1 text-xs text-blue-100">
-              Manage academic calendar events for 2025–2026
+              Manage academic calendar events (July 2025 – July 2026)
             </p>
           </div>
-          <button
-            type="button"
-            className="inline-flex items-center rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 shadow-sm"
-          >
-            + Add Event
-          </button>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Calendar editor */}
+          {/* CALENDAR */}
           <div className="lg:col-span-2 bg-white rounded-lg border border-slate-100 shadow-sm">
-            {/* Month bar */}
+            {/* MONTH BAR */}
             <div className="bg-blue-700 text-white flex items-center justify-between px-4 py-3 rounded-t-lg">
+              {/* PREV */}
               <button
-                type="button"
-                className="h-7 w-7 inline-flex items-center justify-center rounded-full border border-blue-400 text-white/90"
+                onClick={() => {
+                  if (currentYear === 2025 && currentMonth === 6) return
+                  if (currentMonth === 0) {
+                    setCurrentMonth(11)
+                    setCurrentYear(currentYear - 1)
+                  } else {
+                    setCurrentMonth(currentMonth - 1)
+                  }
+                }}
+                className="h-7 w-7 inline-flex items-center justify-center rounded-full border border-blue-400"
               >
                 {'<'}
               </button>
-              <div className="text-xs text-center">
-                <p className="font-semibold">December 2025</p>
-              </div>
+
+              <p className="font-semibold">
+                {monthName} {currentYear}
+              </p>
+
+              {/* NEXT */}
               <button
-                type="button"
-                className="h-7 w-7 inline-flex items-center justify-center rounded-full border border-blue-400 text-white/90"
+                onClick={() => {
+                  if (currentYear === 2026 && currentMonth === 6) return
+                  if (currentMonth === 11) {
+                    setCurrentMonth(0)
+                    setCurrentYear(currentYear + 1)
+                  } else {
+                    setCurrentMonth(currentMonth + 1)
+                  }
+                }}
+                className="h-7 w-7 inline-flex items-center justify-center rounded-full border border-blue-400"
               >
                 {'>'}
               </button>
             </div>
 
-            {/* Weekdays */}
+            {/* WEEKDAYS */}
             <div className="px-4 pt-3 pb-1 grid grid-cols-7 text-[11px] font-medium text-slate-500">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
                 <div key={d} className="text-center">
@@ -112,7 +126,7 @@ const AdminCalendar: React.FC = () => {
               ))}
             </div>
 
-            {/* Days grid */}
+            {/* DAYS GRID */}
             <div className="px-4 pb-4 space-y-1">
               {weeks.map((week, wi) => (
                 <div key={wi} className="grid grid-cols-7 text-xs">
@@ -126,17 +140,23 @@ const AdminCalendar: React.FC = () => {
                       )
                     }
 
-                    const iso = `2025-12-${day.toString().padStart(2, '0')}`
+                    const iso = `${currentYear}-${(currentMonth + 1)
+                      .toString()
+                      .padStart(2, '0')}-${day
+                      .toString()
+                      .padStart(2, '0')}`
+
                     const dayEvents = getEventsForDate(iso)
                     const isSelected = selectedDate === iso
 
                     return (
                       <button
                         key={di}
-                        type="button"
                         onClick={() => setSelectedDate(iso)}
-                        className={`h-16 border border-slate-100 text-left px-2 py-1 align-top ${
-                          isSelected ? 'bg-blue-50' : 'bg-white hover:bg-slate-50'
+                        className={`h-16 border border-slate-100 text-left px-2 py-1 ${
+                          isSelected
+                            ? 'bg-blue-50'
+                            : 'bg-white hover:bg-slate-50'
                         }`}
                       >
                         <div className="flex justify-between items-center mb-1">
@@ -150,6 +170,7 @@ const AdminCalendar: React.FC = () => {
                             {day}
                           </span>
                         </div>
+
                         <div className="space-y-0.5">
                           {dayEvents.map((ev, idx) => (
                             <span
@@ -168,21 +189,68 @@ const AdminCalendar: React.FC = () => {
             </div>
           </div>
 
-          {/* Right panel: manage events */}
-          <aside className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-4 flex flex-col items-center justify-center text-center text-xs text-slate-500">
-            <p className="font-semibold text-slate-900 mb-2">
-              Click a date to manage events
-            </p>
-            <div className="h-14 w-14 rounded-full border border-slate-200 flex items-center justify-center mb-2">
-              <span className="text-slate-400 text-2xl">📅</span>
+          {/* RIGHT PANEL - MANAGE EVENTS */}
+          <aside className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-4 text-xs">
+            <p className="font-semibold mb-2">Manage Events</p>
+            <p className="mb-2 text-slate-600">Selected: {selectedDate}</p>
+
+            <input
+              type="text"
+              placeholder="Event title"
+              className="w-full border px-2 py-1 rounded mb-2"
+              value={newEventTitle}
+              onChange={(e) => setNewEventTitle(e.target.value)}
+            />
+
+            <select
+              className="w-full border px-2 py-1 rounded mb-2"
+              value={newEventType}
+              onChange={(e) =>
+                setNewEventType(e.target.value as EventType)
+              }
+            >
+              <option value="holiday">Holiday</option>
+              <option value="exam">Exam</option>
+              <option value="class">Class</option>
+              <option value="enrollment">Enrollment</option>
+              <option value="event">Event</option>
+            </select>
+
+            <button
+              className="w-full bg-blue-700 text-white py-1 rounded"
+              onClick={() => {
+                if (!newEventTitle) return
+                setEvents([
+                  ...events,
+                  { date: selectedDate, title: newEventTitle, type: newEventType },
+                ])
+                setNewEventTitle('')
+              }}
+            >
+              Add Event
+            </button>
+
+            <div className="mt-4 space-y-1">
+              {events
+                .filter((e) => e.date === selectedDate)
+                .map((e, i) => (
+                  <div key={i} className="flex justify-between items-center">
+                    <span>{e.title}</span>
+                    <button
+                      className="text-red-500"
+                      onClick={() =>
+                        setEvents(events.filter((_, idx) => idx !== i))
+                      }
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
             </div>
-            <p className="text-[11px] text-slate-500">
-              Select a date in the calendar to add, edit, or remove events.
-            </p>
           </aside>
         </section>
 
-        {/* Legend */}
+        {/* LEGEND */}
         <section className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
           <h3 className="text-sm font-semibold text-slate-900 mb-3">
             Event Types
@@ -203,6 +271,4 @@ const AdminCalendar: React.FC = () => {
   )
 }
 
-export default AdminCalendar
-
-
+export default Calendar
