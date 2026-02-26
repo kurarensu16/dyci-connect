@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
 import toast from 'react-hot-toast'
-import { FaPlus, FaTrash, FaCalculator, FaListCheck } from 'react-icons/fa6'
+import { FaPlus, FaTrash, FaCalculator, FaListCheck, FaMoon, FaStar, FaPen, FaCheck } from 'react-icons/fa6'
 import type { Grade } from '../../types'
 
 type ToolsTab = 'gwa' | 'todo'
@@ -14,7 +14,6 @@ interface GradeInput {
 }
 
 type TodoPriority = 'High' | 'Medium' | 'Low'
-type TodoFilter = 'all' | 'active' | 'completed'
 
 interface TodoItem {
   id: number
@@ -41,7 +40,8 @@ const Tools: React.FC = () => {
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [newTodoLabel, setNewTodoLabel] = useState<string>('')
   const [newTodoPriority, setNewTodoPriority] = useState<TodoPriority>('Medium')
-  const [todoFilter, setTodoFilter] = useState<TodoFilter>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isAddingTask, setIsAddingTask] = useState(false)
 
   useEffect(() => {
     if (activeTab === 'gwa') {
@@ -180,18 +180,17 @@ const Tools: React.FC = () => {
     setTodos((prev) => prev.filter((t) => t.id !== id))
   }
 
-  const filteredTodos = todos.filter((t) => {
-    if (todoFilter === 'active') return !t.done
-    if (todoFilter === 'completed') return t.done
-    return true
-  })
+  const filteredBySearch = todos.filter((t) =>
+    t.label.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  const activeTodos = filteredBySearch.filter((t) => !t.done)
+  const completedTodos = filteredBySearch.filter((t) => t.done)
 
-  const prioritySelectClasses =
-    newTodoPriority === 'High'
-      ? 'bg-amber-50 text-amber-800 border-amber-200'
-      : newTodoPriority === 'Medium'
-        ? 'bg-blue-50 text-blue-700 border-blue-200'
-        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+  const totalTasks = todos.length
+  const completedCount = todos.filter((t) => t.done).length
+  const pendingCount = todos.filter((t) => !t.done).length
+  const completionRate =
+    totalTasks === 0 ? 0 : Math.round((completedCount / totalTasks) * 100)
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -211,11 +210,10 @@ const Tools: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('gwa')}
-                className={`flex items-center border-b-2 py-3 px-1 transition-colors ${
-                  activeTab === 'gwa'
-                    ? 'border-white text-white'
-                    : 'border-transparent text-blue-100 hover:text-white'
-                }`}
+                className={`flex items-center border-b-2 py-3 px-1 transition-colors ${activeTab === 'gwa'
+                  ? 'border-white text-white'
+                  : 'border-transparent text-blue-100 hover:text-white'
+                  }`}
               >
                 <FaCalculator className="mr-2 h-4 w-4" />
                 GWA Calculator
@@ -223,11 +221,10 @@ const Tools: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('todo')}
-                className={`flex items-center border-b-2 py-3 px-1 transition-colors ${
-                  activeTab === 'todo'
-                    ? 'border-white text-white'
-                    : 'border-transparent text-blue-100 hover:text-white'
-                }`}
+                className={`flex items-center border-b-2 py-3 px-1 transition-colors ${activeTab === 'todo'
+                  ? 'border-white text-white'
+                  : 'border-transparent text-blue-100 hover:text-white'
+                  }`}
               >
                 <FaListCheck className="mr-2 h-4 w-4" />
                 To-Do List
@@ -250,13 +247,12 @@ const Tools: React.FC = () => {
                 </p>
               </div>
               <span
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md ${
-                  gwa === null
-                    ? 'bg-slate-100 text-slate-600'
-                    : gwa <= 3
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-rose-100 text-rose-700'
-                }`}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md ${gwa === null
+                  ? 'bg-slate-100 text-slate-600'
+                  : gwa <= 3
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-rose-100 text-rose-700'
+                  }`}
               >
                 {gwa === null ? 'N/A' : gwa <= 3 ? 'PASS' : 'FAILED'}
               </span>
@@ -375,141 +371,236 @@ const Tools: React.FC = () => {
         )}
 
         {activeTab === 'todo' && (
-          <>
-            {/* Header + filters card */}
-            <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-5 sm:p-6">
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-base sm:text-lg font-semibold text-slate-900">
-                    Today Tasks
-                  </h2>
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Lightweight checklist for your DYCI work today.
-                  </p>
+          <div className="bg-white rounded-[1.25rem] shadow-sm border border-slate-100 p-4 sm:p-5 flex flex-col md:flex-row gap-0 sm:gap-5">
+            <div className="flex-1 flex flex-col min-w-0">
+              {/* Top Bar with Search */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 mb-6">
+                <div className="flex-1 bg-slate-50 rounded-full px-4 py-1.5 flex items-center w-full max-w-xs">
+                  <input
+                    type="text"
+                    placeholder="Search task..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="bg-transparent border-none outline-none w-full text-[13px] text-slate-700 placeholder-slate-400 focus:ring-0"
+                  />
                 </div>
-                <div className="flex items-center gap-2" />
-              </div>
-
-              {/* Filter row */}
-              <div className="flex items-center justify-between text-[11px] text-slate-600">
-                <div className="space-x-2">
-                  {(['all', 'active', 'completed'] as TodoFilter[]).map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setTodoFilter(f)}
-                      className={`px-2 py-1 rounded-full border text-[11px] ${
-                        todoFilter === f
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Completed'}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-[11px] text-slate-500">
-                  {filteredTodos.length} task{filteredTodos.length === 1 ? '' : 's'}
-                </span>
-              </div>
-            </div>
-
-            {/* Task list + add controls card */}
-            <div className="mt-4 bg-white rounded-2xl shadow-md border border-slate-100 p-5 sm:p-6">
-              {/* Todo list styled like simple task rows */}
-              <div className="space-y-1">
-                {filteredTodos.map((todo) => (
-                  <div
-                    key={todo.id}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5 text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={todo.done}
-                        onChange={() => toggleTodo(todo.id)}
-                        className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div>
-                        <p
-                          className={`text-slate-800 ${
-                            todo.done ? 'line-through text-slate-400' : ''
-                          }`}
-                        >
-                          {todo.label}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          todo.priority === 'High'
-                            ? 'bg-amber-100 text-amber-700'
-                            : todo.priority === 'Medium'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-emerald-100 text-emerald-700'
-                        }`}
-                      >
-                        {todo.priority}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => deleteTodoItem(todo.id)}
-                        className="text-slate-400 hover:text-rose-500"
-                        aria-label="Delete task"
-                      >
-                        <FaTrash className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Bottom action row with add controls */}
-              <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex items-center rounded-xl bg-linear-to-r from-indigo-500 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:from-indigo-600 hover:to-indigo-700"
-                  >
-                    Finish
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button className="h-7 w-7 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-rose-50 hover:text-rose-500 transition-colors">
+                    <FaTrash className="w-3 h-3" />
+                  </button>
+                  <button className="h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center text-yellow-500 hover:bg-yellow-50 transition-colors">
+                    <FaStar className="w-3 h-3" />
                   </button>
                 </div>
+              </div>
+
+              <div className="mb-6">
+                {/* <p className="text-sm text-slate-500 mb-1">Hello there, what's up?</p> */}
+                <div className="flex flex-wrap items-baseline gap-3">
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-800">
+                    You've got <span className="text-blue-500">{activeTodos.length}</span> tasks today!
+                  </h2>
+                  <button
+                    onClick={() => setIsAddingTask(!isAddingTask)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white text-[11px] font-semibold px-3 py-1 rounded-full transition-colors"
+                  >
+                    Add New
+                  </button>
+                </div>
+              </div>
+
+              {isAddingTask && (
                 <form
-                  onSubmit={handleAddTodo}
-                  className="flex flex-1 flex-col sm:flex-row gap-2 justify-end"
+                  onSubmit={(e) => {
+                    handleAddTodo(e)
+                    setIsAddingTask(false)
+                  }}
+                  className="mb-8 bg-slate-50 p-4 rounded-2xl flex flex-col sm:flex-row gap-3"
                 >
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      value={newTodoLabel}
-                      onChange={(e) => setNewTodoLabel(e.target.value)}
-                      placeholder="Add a task"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={newTodoPriority}
-                      onChange={(e) => setNewTodoPriority(e.target.value as TodoPriority)}
-                      className={`rounded-xl border px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${prioritySelectClasses}`}
-                    >
-                      <option value="High">High</option>
-                      <option value="Medium">Medium</option>
-                      <option value="Low">Low</option>
-                    </select>
-                    <button
-                      type="submit"
-                      className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-                    >
-                      <FaPlus className="mr-1 h-3 w-3" />
-                      Add Task
-                    </button>
-                  </div>
+                  <input
+                    type="text"
+                    value={newTodoLabel}
+                    onChange={(e) => setNewTodoLabel(e.target.value)}
+                    placeholder="What do you need to do?"
+                    className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    autoFocus
+                  />
+                  <select
+                    value={newTodoPriority}
+                    onChange={(e) => setNewTodoPriority(e.target.value as TodoPriority)}
+                    className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-blue-500 text-slate-700"
+                  >
+                    <option value="High">High Priority</option>
+                    <option value="Medium">Medium Priority</option>
+                    <option value="Low">Low Priority</option>
+                  </select>
+                  <button
+                    type="submit"
+                    className="bg-blue-600 text-white rounded-xl px-6 py-2 text-sm font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    Add
+                  </button>
                 </form>
+              )}
+
+              {/* Ongoing tasks */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-base font-bold text-slate-800">Ongoing</h3>
+                  <button
+                    onClick={() => setTodos((prev) => prev.filter((t) => t.done))}
+                    className="bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors"
+                  >
+                    Delete All
+                  </button>
+                </div>
+                <div className="space-y-2.5">
+                  {activeTodos.length === 0 ? (
+                    <p className="text-[13px] text-slate-400 italic px-2">No ongoing tasks</p>
+                  ) : (
+                    activeTodos.map((todo) => (
+                      <div
+                        key={todo.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-0 bg-white border border-slate-100 shadow-xs rounded-[10px] px-4 py-2.5 transition-all hover:shadow-sm"
+                      >
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => toggleTodo(todo.id)}
+                            className="h-4 w-4 shrink-0 rounded-full border-2 border-slate-300 flex items-center justify-center hover:border-blue-500 transition-colors"
+                          ></button>
+                          <span className="text-[13px] font-medium text-slate-700 break-words">
+                            {todo.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 pl-7 sm:pl-0 shrink-0 flex-wrap sm:flex-nowrap">
+                          <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            Pending
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-3 py-1 rounded-full ${todo.priority === 'High'
+                              ? 'bg-rose-100 text-rose-700'
+                              : todo.priority === 'Medium'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                              }`}
+                          >
+                            {todo.priority === 'High'
+                              ? 'Critical'
+                              : todo.priority === 'Medium'
+                                ? 'Urgent'
+                                : 'Normal'}
+                          </span>
+                          <button className="h-6 w-6 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center hover:bg-amber-100 transition-colors">
+                            <FaPen className="w-2.5 h-2.5" />
+                          </button>
+                          <button
+                            onClick={() => deleteTodoItem(todo.id)}
+                            className="h-6 w-6 rounded-full bg-slate-50 text-slate-600 flex items-center justify-center hover:bg-rose-100 hover:text-rose-500 transition-colors"
+                          >
+                            <FaTrash className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Completed tasks */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-base font-bold text-slate-800">Completed</h3>
+                  <button
+                    onClick={() => setTodos((prev) => prev.filter((t) => !t.done))}
+                    className="bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors"
+                  >
+                    Delete All
+                  </button>
+                </div>
+                <div className="space-y-2.5">
+                  {completedTodos.length === 0 ? (
+                    <p className="text-[13px] text-slate-400 italic px-2">No completed tasks yet</p>
+                  ) : (
+                    completedTodos.map((todo) => (
+                      <div
+                        key={todo.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-0 bg-white border border-slate-100 shadow-xs rounded-[10px] px-4 py-2.5 opacity-75 transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => toggleTodo(todo.id)}
+                            className="h-4 w-4 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center text-white transition-colors"
+                          >
+                            <FaCheck className="w-2.5 h-2.5" />
+                          </button>
+                          <span className="text-[13px] font-medium text-slate-400 line-through break-words">
+                            {todo.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 pl-7 sm:pl-0 shrink-0 flex-wrap sm:flex-nowrap">
+                          <span className="bg-emerald-100 text-emerald-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            Completed
+                          </span>
+                          <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            Important
+                          </span>
+                          <button
+                            onClick={() => deleteTodoItem(todo.id)}
+                            className="h-6 w-6 rounded-full bg-slate-50 text-slate-600 flex items-center justify-center hover:bg-rose-100 hover:text-rose-500 transition-colors"
+                          >
+                            <FaTrash className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
-          </>
+
+            {/* Sidebar Summary */}
+            <div className="w-full md:w-64 bg-slate-50 rounded-[1.25rem] p-4 flex flex-col gap-4 shrink-0">
+              <h3 className="font-bold text-slate-800 text-base">Results Summary</h3>
+
+              <div className="bg-white rounded-[10px] p-4 shadow-xs border border-slate-100">
+                <p className="text-[11px] font-medium text-slate-500 mb-1">Completion Rate (%)</p>
+                <p className="text-2xl font-bold text-slate-800 mb-3">{completionRate}%</p>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-slate-700" style={{ width: `${completionRate}%` }}></div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[10px] p-4 shadow-xs border border-slate-100">
+                <p className="text-[11px] font-medium text-slate-500 mb-1">Total Task / 50</p>
+                <p className="text-2xl font-bold text-slate-800 mb-3">{totalTasks}</p>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500" style={{ width: `${(totalTasks / 50) * 100}%` }}></div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[10px] p-4 shadow-xs border border-slate-100">
+                <p className="text-[11px] font-medium text-slate-500 mb-1">Pending</p>
+                <p className="text-2xl font-bold text-slate-800 mb-3">{pendingCount}</p>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500"
+                    style={{ width: totalTasks === 0 ? '0%' : `${(pendingCount / totalTasks) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[10px] p-4 shadow-xs border border-slate-100">
+                <p className="text-[11px] font-medium text-slate-500 mb-1">Completed</p>
+                <p className="text-2xl font-bold text-slate-800 mb-3">{completedCount}</p>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500"
+                    style={{ width: totalTasks === 0 ? '0%' : `${(completedCount / totalTasks) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
