@@ -252,7 +252,7 @@ const Reports: React.FC = () => {
                   Top 5 Accessed Handbook Sections
                 </h2>
                 <div className="space-y-4">
-                  {topSections.length > 0 ? topSections.map((sec, idx) => {
+                  {topSections.length > 0 ? topSections.map((sec) => {
                     const maxViews = topSections[0].views || 1;
                     const percent = Math.max(5, Math.round((sec.views / maxViews) * 100));
                     return (

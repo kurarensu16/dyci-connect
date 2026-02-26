@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
 import toast from 'react-hot-toast'
-import { FaPlus, FaTrash, FaCalculator, FaListCheck, FaMoon, FaStar, FaPen, FaCheck } from 'react-icons/fa6'
+import { FaPlus, FaTrash, FaCalculator, FaListCheck, FaStar, FaPen, FaCheck } from 'react-icons/fa6'
 import type { Grade } from '../../types'
 
 type ToolsTab = 'gwa' | 'todo'
