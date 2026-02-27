@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -17,8 +17,12 @@ const createMockSupabase = () => {
         data: { session: null },
         error: { message: 'Supabase not configured' },
       }),
+      getUser: async () => ({
+        data: { user: null },
+        error: { message: 'Supabase not configured' },
+      }),
       onAuthStateChange: () => ({
-        data: { subscription: { unsubscribe: () => {} } },
+        data: { subscription: { unsubscribe: () => { } } },
       }),
       signUp: async () => ({
         data: null,
@@ -55,7 +59,13 @@ const createMockSupabase = () => {
       data: null,
       error: { message: 'Supabase not configured' },
     }),
-  }
+    functions: {
+      invoke: async () => ({
+        data: null,
+        error: { message: 'Supabase not configured' },
+      })
+    }
+  } as unknown as SupabaseClient
 }
 
 export const supabase =
