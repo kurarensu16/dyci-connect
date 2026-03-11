@@ -52,6 +52,12 @@ const createMockSupabase = () => {
         error: { message: 'Supabase not configured' },
       }),
     },
+    functions: {
+      invoke: async () => ({
+        data: null,
+        error: { message: 'Supabase not configured' },
+      }),
+    },
     from: () => {
       throw new Error('Supabase not configured')
     },
