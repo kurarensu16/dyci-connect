@@ -65,12 +65,6 @@ const createMockSupabase = () => {
       data: null,
       error: { message: 'Supabase not configured' },
     }),
-    functions: {
-      invoke: async () => ({
-        data: null,
-        error: { message: 'Supabase not configured' },
-      })
-    }
   } as unknown as SupabaseClient
 }
 
