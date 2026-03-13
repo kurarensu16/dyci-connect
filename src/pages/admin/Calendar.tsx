@@ -24,12 +24,37 @@ const legendLabel: Record<EventType, string> = {
   event: 'Events',
 }
 
+const monthOptions = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
 const Calendar: React.FC = () => {
   // STATES
   const [currentYear, setCurrentYear] = useState(2025)
   const [currentMonth, setCurrentMonth] = useState(6) // July = 6
   const [selectedDate, setSelectedDate] = useState<string>('2025-07-01')
+  const [selectedDates, setSelectedDates] = useState<string[]>(['2025-07-01'])
+  const [isTargetRunnerOpen, setIsTargetRunnerOpen] = useState(false)
+  const [eventTargetMode, setEventTargetMode] = useState<'multiple' | 'range'>(
+    'multiple'
+  )
+  const [targetAction, setTargetAction] = useState<'add' | 'delete'>('add')
+  const [manualTargetDate, setManualTargetDate] = useState('2025-07-01')
+  const [rangeStartDay, setRangeStartDay] = useState<number | ''>('')
+  const [rangeEndDay, setRangeEndDay] = useState<number | ''>('')
   const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [selectedEventIndexes, setSelectedEventIndexes] = useState<number[]>([])
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventType, setNewEventType] = useState<EventType>('holiday')
 
@@ -55,10 +80,58 @@ const Calendar: React.FC = () => {
   const getEventsForDate = (iso: string) =>
     events.filter((e) => e.date === iso)
 
-  const monthName = new Date(currentYear, currentMonth).toLocaleString(
-    'default',
-    { month: 'long' }
+  const toIsoByDay = (day: number) =>
+    `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day
+      .toString()
+      .padStart(2, '0')}`
+
+  const rangeDates =
+    rangeStartDay === '' || rangeEndDay === ''
+      ? []
+      : (() => {
+          const start = Math.min(rangeStartDay, rangeEndDay)
+          const end = Math.max(rangeStartDay, rangeEndDay)
+          if (start < 1 || end > daysInMonth) return []
+          const dates: string[] = []
+          for (let day = start; day <= end; day++) {
+            dates.push(toIsoByDay(day))
+          }
+          return dates
+        })()
+
+  const activeTargetDates = Array.from(
+    new Set(
+      eventTargetMode === 'range'
+        ? rangeDates
+        : selectedDates.length > 0
+          ? selectedDates
+          : [selectedDate]
+    )
   )
+
+  const runTargetAction = () => {
+    if (activeTargetDates.length === 0) return
+
+    if (targetAction === 'add') {
+      if (!newEventTitle.trim()) return
+      setEvents([
+        ...events,
+        ...activeTargetDates.map((date) => ({
+          date,
+          title: newEventTitle.trim(),
+          type: newEventType,
+        })),
+      ])
+      setNewEventTitle('')
+      setSelectedEventIndexes([])
+      setIsTargetRunnerOpen(false)
+      return
+    }
+
+    setEvents(events.filter((event) => !activeTargetDates.includes(event.date)))
+    setSelectedEventIndexes([])
+    setIsTargetRunnerOpen(false)
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -68,7 +141,7 @@ const Calendar: React.FC = () => {
           <div>
             <p className="text-xl font-semibold">School Calendar Editor</p>
             <p className="mt-1 text-xs text-blue-100">
-              Manage academic calendar events (July 2025 – July 2026)
+              Manage academic calendar events
             </p>
           </div>
         </div>
@@ -83,7 +156,6 @@ const Calendar: React.FC = () => {
               {/* PREV */}
               <button
                 onClick={() => {
-                  if (currentYear === 2025 && currentMonth === 6) return
                   if (currentMonth === 0) {
                     setCurrentMonth(11)
                     setCurrentYear(currentYear - 1)
@@ -96,14 +168,32 @@ const Calendar: React.FC = () => {
                 {'<'}
               </button>
 
-              <p className="font-semibold">
-                {monthName} {currentYear}
-              </p>
+              <div className="flex items-center gap-2">
+                <select
+                  className="bg-blue-600 border border-blue-400 rounded px-2 py-1 text-xs text-white"
+                  value={currentMonth}
+                  onChange={(e) => setCurrentMonth(Number(e.target.value))}
+                >
+                  {monthOptions.map((month, index) => (
+                    <option key={month} value={index} className="text-slate-900">
+                      {month}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  className="w-20 bg-blue-600 border border-blue-400 rounded px-2 py-1 text-xs text-white"
+                  value={currentYear}
+                  onChange={(e) => {
+                    const parsedYear = Number(e.target.value)
+                    if (!Number.isNaN(parsedYear)) setCurrentYear(parsedYear)
+                  }}
+                />
+              </div>
 
               {/* NEXT */}
               <button
                 onClick={() => {
-                  if (currentYear === 2026 && currentMonth === 6) return
                   if (currentMonth === 11) {
                     setCurrentMonth(0)
                     setCurrentYear(currentYear + 1)
@@ -148,16 +238,22 @@ const Calendar: React.FC = () => {
 
                     const dayEvents = getEventsForDate(iso)
                     const isSelected = selectedDate === iso
+                    const isMultiPicked = selectedDates.includes(iso)
+                    const isInRange = rangeDates.includes(iso)
 
                     return (
                       <button
                         key={di}
-                        onClick={() => setSelectedDate(iso)}
+                        onClick={() => {
+                          setSelectedDate(iso)
+                          setManualTargetDate(iso)
+                          setSelectedEventIndexes([])
+                        }}
                         className={`h-16 border border-slate-100 text-left px-2 py-1 ${
                           isSelected
                             ? 'bg-blue-50'
                             : 'bg-white hover:bg-slate-50'
-                        }`}
+                        } ${!isSelected && (isMultiPicked || isInRange) ? 'bg-blue-50/60' : ''}`}
                       >
                         <div className="flex justify-between items-center mb-1">
                           <span
@@ -193,54 +289,56 @@ const Calendar: React.FC = () => {
           <aside className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-4 text-xs">
             <p className="font-semibold mb-2">Manage Events</p>
             <p className="mb-2 text-slate-600">Selected: {selectedDate}</p>
-
-            <input
-              type="text"
-              placeholder="Event title"
-              className="w-full border px-2 py-1 rounded mb-2"
-              value={newEventTitle}
-              onChange={(e) => setNewEventTitle(e.target.value)}
-            />
-
-            <select
-              className="w-full border px-2 py-1 rounded mb-2"
-              value={newEventType}
-              onChange={(e) =>
-                setNewEventType(e.target.value as EventType)
-              }
-            >
-              <option value="holiday">Holiday</option>
-              <option value="exam">Exam</option>
-              <option value="class">Class</option>
-              <option value="enrollment">Enrollment</option>
-              <option value="event">Event</option>
-            </select>
-
             <button
               className="w-full bg-blue-700 text-white py-1 rounded"
-              onClick={() => {
-                if (!newEventTitle) return
-                setEvents([
-                  ...events,
-                  { date: selectedDate, title: newEventTitle, type: newEventType },
-                ])
-                setNewEventTitle('')
-              }}
+              onClick={() => setIsTargetRunnerOpen(true)}
             >
-              Add Event
+              Open Target Dates
             </button>
 
             <div className="mt-4 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="font-medium">Events on selected date</p>
+                <button
+                  className="text-red-500 disabled:text-slate-400"
+                  disabled={selectedEventIndexes.length === 0}
+                  onClick={() => {
+                    setEvents(
+                      events.filter((_, index) => !selectedEventIndexes.includes(index))
+                    )
+                    setSelectedEventIndexes([])
+                  }}
+                >
+                  Delete Selected ({selectedEventIndexes.length})
+                </button>
+              </div>
               {events
-                .filter((e) => e.date === selectedDate)
-                .map((e, i) => (
-                  <div key={i} className="flex justify-between items-center">
-                    <span>{e.title}</span>
+                .map((event, idx) => ({ event, idx }))
+                .filter(({ event }) => event.date === selectedDate)
+                .map(({ event, idx }) => (
+                  <div key={idx} className="flex justify-between items-center">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedEventIndexes.includes(idx)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedEventIndexes((prev) => [...prev, idx])
+                          } else {
+                            setSelectedEventIndexes((prev) =>
+                              prev.filter((value) => value !== idx)
+                            )
+                          }
+                        }}
+                      />
+                      <span>{event.title}</span>
+                    </label>
                     <button
                       className="text-red-500"
-                      onClick={() =>
-                        setEvents(events.filter((_, idx) => idx !== i))
-                      }
+                      onClick={() => {
+                        setEvents(events.filter((_, index) => index !== idx))
+                        setSelectedEventIndexes([])
+                      }}
                     >
                       Delete
                     </button>
@@ -267,6 +365,160 @@ const Calendar: React.FC = () => {
           </div>
         </section>
       </main>
+
+      {isTargetRunnerOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-lg border border-slate-200 shadow-lg p-4 text-xs">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-semibold text-sm">Target Dates Runner</p>
+              <button
+                className="text-slate-500"
+                onClick={() => setIsTargetRunnerOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mb-2 rounded border border-slate-200 p-1 grid grid-cols-2 gap-1 bg-slate-50">
+              <button
+                className={`py-1 rounded ${eventTargetMode === 'multiple' ? 'bg-white border border-slate-300' : 'text-slate-600'}`}
+                onClick={() => setEventTargetMode('multiple')}
+              >
+                Multiple Dates
+              </button>
+              <button
+                className={`py-1 rounded ${eventTargetMode === 'range' ? 'bg-white border border-slate-300' : 'text-slate-600'}`}
+                onClick={() => setEventTargetMode('range')}
+              >
+                Date Range
+              </button>
+            </div>
+
+            {eventTargetMode === 'multiple' ? (
+              <div className="mb-2 border border-slate-200 rounded p-2">
+                <p className="font-medium mb-1">Target Dates</p>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="date"
+                    className="flex-1 border px-2 py-1 rounded"
+                    value={manualTargetDate}
+                    onChange={(e) => setManualTargetDate(e.target.value)}
+                  />
+                  <button
+                    className="border border-slate-300 px-2 rounded"
+                    onClick={() => {
+                      if (!manualTargetDate) return
+                      setSelectedDates((prev) =>
+                        prev.includes(manualTargetDate)
+                          ? prev
+                          : [...prev, manualTargetDate]
+                      )
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-24 overflow-auto">
+                  {selectedDates.length === 0 && (
+                    <p className="text-slate-500">No dates selected</p>
+                  )}
+                  {selectedDates.map((date) => (
+                    <div key={date} className="flex items-center justify-between">
+                      <span>{date}</span>
+                      <button
+                        className="text-red-500"
+                        onClick={() =>
+                          setSelectedDates((prev) => prev.filter((d) => d !== date))
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mb-2 border border-slate-200 rounded p-2 space-y-2">
+                <p className="font-medium">Range in Current Month</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={daysInMonth}
+                    placeholder="From day"
+                    className="w-full border px-2 py-1 rounded"
+                    value={rangeStartDay}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setRangeStartDay(value ? Number(value) : '')
+                    }}
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={daysInMonth}
+                    placeholder="To day"
+                    className="w-full border px-2 py-1 rounded"
+                    value={rangeEndDay}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setRangeEndDay(value ? Number(value) : '')
+                    }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Example: 1 to 7 uses day 1-7 of selected month.
+                </p>
+              </div>
+            )}
+
+            <select
+              className="w-full border px-2 py-1 rounded mb-2"
+              value={targetAction}
+              onChange={(e) => setTargetAction(e.target.value as 'add' | 'delete')}
+            >
+              <option value="add">Add Events</option>
+              <option value="delete">Delete Events</option>
+            </select>
+
+            {targetAction === 'add' && (
+              <>
+                <input
+                  type="text"
+                  placeholder="Event title"
+                  className="w-full border px-2 py-1 rounded mb-2"
+                  value={newEventTitle}
+                  onChange={(e) => setNewEventTitle(e.target.value)}
+                />
+                <select
+                  className="w-full border px-2 py-1 rounded mb-2"
+                  value={newEventType}
+                  onChange={(e) =>
+                    setNewEventType(e.target.value as EventType)
+                  }
+                >
+                  <option value="holiday">Holiday</option>
+                  <option value="exam">Exam</option>
+                  <option value="class">Class</option>
+                  <option value="enrollment">Enrollment</option>
+                  <option value="event">Event</option>
+                </select>
+              </>
+            )}
+
+            <div className="flex items-center justify-between">
+              <p className="text-slate-500">Target count: {activeTargetDates.length}</p>
+              <button
+                className="bg-blue-700 text-white px-3 py-1 rounded disabled:bg-slate-300"
+                disabled={activeTargetDates.length === 0}
+                onClick={runTargetAction}
+              >
+                Run
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
