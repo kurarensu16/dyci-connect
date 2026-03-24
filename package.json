@@ -10,7 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@supabase/supabase-js": "^2.98.0",
+=======
+    "@supabase/supabase-js": "^2.87.1",
+    "@tailwindcss/typography": "^0.5.19",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
+>>>>>>> fb40db42a077ca0aaea2c1eef04830d46410a61f
     "material-icons": "^1.13.14",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -29,6 +36,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "supabase": "^2.76.14",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.7",

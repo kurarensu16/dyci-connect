@@ -26,9 +26,21 @@ const Login: React.FC = () => {
       toast.success('Login successful!')
 
       const user = (data as any)?.user as any
-      const role = user?.user_metadata?.role as string | undefined
+      let role = (user?.user_metadata?.role as string | undefined)?.toLowerCase()
 
-      if (isSupabaseConfigured && user?.id) {
+      // Fallback: if metadata role is missing, read from profiles table
+      if (!role && isSupabaseConfigured && user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, role, first_name, last_name')
+          .eq('id', user.id)
+          .maybeSingle()
+        role = (profile?.role as string | undefined)?.toLowerCase()
+        const completeness = checkProfileCompleteness(profile)
+        if (!profile || !completeness.isComplete) {
+          await createIncompleteProfileNotification(user.id)
+        }
+      } else if (isSupabaseConfigured && user?.id) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, role, first_name, last_name')
@@ -208,7 +220,7 @@ const Login: React.FC = () => {
       {/* Role chooser modal */}
       {showRoleChooser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-                <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl px-6 py-6 space-y-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl px-6 py-6 space-y-4">
             <h2 className="text-sm font-semibold text-gray-900">
               Choose how you&apos;d like to join
             </h2>
