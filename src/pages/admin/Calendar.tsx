@@ -1,8 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabaseClient'
+import { useAuth } from '../../contexts/AuthContext'
 
 type EventType = 'holiday' | 'exam' | 'class' | 'enrollment' | 'event'
 
 interface CalendarEvent {
+  id?: string
   date: string
   title: string
   type: EventType
@@ -40,6 +43,7 @@ const monthOptions = [
 ]
 
 const Calendar: React.FC = () => {
+  const { user } = useAuth()
   // STATES
   const [currentYear, setCurrentYear] = useState(2025)
   const [currentMonth, setCurrentMonth] = useState(6) // July = 6
@@ -54,6 +58,18 @@ const Calendar: React.FC = () => {
   const [rangeStartDay, setRangeStartDay] = useState<number | ''>('')
   const [rangeEndDay, setRangeEndDay] = useState<number | ''>('')
   const [events, setEvents] = useState<CalendarEvent[]>([])
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      const { data, error } = await supabase.from('calendar_events').select('*')
+      if (error) {
+        console.error('Error fetching events:', error)
+      } else if (data) {
+        setEvents(data)
+      }
+    }
+    fetchEvents()
+  }, [])
   const [selectedEventIndexes, setSelectedEventIndexes] = useState<number[]>([])
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventType, setNewEventType] = useState<EventType>('holiday')
@@ -78,7 +94,7 @@ const Calendar: React.FC = () => {
   }
 
   const getEventsForDate = (iso: string) =>
-    events.filter((e) => e.date === iso)
+    events.filter((e: CalendarEvent) => e.date === iso)
 
   const toIsoByDay = (day: number) =>
     `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day
@@ -89,15 +105,15 @@ const Calendar: React.FC = () => {
     rangeStartDay === '' || rangeEndDay === ''
       ? []
       : (() => {
-          const start = Math.min(rangeStartDay, rangeEndDay)
-          const end = Math.max(rangeStartDay, rangeEndDay)
-          if (start < 1 || end > daysInMonth) return []
-          const dates: string[] = []
-          for (let day = start; day <= end; day++) {
-            dates.push(toIsoByDay(day))
-          }
-          return dates
-        })()
+        const start = Math.min(rangeStartDay, rangeEndDay)
+        const end = Math.max(rangeStartDay, rangeEndDay)
+        if (start < 1 || end > daysInMonth) return []
+        const dates: string[] = []
+        for (let day = start; day <= end; day++) {
+          dates.push(toIsoByDay(day))
+        }
+        return dates
+      })()
 
   const activeTargetDates = Array.from(
     new Set(
@@ -109,244 +125,374 @@ const Calendar: React.FC = () => {
     )
   )
 
-  const runTargetAction = () => {
+  const runTargetAction = async () => {
     if (activeTargetDates.length === 0) return
 
     if (targetAction === 'add') {
       if (!newEventTitle.trim()) return
-      setEvents([
-        ...events,
-        ...activeTargetDates.map((date) => ({
-          date,
-          title: newEventTitle.trim(),
-          type: newEventType,
-        })),
-      ])
+      
+      const newEvents = activeTargetDates.map((date) => ({
+        date,
+        title: newEventTitle.trim(),
+        type: newEventType,
+      }))
+
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .insert(newEvents)
+        .select()
+
+      if (error) {
+        console.error('Error adding events:', error)
+        return
+      }
+
+      if (data) {
+        setEvents([...events, ...data])
+      }
+
       setNewEventTitle('')
       setSelectedEventIndexes([])
       setIsTargetRunnerOpen(false)
       return
     }
 
-    setEvents(events.filter((event) => !activeTargetDates.includes(event.date)))
+    const eventsToDelete = events.filter((event: CalendarEvent) => activeTargetDates.includes(event.date) && event.id)
+    const idsToDelete = eventsToDelete.map((e: CalendarEvent) => e.id as string)
+    
+    if (idsToDelete.length > 0) {
+      const { error } = await supabase
+        .from('calendar_events')
+        .delete()
+        .in('id', idsToDelete)
+        
+      if (error) {
+        console.error('Error deleting events:', error)
+        return
+      }
+    }
+
+    setEvents(events.filter((event: CalendarEvent) => !activeTargetDates.includes(event.date)))
     setSelectedEventIndexes([])
     setIsTargetRunnerOpen(false)
   }
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* HEADER */}
+      {/* Dark blue header bar, matching dashboard */}
       <header className="bg-blue-800 text-white shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
           <div>
-            <p className="text-xl font-semibold">School Calendar Editor</p>
+            <h1 className="text-xl font-semibold">
+              Welcome back, {user?.user_metadata?.full_name || 'Admin'}!
+            </h1>
             <p className="mt-1 text-xs text-blue-100">
-              Manage academic calendar events
+              Configure academic milestones and events for the institution.
             </p>
           </div>
+          <button
+            onClick={() => setIsTargetRunnerOpen(true)}
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg text-sm font-semibold transition-all flex items-center gap-2"
+          >
+            <span>Bulk Actions</span>
+          </button>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           {/* CALENDAR */}
-          <div className="lg:col-span-2 bg-white rounded-lg border border-slate-100 shadow-sm">
-            {/* MONTH BAR */}
-            <div className="bg-blue-700 text-white flex items-center justify-between px-4 py-3 rounded-t-lg">
-              {/* PREV */}
-              <button
-                onClick={() => {
-                  if (currentMonth === 0) {
-                    setCurrentMonth(11)
-                    setCurrentYear(currentYear - 1)
-                  } else {
-                    setCurrentMonth(currentMonth - 1)
-                  }
-                }}
-                className="h-7 w-7 inline-flex items-center justify-center rounded-full border border-blue-400"
-              >
-                {'<'}
-              </button>
+          <div className="xl:col-span-3 space-y-4">
+            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+              {/* MONTH BAR */}
+              <div className="bg-slate-50 border-b border-slate-100 flex items-center justify-between px-6 py-4">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-bold text-slate-800 w-48 transition-all">
+                    {monthOptions[currentMonth]} {currentYear}
+                  </h2>
+                  <div className="flex items-center bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
+                    <button
+                      onClick={() => {
+                        if (currentMonth === 0) {
+                          setCurrentMonth(11)
+                          setCurrentYear(currentYear - 1)
+                        } else {
+                          setCurrentMonth(currentMonth - 1)
+                        }
+                      }}
+                      className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-slate-100 transition-colors text-slate-600"
+                    >
+                      <span className="text-lg">←</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const d = new Date()
+                        setCurrentMonth(d.getMonth())
+                        setCurrentYear(d.getFullYear())
+                      }}
+                      className="px-3 text-xs font-bold text-slate-500 hover:text-dyci-blue transition-colors"
+                    >
+                      Today
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (currentMonth === 11) {
+                          setCurrentMonth(0)
+                          setCurrentYear(currentYear + 1)
+                        } else {
+                          setCurrentMonth(currentMonth + 1)
+                        }
+                      }}
+                      className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-slate-100 transition-colors text-slate-600"
+                    >
+                      <span className="text-lg">→</span>
+                    </button>
+                  </div>
+                </div>
 
-              <div className="flex items-center gap-2">
-                <select
-                  className="bg-blue-600 border border-blue-400 rounded px-2 py-1 text-xs text-white"
-                  value={currentMonth}
-                  onChange={(e) => setCurrentMonth(Number(e.target.value))}
-                >
-                  {monthOptions.map((month, index) => (
-                    <option key={month} value={index} className="text-slate-900">
-                      {month}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  className="w-20 bg-blue-600 border border-blue-400 rounded px-2 py-1 text-xs text-white"
-                  value={currentYear}
-                  onChange={(e) => {
-                    const parsedYear = Number(e.target.value)
-                    if (!Number.isNaN(parsedYear)) setCurrentYear(parsedYear)
-                  }}
-                />
+                <div className="flex items-center gap-3">
+                  <select
+                    className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-dyci-blue/20 outline-none transition-all"
+                    value={currentMonth}
+                    onChange={(e) => setCurrentMonth(Number(e.target.value))}
+                  >
+                    {monthOptions.map((month, index) => (
+                      <option key={month} value={index}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-dyci-blue/20 outline-none transition-all"
+                    value={currentYear}
+                    onChange={(e) => {
+                      const parsedYear = Number(e.target.value)
+                      if (!Number.isNaN(parsedYear)) setCurrentYear(parsedYear)
+                    }}
+                  />
+                </div>
               </div>
 
-              {/* NEXT */}
-              <button
-                onClick={() => {
-                  if (currentMonth === 11) {
-                    setCurrentMonth(0)
-                    setCurrentYear(currentYear + 1)
-                  } else {
-                    setCurrentMonth(currentMonth + 1)
-                  }
-                }}
-                className="h-7 w-7 inline-flex items-center justify-center rounded-full border border-blue-400"
-              >
-                {'>'}
-              </button>
-            </div>
+              {/* WEEKDAYS */}
+              <div className="px-6 grid grid-cols-7 border-b border-slate-50">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                  <div key={d} className="py-3 text-center text-[10px] uppercase font-black tracking-widest text-slate-400">
+                    {d}
+                  </div>
+                ))}
+              </div>
 
-            {/* WEEKDAYS */}
-            <div className="px-4 pt-3 pb-1 grid grid-cols-7 text-[11px] font-medium text-slate-500">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-                <div key={d} className="text-center">
-                  {d}
-                </div>
-              ))}
-            </div>
+              {/* DAYS GRID */}
+              <div className="">
+                {weeks.map((week, wi) => (
+                  <div key={wi} className="grid grid-cols-7 border-b border-slate-50 last:border-0">
+                    {week.map((day, di) => {
+                      if (!day) {
+                        return (
+                          <div
+                            key={di}
+                            className="h-32 bg-slate-50/50 border-r border-slate-50 last:border-r-0"
+                          />
+                        )
+                      }
 
-            {/* DAYS GRID */}
-            <div className="px-4 pb-4 space-y-1">
-              {weeks.map((week, wi) => (
-                <div key={wi} className="grid grid-cols-7 text-xs">
-                  {week.map((day, di) => {
-                    if (!day) {
+                      const iso = `${currentYear}-${(currentMonth + 1)
+                        .toString()
+                        .padStart(2, '0')}-${day
+                          .toString()
+                          .padStart(2, '0')}`
+
+                      const dayEvents = getEventsForDate(iso)
+                      const isSelected = selectedDate === iso
+                      const isMultiPicked = selectedDates.includes(iso)
+                      const isInRange = rangeDates.includes(iso)
+                      const isToday = new Date().toISOString().slice(0, 10) === iso
+
                       return (
-                        <div
+                        <button
                           key={di}
-                          className="h-16 border border-slate-100 bg-slate-50"
-                        />
-                      )
-                    }
-
-                    const iso = `${currentYear}-${(currentMonth + 1)
-                      .toString()
-                      .padStart(2, '0')}-${day
-                      .toString()
-                      .padStart(2, '0')}`
-
-                    const dayEvents = getEventsForDate(iso)
-                    const isSelected = selectedDate === iso
-                    const isMultiPicked = selectedDates.includes(iso)
-                    const isInRange = rangeDates.includes(iso)
-
-                    return (
-                      <button
-                        key={di}
-                        onClick={() => {
-                          setSelectedDate(iso)
-                          setManualTargetDate(iso)
-                          setSelectedEventIndexes([])
-                        }}
-                        className={`h-16 border border-slate-100 text-left px-2 py-1 ${
-                          isSelected
-                            ? 'bg-blue-50'
-                            : 'bg-white hover:bg-slate-50'
-                        } ${!isSelected && (isMultiPicked || isInRange) ? 'bg-blue-50/60' : ''}`}
-                      >
-                        <div className="flex justify-between items-center mb-1">
-                          <span
-                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-medium ${
-                              isSelected
-                                ? 'bg-blue-700 text-white'
-                                : 'text-slate-700'
-                            }`}
-                          >
-                            {day}
-                          </span>
-                        </div>
-
-                        <div className="space-y-0.5">
-                          {dayEvents.map((ev, idx) => (
+                          onClick={() => {
+                            setSelectedDate(iso)
+                            setManualTargetDate(iso)
+                            setSelectedEventIndexes([])
+                          }}
+                          className={`h-32 border-r border-slate-50 last:border-r-0 text-left px-3 py-3 group relative transition-all ${
+                            isSelected ? 'bg-indigo-50/30' : 'bg-white hover:bg-slate-50'
+                          } ${!isSelected && (isMultiPicked || isInRange) ? 'bg-indigo-50/20' : ''}`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
                             <span
-                              key={idx}
-                              className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] text-white ${eventBadgeClasses[ev.type]}`}
+                              className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold transition-all ${
+                                isSelected
+                                  ? 'bg-dyci-blue text-white shadow-lg shadow-dyci-blue/30 scale-110'
+                                  : isToday 
+                                    ? 'bg-dyci-red text-white shadow-lg shadow-dyci-red/30'
+                                    : 'text-slate-700 group-hover:text-dyci-blue'
+                              }`}
                             >
-                              {ev.title}
+                              {day}
                             </span>
-                          ))}
-                        </div>
-                      </button>
-                    )
-                  })}
+                          </div>
+                          <div className="space-y-1.5 overflow-hidden">
+                            {dayEvents.slice(0, 3).map((ev: CalendarEvent, idx: number) => (
+                              <div
+                                key={ev.id || idx}
+                                className={`px-2 py-1 rounded-md text-[10px] font-bold text-white truncate shadow-sm ${eventBadgeClasses[ev.type]}`}
+                              >
+                                {ev.title}
+                              </div>
+                            ))}
+                            {dayEvents.length > 3 && (
+                              <div className="text-[9px] font-black text-slate-400 pl-1 uppercase tracking-tighter">
+                                +{dayEvents.length - 3} more
+                              </div>
+                            )}
+                          </div>
+                          
+                          {isSelected && (
+                             <div className="absolute inset-0 border-2 border-dyci-blue rounded-none pointer-events-none" />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* LEGEND */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <h3 className="text-xs uppercase font-black text-slate-400 tracking-widest mb-4">
+                  Event Color Key
+                </h3>
+                <div className="flex flex-wrap gap-8">
+                  {(Object.keys(eventBadgeClasses) as EventType[]).map((type) => (
+                    <div key={type} className="flex items-center space-x-3 group cursor-default">
+                      <span
+                        className={`h-4 w-4 rounded-full shadow-inner ring-4 ring-slate-50 transition-transform group-hover:scale-125 ${eventBadgeClasses[type]}`}
+                      />
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">{legendLabel[type]}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
             </div>
           </div>
 
           {/* RIGHT PANEL - MANAGE EVENTS */}
-          <aside className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-4 text-xs">
-            <p className="font-semibold mb-2">Manage Events</p>
-            <p className="mb-2 text-slate-600">Selected: {selectedDate}</p>
-            <button
-              className="w-full bg-blue-700 text-white py-1 rounded"
-              onClick={() => setIsTargetRunnerOpen(true)}
-            >
-              Open Target Dates
-            </button>
+          <aside className="space-y-6">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 p-6 sticky top-24">
+              <div className="mb-6">
+                <h3 className="text-sm uppercase font-black text-slate-400 tracking-widest mb-1">Schedule Details</h3>
+                <p className="text-2xl font-black text-slate-900 leading-tight">
+                  {new Date(selectedDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </p>
+                <p className="text-xs font-medium text-slate-500 mt-1">{new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long' })}</p>
+              </div>
 
-            <div className="mt-4 space-y-1">
-              <div className="flex items-center justify-between">
-                <p className="font-medium">Events on selected date</p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Active Events</p>
+                  {selectedEventIndexes.length > 0 && (
+                     <button
+                        className="text-[10px] font-black uppercase text-red-500 hover:text-red-600 transition-colors"
+                        onClick={async () => {
+                          const selectedEventsData = events.filter((_: CalendarEvent, index: number) => selectedEventIndexes.includes(index))
+                          const idsToDelete = selectedEventsData.filter((e: CalendarEvent) => e.id !== undefined).map((e: CalendarEvent) => e.id as string)
+
+                          if (idsToDelete.length > 0) {
+                            const { error } = await supabase
+                              .from('calendar_events')
+                              .delete()
+                              .in('id', idsToDelete)
+
+                            if (error) {
+                              console.error('Error deleting selected events:', error)
+                              return
+                            }
+                          }
+
+                          setEvents(
+                            events.filter((_: CalendarEvent, index: number) => !selectedEventIndexes.includes(index))
+                          )
+                          setSelectedEventIndexes([])
+                        }}
+                      >
+                        Delete ({selectedEventIndexes.length})
+                      </button>
+                  )}
+                </div>
+
+                <div className="space-y-2 max-h-[300px] overflow-auto pr-2 custom-scrollbar">
+                  {events.filter((e: CalendarEvent) => e.date === selectedDate).length === 0 ? (
+                    <div className="py-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-tight">No Events</p>
+                    </div>
+                  ) : (
+                    events
+                      .map((event: CalendarEvent, idx: number) => ({ event, idx }))
+                      .filter(({ event }: { event: CalendarEvent }) => event.date === selectedDate)
+                      .map(({ event, idx }: { event: CalendarEvent; idx: number }) => (
+                        <div key={event.id || idx} className="group relative flex items-center gap-3 p-3 bg-slate-50 hover:bg-white border border-transparent hover:border-slate-200 rounded-2xl transition-all shadow-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedEventIndexes.includes(idx)}
+                            className="h-4 w-4 rounded border-slate-300 text-dyci-blue focus:ring-dyci-blue/30"
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                              if (e.target.checked) {
+                                setSelectedEventIndexes((prev: number[]) => [...prev, idx])
+                              } else {
+                                setSelectedEventIndexes((prev: number[]) =>
+                                  prev.filter((value: number) => value !== idx)
+                                )
+                              }
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">{event.title}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className={`h-1.5 w-1.5 rounded-full ${eventBadgeClasses[event.type]}`} />
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">{event.type}</span>
+                            </div>
+                          </div>
+                          <button
+                            className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-red-500 transition-all rounded-lg hover:bg-red-50"
+                            onClick={async () => {
+                              if (event.id) {
+                                const { error } = await supabase
+                                  .from('calendar_events')
+                                  .delete()
+                                  .eq('id', event.id)
+
+                                if (error) {
+                                  console.error('Error deleting event:', error)
+                                  return
+                                }
+                              }
+                              setEvents(events.filter((_: CalendarEvent, index: number) => index !== idx))
+                              setSelectedEventIndexes([])
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))
+                  )}
+                </div>
+                
                 <button
-                  className="text-red-500 disabled:text-slate-400"
-                  disabled={selectedEventIndexes.length === 0}
                   onClick={() => {
-                    setEvents(
-                      events.filter((_, index) => !selectedEventIndexes.includes(index))
-                    )
-                    setSelectedEventIndexes([])
+                    setManualTargetDate(selectedDate)
+                    setIsTargetRunnerOpen(true)
                   }}
+                  className="w-full py-3 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-slate-900/10 hover:shadow-xl hover:-translate-y-0.5 transition-all"
                 >
-                  Delete Selected ({selectedEventIndexes.length})
+                  Add New Event
                 </button>
               </div>
-              {events
-                .map((event, idx) => ({ event, idx }))
-                .filter(({ event }) => event.date === selectedDate)
-                .map(({ event, idx }) => (
-                  <div key={idx} className="flex justify-between items-center">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedEventIndexes.includes(idx)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedEventIndexes((prev) => [...prev, idx])
-                          } else {
-                            setSelectedEventIndexes((prev) =>
-                              prev.filter((value) => value !== idx)
-                            )
-                          }
-                        }}
-                      />
-                      <span>{event.title}</span>
-                    </label>
-                    <button
-                      className="text-red-500"
-                      onClick={() => {
-                        setEvents(events.filter((_, index) => index !== idx))
-                        setSelectedEventIndexes([])
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
             </div>
           </aside>
-        </section>
+        </div>
 
         {/* LEGEND */}
         <section className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
@@ -367,154 +513,167 @@ const Calendar: React.FC = () => {
       </main>
 
       {isTargetRunnerOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white rounded-lg border border-slate-200 shadow-lg p-4 text-xs">
-            <div className="flex items-center justify-between mb-3">
-              <p className="font-semibold text-sm">Target Dates Runner</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in" onClick={() => setIsTargetRunnerOpen(false)} />
+          <div className="w-full max-w-lg bg-white rounded-[32px] border border-slate-200 shadow-2xl p-8 relative z-10 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Bulk Schedule Tool</h3>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Configure multiple entries</p>
+              </div>
               <button
-                className="text-slate-500"
+                className="h-10 w-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all"
                 onClick={() => setIsTargetRunnerOpen(false)}
               >
-                Close
+                ×
               </button>
             </div>
 
-            <div className="mb-2 rounded border border-slate-200 p-1 grid grid-cols-2 gap-1 bg-slate-50">
-              <button
-                className={`py-1 rounded ${eventTargetMode === 'multiple' ? 'bg-white border border-slate-300' : 'text-slate-600'}`}
-                onClick={() => setEventTargetMode('multiple')}
-              >
-                Multiple Dates
-              </button>
-              <button
-                className={`py-1 rounded ${eventTargetMode === 'range' ? 'bg-white border border-slate-300' : 'text-slate-600'}`}
-                onClick={() => setEventTargetMode('range')}
-              >
-                Date Range
-              </button>
-            </div>
-
-            {eventTargetMode === 'multiple' ? (
-              <div className="mb-2 border border-slate-200 rounded p-2">
-                <p className="font-medium mb-1">Target Dates</p>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="date"
-                    className="flex-1 border px-2 py-1 rounded"
-                    value={manualTargetDate}
-                    onChange={(e) => setManualTargetDate(e.target.value)}
-                  />
-                  <button
-                    className="border border-slate-300 px-2 rounded"
-                    onClick={() => {
-                      if (!manualTargetDate) return
-                      setSelectedDates((prev) =>
-                        prev.includes(manualTargetDate)
-                          ? prev
-                          : [...prev, manualTargetDate]
-                      )
-                    }}
-                  >
-                    Add
-                  </button>
-                </div>
-                <div className="space-y-1 max-h-24 overflow-auto">
-                  {selectedDates.length === 0 && (
-                    <p className="text-slate-500">No dates selected</p>
-                  )}
-                  {selectedDates.map((date) => (
-                    <div key={date} className="flex items-center justify-between">
-                      <span>{date}</span>
-                      <button
-                        className="text-red-500"
-                        onClick={() =>
-                          setSelectedDates((prev) => prev.filter((d) => d !== date))
-                        }
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="mb-2 border border-slate-200 rounded p-2 space-y-2">
-                <p className="font-medium">Range in Current Month</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    max={daysInMonth}
-                    placeholder="From day"
-                    className="w-full border px-2 py-1 rounded"
-                    value={rangeStartDay}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setRangeStartDay(value ? Number(value) : '')
-                    }}
-                  />
-                  <input
-                    type="number"
-                    min={1}
-                    max={daysInMonth}
-                    placeholder="To day"
-                    className="w-full border px-2 py-1 rounded"
-                    value={rangeEndDay}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setRangeEndDay(value ? Number(value) : '')
-                    }}
-                  />
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Example: 1 to 7 uses day 1-7 of selected month.
-                </p>
-              </div>
-            )}
-
-            <select
-              className="w-full border px-2 py-1 rounded mb-2"
-              value={targetAction}
-              onChange={(e) => setTargetAction(e.target.value as 'add' | 'delete')}
-            >
-              <option value="add">Add Events</option>
-              <option value="delete">Delete Events</option>
-            </select>
-
-            {targetAction === 'add' && (
-              <>
-                <input
-                  type="text"
-                  placeholder="Event title"
-                  className="w-full border px-2 py-1 rounded mb-2"
-                  value={newEventTitle}
-                  onChange={(e) => setNewEventTitle(e.target.value)}
-                />
-                <select
-                  className="w-full border px-2 py-1 rounded mb-2"
-                  value={newEventType}
-                  onChange={(e) =>
-                    setNewEventType(e.target.value as EventType)
-                  }
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl">
+                <button
+                  className={`py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${eventTargetMode === 'multiple' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => setEventTargetMode('multiple')}
                 >
-                  <option value="holiday">Holiday</option>
-                  <option value="exam">Exam</option>
-                  <option value="class">Class</option>
-                  <option value="enrollment">Enrollment</option>
-                  <option value="event">Event</option>
-                </select>
-              </>
-            )}
+                  Individual
+                </button>
+                <button
+                  className={`py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${eventTargetMode === 'range' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => setEventTargetMode('range')}
+                >
+                  Range
+                </button>
+              </div>
 
-            <div className="flex items-center justify-between">
-              <p className="text-slate-500">Target count: {activeTargetDates.length}</p>
-              <button
-                className="bg-blue-700 text-white px-3 py-1 rounded disabled:bg-slate-300"
-                disabled={activeTargetDates.length === 0}
-                onClick={runTargetAction}
-              >
-                Run
-              </button>
+              {eventTargetMode === 'multiple' ? (
+                <div className="space-y-4">
+                  <div className="flex gap-3">
+                    <input
+                      type="date"
+                      className="flex-1 bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-dyci-blue/10 outline-none transition-all"
+                      value={manualTargetDate}
+                      onChange={(e) => setManualTargetDate(e.target.value)}
+                    />
+                    <button
+                      className="px-6 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+                      onClick={() => {
+                        if (!manualTargetDate) return
+                        setSelectedDates((prev: string[]) =>
+                          prev.includes(manualTargetDate)
+                            ? prev
+                            : [...prev, manualTargetDate]
+                        )
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-auto custom-scrollbar p-1">
+                    {selectedDates.length === 0 && (
+                      <div className="col-span-2 py-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Add dates above</p>
+                      </div>
+                    )}
+                    {selectedDates.map((date) => (
+                      <div key={date} className="flex items-center justify-between px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl group">
+                        <span className="text-xs font-bold text-slate-700">{date}</span>
+                        <button
+                          className="text-slate-400 hover:text-red-500 transition-colors font-black"
+                          onClick={() =>
+                            setSelectedDates((prev: string[]) => prev.filter((d: string) => d !== date))
+                          }
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Start Day</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={daysInMonth}
+                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-dyci-blue/10 outline-none"
+                        value={rangeStartDay}
+                        onChange={(e) => setRangeStartDay(e.target.value ? Number(e.target.value) : '')}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">End Day</label>
+                       <input
+                        type="number"
+                        min={1}
+                        max={daysInMonth}
+                         className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-dyci-blue/10 outline-none"
+                        value={rangeEndDay}
+                        onChange={(e) => setRangeEndDay(e.target.value ? Number(e.target.value) : '')}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Action</label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl text-sm font-bold outline-none"
+                      value={targetAction}
+                      onChange={(e) => setTargetAction(e.target.value as 'add' | 'delete')}
+                    >
+                      <option value="add">Add Events</option>
+                      <option value="delete">Delete Events</option>
+                    </select>
+                 </div>
+                 {targetAction === 'add' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category</label>
+                      <select
+                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl text-sm font-bold outline-none"
+                        value={newEventType}
+                        onChange={(e) => setNewEventType(e.target.value as EventType)}
+                      >
+                        <option value="holiday">Holiday</option>
+                        <option value="exam">Exam</option>
+                        <option value="class">Class</option>
+                        <option value="enrollment">Enrollment</option>
+                        <option value="event">Event</option>
+                      </select>
+                    </div>
+                 )}
+              </div>
+
+              {targetAction === 'add' && (
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Event Description</label>
+                   <input
+                    type="text"
+                    placeholder="e.g. Midterm Examinations"
+                    className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-dyci-blue/10 outline-none transition-all text-slate-900"
+                    value={newEventTitle}
+                    onChange={(e) => setNewEventTitle(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-4">
+                <div className="flex flex-col">
+                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selected</span>
+                   <span className="text-xl font-black text-dyci-blue">{activeTargetDates.length} Days</span>
+                </div>
+                <button
+                  className="px-8 py-4 bg-dyci-blue text-white rounded-3xl text-sm font-black uppercase tracking-widest shadow-xl shadow-dyci-blue/20 hover:shadow-2xl hover:-translate-y-1 active:scale-95 transition-all disabled:bg-slate-200 disabled:shadow-none"
+                  disabled={activeTargetDates.length === 0}
+                  onClick={runTargetAction}
+                >
+                  Run Transformation
+                </button>
+              </div>
             </div>
           </div>
         </div>
