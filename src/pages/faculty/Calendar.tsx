@@ -1,58 +1,78 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabaseClient'
+// import { useAuth } from '../../contexts/AuthContext'
 
 type EventType = 'holiday' | 'exam' | 'class' | 'enrollment' | 'event'
 
 interface CalendarEvent {
-  date: string // ISO date string '2025-12-20'
+  id?: string
+  date: string
   title: string
   type: EventType
   description?: string
 }
 
-const events: CalendarEvent[] = [
-  { date: '2025-12-15', title: 'Final Examination', type: 'exam' },
-  { date: '2025-12-16', title: 'Final Examination', type: 'exam' },
-  { date: '2025-12-17', title: 'Final Examination', type: 'exam' },
-  { date: '2025-12-18', title: 'Final Examination', type: 'exam' },
-  { date: '2025-12-19', title: 'Final Examination', type: 'exam' },
-  { date: '2025-12-20', title: 'End of First Semester', type: 'class', description: 'Classes' },
-  { date: '2025-12-21', title: 'Christmas Break', type: 'holiday' },
-  { date: '2025-12-25', title: 'Christmas Day', type: 'holiday' },
-  { date: '2025-12-30', title: 'Rizal Day', type: 'holiday' },
-]
-
-const getEventsForDate = (iso: string) =>
-  events.filter((e) => e.date === iso)
-
-const formatDateLong = (iso: string) => {
-  const d = new Date(iso)
-  return d.toLocaleDateString(undefined, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
-
 const FacultyCalendar: React.FC = () => {
-  const [selectedDate, setSelectedDate] = useState<string>('2025-12-20')
+  // const { user } = useAuth()
+  const today = new Date()
+  const [selectedDate, setSelectedDate] = useState<string>(today.toISOString().slice(0, 10))
+  const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth())
+  const [currentYear, setCurrentYear] = useState<number>(today.getFullYear())
+  const [events, setEvents] = useState<CalendarEvent[]>([])
 
-  const daysInMonth = 31
-  const firstDayOfWeek = new Date('2025-12-01').getDay() // 0=Sun
+  // Fetch events from backend
+  useEffect(() => {
+    const fetchEvents = async () => {
+      const { data, error } = await supabase.from('calendar_events').select('*')
+      if (error) {
+        console.error('Error fetching events:', error)
+      } else if (data) {
+        setEvents(data)
+      }
+    }
+    fetchEvents()
+  }, [])
+
+  const getEventsForDate = (iso: string) =>
+    events.filter((e: CalendarEvent) => e.date === iso)
+
+
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ]
+
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+  const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay()
 
   const weeks: Array<Array<number | null>> = []
   let currentDay = 1 - firstDayOfWeek
   while (currentDay <= daysInMonth) {
     const week: Array<number | null> = []
     for (let i = 0; i < 7; i++) {
-      if (currentDay < 1 || currentDay > daysInMonth) {
-        week.push(null)
-      } else {
-        week.push(currentDay)
-      }
+      week.push(currentDay < 1 || currentDay > daysInMonth ? null : currentDay)
       currentDay++
     }
     weeks.push(week)
+  }
+
+  const prevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11)
+      setCurrentYear((y: number) => y - 1)
+    } else {
+      setCurrentMonth((m: number) => m - 1)
+    }
+  }
+
+  const nextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0)
+      setCurrentYear((y: number) => y + 1)
+    } else {
+      setCurrentMonth((m: number) => m + 1)
+    }
   }
 
   const selectedEvents = getEventsForDate(selectedDate)
@@ -75,150 +95,222 @@ const FacultyCalendar: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
+      {/* Dark blue header bar, matching dashboard */}
       <header className="bg-blue-800 text-white shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">School Calendar</h1>
+          <h1 className="text-xl font-semibold">Academic Calendar</h1>
           <p className="mt-1 text-xs text-blue-100">
-            Academic Year 2025–2026
+            View academic milestones and manage your teaching schedule.
           </p>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Calendar panel */}
-          <section className="flex-1 bg-white rounded-2xl shadow-md border border-slate-100 p-4">
-            {/* Month header */}
-            <div className="bg-blue-600 text-white rounded-xl px-4 py-3 flex items-center justify-between mb-3">
-              <button
-                type="button"
-                className="h-7 w-7 inline-flex items-center justify-center rounded-full border border-blue-300 text-white/90"
-              >
-                {'<'}
-              </button>
-              <div className="text-center text-xs">
-                <p className="font-semibold">December</p>
-                <p className="text-blue-100">2025</p>
-              </div>
-              <button
-                type="button"
-                className="h-7 w-7 inline-flex items-center justify-center rounded-full border border-blue-300 text-white/90"
-              >
-                {'>'}
-              </button>
-            </div>
-
-            {/* Weekday header */}
-            <div className="grid grid-cols-7 text-[11px] font-medium text-slate-500 mb-2">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-                <div key={d} className="text-center">
-                  {d}
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          {/* CALENDAR */}
+          <div className="xl:col-span-3 space-y-4">
+            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+              {/* MONTH BAR */}
+              <div className="bg-slate-50 border-b border-slate-100 flex items-center justify-between px-6 py-4">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-bold text-slate-800 w-48 transition-all">
+                    {monthNames[currentMonth]} {currentYear}
+                  </h2>
+                  <div className="flex items-center bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
+                    <button
+                      onClick={prevMonth}
+                      className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-slate-100 transition-colors text-slate-600"
+                    >
+                      <span className="text-lg">←</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const d = new Date()
+                        setCurrentMonth(d.getMonth())
+                        setCurrentYear(d.getFullYear())
+                      }}
+                      className="px-3 text-xs font-bold text-slate-500 hover:text-dyci-blue transition-colors"
+                    >
+                      Today
+                    </button>
+                    <button
+                      onClick={nextMonth}
+                      className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-slate-100 transition-colors text-slate-600"
+                    >
+                      <span className="text-lg">→</span>
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Days grid */}
-            <div className="space-y-1">
-              {weeks.map((week, wi) => (
-                <div key={wi} className="grid grid-cols-7 text-xs">
-                  {week.map((day, di) => {
-                    if (!day) {
-                      return <div key={di} className="h-16 border border-slate-100 bg-slate-50" />
-                    }
-
-                    const iso = `2025-12-${day.toString().padStart(2, '0')}`
-                    const dayEvents = getEventsForDate(iso)
-                    const isSelected = selectedDate === iso
-
-                    return (
-                      <button
-                        key={di}
-                        type="button"
-                        onClick={() => setSelectedDate(iso)}
-                        className={`h-16 border border-slate-100 text-left px-2 py-1 align-top ${
-                          isSelected ? 'bg-blue-50' : 'bg-white hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center mb-1">
-                          <span
-                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-medium ${
-                              isSelected ? 'bg-blue-600 text-white' : 'text-slate-700'
-                            }`}
-                          >
-                            {day}
-                          </span>
-                        </div>
-                        <div className="space-y-0.5">
-                          {dayEvents.map((ev, idx) => (
-                            <span
-                              key={idx}
-                              className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] text-white ${eventBadgeClasses[ev.type]}`}
-                            >
-                              {ev.title}
-                            </span>
-                          ))}
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Selected date events panel */}
-          <aside className="w-full lg:w-80 bg-white rounded-2xl shadow-md border border-slate-100 p-4">
-            <h2 className="text-sm font-semibold text-slate-900 mb-3">
-              Selected Date Events
-            </h2>
-            <div className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-700 mb-3">
-              {formatDateLong(selectedDate)}
-            </div>
-
-            {selectedEvents.length === 0 ? (
-              <p className="text-xs text-slate-500">
-                No scheduled events for this date.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {selectedEvents.map((ev, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2"
+                <div className="flex items-center gap-3">
+                  <select
+                    className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-dyci-blue/20 outline-none transition-all"
+                    value={currentMonth}
+                    onChange={(e) => setCurrentMonth(Number(e.target.value))}
                   >
-                    <p className="text-xs font-semibold text-emerald-800">
-                      {ev.title}
-                    </p>
-                    <p className="mt-1 text-[11px] text-emerald-700">
-                      {ev.description || legendLabel[ev.type]}
-                    </p>
+                    {monthNames.map((month, index) => (
+                      <option key={month} value={index}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-dyci-blue/20 outline-none transition-all"
+                    value={currentYear}
+                    onChange={(e) => {
+                      const parsedYear = Number(e.target.value)
+                      if (!Number.isNaN(parsedYear)) setCurrentYear(parsedYear)
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* WEEKDAYS */}
+              <div className="px-6 grid grid-cols-7 border-b border-slate-50">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                  <div key={d} className="py-3 text-center text-[10px] uppercase font-black tracking-widest text-slate-400">
+                    {d}
                   </div>
                 ))}
               </div>
-            )}
+
+              {/* DAYS GRID */}
+              <div className="">
+                {weeks.map((week, wi) => (
+                  <div key={wi} className="grid grid-cols-7 border-b border-slate-50 last:border-0">
+                    {week.map((day, di) => {
+                      if (!day) {
+                        return (
+                          <div
+                            key={di}
+                            className="h-32 bg-slate-50/50 border-r border-slate-50 last:border-r-0"
+                          />
+                        )
+                      }
+
+                      const iso = `${currentYear}-${(currentMonth + 1)
+                        .toString()
+                        .padStart(2, '0')}-${day
+                          .toString()
+                          .padStart(2, '0')}`
+
+                      const dayEvents = getEventsForDate(iso)
+                      const isSelected = selectedDate === iso
+                      const isToday = new Date().toISOString().slice(0, 10) === iso
+
+                      return (
+                        <button
+                          key={di}
+                          onClick={() => setSelectedDate(iso)}
+                          className={`h-32 border-r border-slate-50 last:border-r-0 text-left px-3 py-3 group relative transition-all ${
+                            isSelected ? 'bg-indigo-50/30' : 'bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <span
+                              className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold transition-all ${
+                                isSelected
+                                  ? 'bg-dyci-blue text-white shadow-lg shadow-dyci-blue/30 scale-110'
+                                  : isToday 
+                                    ? 'bg-dyci-red text-white shadow-lg shadow-dyci-red/30'
+                                    : 'text-slate-700 group-hover:text-dyci-blue'
+                              }`}
+                            >
+                              {day}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1.5 overflow-hidden">
+                            {dayEvents.slice(0, 3).map((ev: CalendarEvent, idx: number) => (
+                              <div
+                                key={ev.id || idx}
+                                className={`px-2 py-1 rounded-md text-[10px] font-bold text-white truncate shadow-sm ${eventBadgeClasses[ev.type]}`}
+                              >
+                                {ev.title}
+                              </div>
+                            ))}
+                            {dayEvents.length > 3 && (
+                              <div className="text-[9px] font-black text-slate-400 pl-1 uppercase tracking-tighter">
+                                +{dayEvents.length - 3} more
+                              </div>
+                            )}
+                          </div>
+                          
+                          {isSelected && (
+                             <div className="absolute inset-0 border-2 border-dyci-blue rounded-none pointer-events-none" />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* LEGEND */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <h3 className="text-xs uppercase font-black text-slate-400 tracking-widest mb-4">
+                  Event Color Key
+                </h3>
+                <div className="flex flex-wrap gap-8">
+                  {(Object.keys(eventBadgeClasses) as EventType[]).map((type) => (
+                    <div key={type} className="flex items-center space-x-3 group cursor-default">
+                      <span
+                        className={`h-4 w-4 rounded-full shadow-inner ring-4 ring-slate-50 transition-transform group-hover:scale-125 ${eventBadgeClasses[type]}`}
+                      />
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">{legendLabel[type]}</span>
+                    </div>
+                  ))}
+                </div>
+            </div>
+          </div>
+
+          {/* RIGHT PANEL - SELECTED DATE */}
+          <aside className="space-y-6">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 p-6 sticky top-24">
+              <div className="mb-6 border-b border-slate-100 pb-6">
+                <h3 className="text-sm uppercase font-black text-slate-400 tracking-widest mb-1">Schedule Details</h3>
+                <p className="text-2xl font-black text-slate-900 leading-tight">
+                  {new Date(selectedDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </p>
+                <p className="text-xs font-medium text-slate-500 mt-1">{new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long' })}</p>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Active Events</p>
+
+                <div className="space-y-3 max-h-[400px] overflow-auto pr-2 custom-scrollbar">
+                  {selectedEvents.length === 0 ? (
+                    <div className="py-12 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 px-4">
+                      <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                         <span className="text-slate-400">📅</span>
+                      </div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-tight">No Events Scheduled</p>
+                      <p className="text-[10px] text-slate-400 mt-1">Check another date for activities</p>
+                    </div>
+                  ) : (
+                    selectedEvents.map((event, idx) => (
+                        <div key={event.id || idx} className="group relative flex flex-col gap-1 p-4 bg-slate-50 hover:bg-white border border-transparent hover:border-slate-200 rounded-2xl transition-all shadow-sm">
+                          <div className="flex items-center gap-2">
+                             <span className={`h-2 w-2 rounded-full ${eventBadgeClasses[event.type]}`} />
+                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{event.type}</span>
+                          </div>
+                          <p className="text-sm font-bold text-slate-900 leading-snug">{event.title}</p>
+                          {event.description && (
+                             <p className="text-xs text-slate-500 mt-1">{event.description}</p>
+                          )}
+                        </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </aside>
         </div>
-
-        {/* Legend */}
-        <section className="bg-white rounded-2xl shadow-md border border-slate-100 p-4">
-          <h3 className="text-sm font-semibold text-slate-900 mb-3">Event Types</h3>
-          <div className="flex flex-wrap gap-6 text-xs text-slate-700">
-            {(Object.keys(eventBadgeClasses) as EventType[]).map((type) => (
-              <div key={type} className="flex items-center space-x-2">
-                <span
-                  className={`h-3 w-3 rounded-full ${eventBadgeClasses[type]}`}
-                />
-                <span>{legendLabel[type]}</span>
-              </div>
-            ))}
-          </div>
-        </section>
       </main>
     </div>
   )
 }
 
 export default FacultyCalendar
-
-

@@ -43,6 +43,7 @@ import AdminNotifications from './pages/student/Notifications'
 import FacultyDashboard from './pages/faculty/Dashboard'
 import FacultyCalendar from './pages/faculty/Calendar'
 import FacultyHandbook from './pages/faculty/Handbook'
+import HandbookApprovals from './pages/faculty/HandbookApprovals'
 import FacultyNotifications from './pages/student/Notifications'
 
 
@@ -213,6 +214,16 @@ const AppContent: React.FC = () => {
       <PrivateRoute allowedRoles={['faculty']}>
         <FacultyLayout>
           <FacultyHandbook />
+        </FacultyLayout>
+      </PrivateRoute>
+    }
+  />
+  <Route
+    path="/faculty/handbook-approvals"
+    element={
+      <PrivateRoute allowedRoles={['faculty']}>
+        <FacultyLayout>
+          <HandbookApprovals />
         </FacultyLayout>
       </PrivateRoute>
     }
