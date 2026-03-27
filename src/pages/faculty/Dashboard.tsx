@@ -90,15 +90,20 @@ const FacultyDashboard: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {user?.user_metadata?.full_name || 'Student'}!
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Here's what's happening with your academic journey today.
-        </p>
-      </div>
+    <div className="min-h-screen bg-slate-50">
+      {/* Dark blue header bar */}
+      <header className="bg-blue-800 text-white shadow-sm">
+        <div className="max-w-6xl mx-auto px-6 py-3">
+          <h1 className="text-xl font-semibold">
+            Welcome back, {user?.user_metadata?.full_name || 'Faculty'}!
+          </h1>
+          <p className="mt-1 text-xs text-blue-100">
+            Monitor approvals and check your teaching schedule today.
+          </p>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatsWidget
@@ -136,6 +141,7 @@ const FacultyDashboard: React.FC = () => {
           <TodoList todos={todos} onUpdate={fetchDashboardData} />
         </div>
       </div>
+      </main>
     </div>
   )
 }

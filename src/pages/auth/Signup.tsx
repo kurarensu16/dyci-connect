@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
+import { removeOfficeDepartments } from '../../lib/departmentOptions'
 import { FaArrowLeft, FaUser, FaEnvelope, FaLock, FaIdBadge, FaImage } from 'react-icons/fa'
 import logo from '../../assets/imgs/logo-connect.png'
 
@@ -51,6 +52,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
   const [departments, setDepartments] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [yearLevels, setYearLevels] = useState<any[]>([])
+  const signupDepartments = removeOfficeDepartments(departments)
 
   useEffect(() => {
     const loadRegions = async () => {
@@ -1018,8 +1020,8 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                           className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="">Select department</option>
-                          {departments.length > 0 ? (
-                            departments.map((d: any) => (
+                          {signupDepartments.length > 0 ? (
+                            signupDepartments.map((d: any) => (
                               <option key={d.id} value={d.name}>
                                 {d.name}
                               </option>
@@ -1052,11 +1054,11 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                           className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="">Select program</option>
-                          {departments.length > 0 && programs.length > 0 && form.department
+                          {signupDepartments.length > 0 && programs.length > 0 && form.department
                             ? programs
                                 .filter(
                                   (p: any) =>
-                                    departments.find(
+                                    signupDepartments.find(
                                       (d: any) =>
                                         d.id === p.department_id && d.name === form.department
                                     )
@@ -1151,8 +1153,8 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                         className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       >
                         <option value="">Select department</option>
-                        {departments.length > 0 ? (
-                          departments.map((d: any) => (
+                        {signupDepartments.length > 0 ? (
+                          signupDepartments.map((d: any) => (
                             <option key={d.id} value={d.name}>
                               {d.name}
                             </option>

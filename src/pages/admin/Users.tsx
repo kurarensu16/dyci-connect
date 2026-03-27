@@ -8,6 +8,7 @@ import {
 } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
+import { buildAdminDepartmentOptions, isOfficeDepartment } from '../../lib/departmentOptions'
 
 type Role = 'Student' | 'Faculty' | 'Admin'
 type Status = 'Active' | 'Pending' | 'Disabled' | 'Archived'
@@ -83,6 +84,9 @@ const Users: React.FC = () => {
     program: '',
     yearLevel: '',
     section: '',
+    isApprover: false,
+    approverPosition: '' as '' | 'scholarship' | 'finance' | 'registrar' | 'guidance' | 'property_security' | 'academic_council' | 'vice_president' | 'president',
+    approverActive: true,
     markVerified: false,
   })
 
@@ -94,6 +98,10 @@ const Users: React.FC = () => {
   const [departments, setDepartments] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [yearLevels, setYearLevels] = useState<any[]>([])
+  const adminDepartmentOptions = buildAdminDepartmentOptions(
+    departments,
+    createForm.role !== 'student'
+  )
 
   useEffect(() => {
     const loadRegions = async () => {
@@ -608,6 +616,9 @@ const Users: React.FC = () => {
                     program: '',
                     yearLevel: '',
                     section: '',
+                    isApprover: false,
+                    approverPosition: '',
+                    approverActive: true,
                     markVerified: false,
                   })
                   setCreateError(null)
@@ -1232,6 +1243,9 @@ const Users: React.FC = () => {
                         program: createForm.program,
                         yearLevel: createForm.yearLevel,
                         section: createForm.section,
+                        isApprover: createForm.isApprover,
+                        approverPosition: createForm.isApprover ? createForm.approverPosition : null,
+                        approverActive: createForm.approverActive,
                         markVerified: createForm.markVerified,
                       }
 
@@ -1303,9 +1317,24 @@ const Users: React.FC = () => {
                     </div>
                       <div className="space-y-1">
                         <label className="block font-medium text-slate-700">Role</label>
-                        <select
-                          value={createForm.role}
-                          onChange={(e) => setCreateForm((prev) => ({ ...prev, role: e.target.value as 'student' | 'faculty' | 'admin' }))}
+                          <select
+                            value={createForm.role}
+                            onChange={(e) =>
+                              setCreateForm((prev) => {
+                                const nextRole = e.target.value as 'student' | 'faculty' | 'admin'
+                                const isStudent = nextRole === 'student'
+                                return {
+                                  ...prev,
+                                  role: nextRole,
+                                  // Prevent office departments from being kept when switching to student.
+                                  department:
+                                    isStudent &&
+                                    isOfficeDepartment(prev.department)
+                                      ? ''
+                                      : prev.department,
+                                }
+                              })
+                            }
                           className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="student">Student</option>
@@ -1399,7 +1428,7 @@ const Users: React.FC = () => {
                           <label className="block font-medium text-slate-700">Department</label>
                           <select value={createForm.department} onChange={(e) => setCreateForm(prev => ({ ...prev, department: e.target.value }))} className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
                             <option value="">Select department</option>
-                            {departments.map((d: any) => <option key={d.id} value={d.name}>{d.name}</option>)}
+                            {adminDepartmentOptions.map((name) => <option key={name} value={name}>{name}</option>)}
                           </select>
                         </div>
 
@@ -1452,6 +1481,64 @@ const Users: React.FC = () => {
                       />
                       <span>Mark as verified immediately</span>
                     </label>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
+                    <label className="inline-flex items-center gap-2 text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={createForm.isApprover}
+                        onChange={(e) =>
+                          setCreateForm((prev) => ({
+                            ...prev,
+                            isApprover: e.target.checked,
+                            approverPosition: e.target.checked ? prev.approverPosition : '',
+                          }))
+                        }
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>Set as handbook approver</span>
+                    </label>
+
+                    {createForm.isApprover && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="block font-medium text-slate-700">Approver position</label>
+                          <select
+                            value={createForm.approverPosition}
+                            onChange={(e) =>
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                approverPosition: e.target.value as '' | 'scholarship' | 'finance' | 'registrar' | 'guidance' | 'property_security' | 'academic_council' | 'vice_president' | 'president',
+                              }))
+                            }
+                            className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            required
+                          >
+                            <option value="">Select position</option>
+                            <option value="scholarship">Scholarship</option>
+                            <option value="finance">Department of Finance</option>
+                            <option value="registrar">Office of the Registrar</option>
+                            <option value="guidance">Guidance Office</option>
+                            <option value="property_security">Property/Security Office</option>
+                            <option value="academic_council">Academic Council</option>
+                            <option value="vice_president">Office of the Vice President</option>
+                            <option value="president">Office of the President</option>
+                          </select>
+                        </div>
+                        <label className="inline-flex items-center gap-2 text-slate-600 mt-5">
+                          <input
+                            type="checkbox"
+                            checked={createForm.approverActive}
+                            onChange={(e) =>
+                              setCreateForm((prev) => ({ ...prev, approverActive: e.target.checked }))
+                            }
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>Approver active</span>
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   <p className="text-[10px] text-slate-500">

@@ -124,7 +124,7 @@ const FacultyHandbook: React.FC = () => {
       {/* Header */}
       <header className="bg-blue-800 text-white shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">Student Handbook</h1>
+          <h1 className="text-xl font-semibold">Handbook</h1>
           <p className="mt-1 text-xs text-blue-100">Academic Year 2025–2026</p>
         </div>
       </header>

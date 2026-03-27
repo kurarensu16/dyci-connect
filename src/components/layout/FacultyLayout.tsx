@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { FaBookOpen, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaBars, FaUserCircle, FaBell } from 'react-icons/fa'
+import { FaBookOpen, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaBars, FaUserCircle, FaBell, FaCheckSquare } from 'react-icons/fa'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import logo from '../../assets/imgs/logo-connect.png'
@@ -19,6 +19,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isVerified, setIsVerified] = useState<boolean | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [isApprover, setIsApprover] = useState(false)
 
   useEffect(() => {
     const loadVerification = async () => {
@@ -29,15 +30,34 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('verified')
+        .select('*')
         .eq('id', user.id)
         .maybeSingle()
 
       if (error) {
         console.error('Error loading verification status (faculty)', error)
         setIsVerified(null)
+        setIsApprover(false)
       } else {
+        const officeDeptNames = new Set([
+          'Department of Finance',
+          'Office of the Registrar',
+          'Office of the Vice President',
+          'Office of the President',
+          'Guidance Office',
+          'Property/Security Office',
+          'Academic Council',
+        ])
+        const hasApproverPosition =
+          typeof data?.approver_position === 'string' && data.approver_position.trim().length > 0
+        const fromDepartmentFallback =
+          typeof data?.department === 'string' && officeDeptNames.has(data.department)
+
         setIsVerified(data?.verified === true)
+        setIsApprover(
+          (data?.is_approver === true || hasApproverPosition || fromDepartmentFallback) &&
+            data?.approver_active !== false
+        )
       }
 
     }
@@ -79,6 +99,9 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
     { label: 'Notifications', icon: FaBell, path: '/faculty/notifications', badge: unreadCount },
     { label: 'School Calendar', icon: FaCalendarAlt, path: '/faculty/calendar' },
     { label: 'Handbook', icon: FaBookOpen, path: '/faculty/handbook' },
+    ...(isApprover
+      ? [{ label: 'Handbook Approvals', icon: FaCheckSquare, path: '/faculty/handbook-approvals' }]
+      : []),
     { label: 'Profile', icon: FaUserCircle, path: '/faculty/profile' },
   ]
 
