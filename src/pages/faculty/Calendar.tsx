@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabaseClient'
-import { useAuth } from '../../contexts/AuthContext'
+// import { useAuth } from '../../contexts/AuthContext'
 
 type EventType = 'holiday' | 'exam' | 'class' | 'enrollment' | 'event'
 
@@ -13,7 +13,7 @@ interface CalendarEvent {
 }
 
 const FacultyCalendar: React.FC = () => {
-  const { user } = useAuth()
+  // const { user } = useAuth()
   const today = new Date()
   const [selectedDate, setSelectedDate] = useState<string>(today.toISOString().slice(0, 10))
   const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth())
@@ -98,9 +98,7 @@ const FacultyCalendar: React.FC = () => {
       {/* Dark blue header bar, matching dashboard */}
       <header className="bg-blue-800 text-white shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">
-            Welcome back, {user?.user_metadata?.full_name || 'Faculty'}!
-          </h1>
+          <h1 className="text-xl font-semibold">Academic Calendar</h1>
           <p className="mt-1 text-xs text-blue-100">
             View academic milestones and manage your teaching schedule.
           </p>
