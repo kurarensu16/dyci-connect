@@ -25,7 +25,7 @@ const FAQ_ITEMS: FaqItem[] = [
     id: 'verification',
     question: 'My account is still pending verification.',
     answer:
-      'New student and faculty accounts must be reviewed by an administrator. If your status is still "Pending verification" after some time, please follow up with the DYCI Connect admin or your department.',
+      'New student and staff accounts must be reviewed by an administrator. If your status is still "Pending verification" after some time, please follow up with the DYCI Connect admin or your department.',
   },
   {
     id: 'profile',

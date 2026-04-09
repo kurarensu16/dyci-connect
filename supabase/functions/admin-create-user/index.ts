@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.87.1'
 
-type CreateUserRole = 'student' | 'faculty' | 'admin'
+type CreateUserRole = 'student' | 'staff' | 'admin'
 
 type CreateUserPayload = {
   email: string
@@ -20,15 +20,16 @@ type CreateUserPayload = {
   program?: string
   yearLevel?: string
   section?: string
-  isApprover?: boolean
   approverPosition?:
     | 'scholarship'
     | 'finance'
     | 'registrar'
+    | 'guidance'
+    | 'property_security'
+    | 'academic_council'
     | 'vice_president'
     | 'president'
     | null
-  approverActive?: boolean
   markVerified?: boolean
   body?: Partial<CreateUserPayload>
 }
@@ -147,55 +148,22 @@ Deno.serve(async (req) => {
     (typeof maybeWrapped.role === 'string'
       ? (maybeWrapped.role as CreateUserRole)
       : undefined)
-  const isApproverSource =
-    typeof payload.isApprover === 'boolean'
-      ? payload.isApprover
-      : typeof maybeWrapped.isApprover === 'boolean'
-        ? maybeWrapped.isApprover
-        : false
   const approverPositionSource =
-    (payload.approverPosition as
-      | 'scholarship'
-      | 'finance'
-      | 'registrar'
-      | 'vice_president'
-      | 'president'
-      | null
-      | undefined) ??
-    (maybeWrapped.approverPosition as
-      | 'scholarship'
-      | 'finance'
-      | 'registrar'
-      | 'vice_president'
-      | 'president'
-      | null
-      | undefined) ??
+    (payload.approverPosition as string | null | undefined) ??
+    (maybeWrapped.approverPosition as string | null | undefined) ??
     null
-  const approverActiveSource =
-    typeof payload.approverActive === 'boolean'
-      ? payload.approverActive
-      : typeof maybeWrapped.approverActive === 'boolean'
-        ? maybeWrapped.approverActive
-        : true
 
   const email = emailSource.trim().toLowerCase()
   const password = passwordSource
   const role = roleSource
-  const isApprover = isApproverSource === true
-  const approverPosition = isApprover ? approverPositionSource : null
-  const approverActive = approverActiveSource
+  const approverPosition = approverPositionSource?.trim() || null
 
   if (!email || !isEmail(email)) return json(400, { error: 'Valid email is required.' })
   if (!password || password.length < 8)
     return json(400, { error: 'Password must be at least 8 characters.' })
-  if (!role || !['student', 'faculty', 'admin'].includes(role)) return json(400, { error: 'Invalid role.' })
-  if (isApprover && !approverPosition) {
-    return json(400, { error: 'Approver position is required when isApprover is enabled.' })
-  }
-  if (
-    approverPosition &&
-    !['scholarship', 'finance', 'registrar', 'vice_president', 'president'].includes(approverPosition)
-  ) {
+  if (!role || !['student', 'staff', 'admin'].includes(role)) return json(400, { error: 'Invalid role.' })
+  const validPositions = ['scholarship', 'finance', 'registrar', 'guidance', 'property_security', 'academic_council', 'vice_president', 'president']
+  if (approverPosition && !validPositions.includes(approverPosition)) {
     return json(400, { error: 'Invalid approver position.' })
   }
 
@@ -235,18 +203,11 @@ Deno.serve(async (req) => {
     middle_name: middleName || null,
     last_name: lastName || null,
     nickname: (payload.nickname ?? '').trim() || null,
-    address: (payload.address ?? '').trim() || null,
-    region: payload.region || null,
-    province: payload.province || null,
-    city: payload.city || null,
-    barangay: payload.barangay || null,
     department: payload.department || null,
     program: payload.program || null,
     year_level: payload.yearLevel || null,
     section: payload.section || null,
-    is_approver: isApprover,
     approver_position: approverPosition,
-    approver_active: approverActive,
     verified,
   })
 

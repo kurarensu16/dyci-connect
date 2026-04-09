@@ -262,7 +262,7 @@ const StudentProfile: React.FC = () => {
 
   const roleLabel = (user?.user_metadata?.role as string | undefined) || 'student'
   const roleDisplay =
-    roleLabel === 'faculty' ? 'Faculty' : roleLabel === 'admin' ? 'Admin' : 'Student'
+    roleLabel === 'staff' ? 'Staff' : roleLabel === 'admin' ? 'Admin' : 'Student'
 
   const verified = profile?.verified === true
 

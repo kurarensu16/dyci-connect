@@ -22,6 +22,7 @@ import {
   FaPaperPlane,
 } from 'react-icons/fa'
 import toast from 'react-hot-toast'
+import { fetchSchoolSettings } from '../../lib/api/settings'
 import {
   fetchHandbookTree,
   upsertHandbookNode,
@@ -44,6 +45,7 @@ import {
   scheduleHandbookPublish,
   fetchSectionAuditTrail,
   fetchSectionDiff,
+  deleteHandbook,
   approverLabel,
   levelLabel,
   L2_POSITIONS,
@@ -69,9 +71,8 @@ const buildFallback = (): HandbookNode[] => {
 
 const statusColors: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-700 border border-slate-200',
-  l2_review: 'bg-blue-50 text-blue-700 border border-blue-200',
-  l3_review: 'bg-violet-50 text-violet-700 border border-violet-200',
-  l4_review: 'bg-amber-50 text-amber-700 border border-amber-200',
+  dept_review: 'bg-blue-50 text-blue-700 border border-blue-200',
+  final_review: 'bg-violet-50 text-violet-700 border border-violet-200',
   pending_approval: 'bg-amber-50 text-amber-700 border border-amber-200',
   published: 'bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold',
   rejected: 'bg-rose-50 text-rose-700 border border-rose-200',
@@ -111,10 +112,8 @@ function wordDiff(oldText: string, newText: string): { type: 'same' | 'add' | 'd
 
 const ProgressBar: React.FC<{ currentLevel: number }> = ({ currentLevel }) => {
   const levels = [
-    { n: 1, label: 'L1 Admin' },
-    { n: 2, label: 'L2 Dept' },
-    { n: 3, label: 'L3 VP' },
-    { n: 4, label: 'L4 President' },
+    { n: 1, label: 'Admin Draft' },
+    { n: 2, label: 'Department Approval' },
   ]
   return (
     <div className="flex items-center gap-1">
@@ -213,6 +212,7 @@ const Cms: React.FC = () => {
   const [approvalMonitor, setApprovalMonitor] = useState<HandbookApprovalMonitorRow[]>([])
   const [approvalMonitorLoading, setApprovalMonitorLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [pendingDeleteHandbook, setPendingDeleteHandbook] = useState<Handbook | null>(null)
 
   // Pagination state
   const [hbPage, setHbPage] = useState(1)
@@ -230,6 +230,16 @@ const Cms: React.FC = () => {
   const [showDiff, setShowDiff] = useState(false)
   const [diffData, setDiffData] = useState<{ legacy_content: string | null; content: string; change_reason: string | null } | null>(null)
   const [workflowSections, setWorkflowSections] = useState<HandbookSection[]>([])
+
+  useEffect(() => {
+    if (showCreateForm) {
+      const loadSettings = async () => {
+        const { data } = await fetchSchoolSettings()
+        if (data) setNewSchoolYear(data.current_academic_year)
+      }
+      loadSettings()
+    }
+  }, [showCreateForm])
 
   const editorRef = useRef<HTMLDivElement>(null)
   const selectedNode = selectedId ? findNode(tree, selectedId) : null
@@ -489,6 +499,15 @@ const Cms: React.FC = () => {
     }
   }
 
+  const handleDeleteHandbook = async () => {
+    if (!pendingDeleteHandbook) return
+    const { error } = await deleteHandbook(pendingDeleteHandbook.id)
+    if (error) { toast.error(error); return }
+    toast.success('Handbook deleted.')
+    setPendingDeleteHandbook(null)
+    await loadWorkflowHandbooks()
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────
 
   if (!isSupabaseConfigured) return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-slate-500">Supabase not configured.</div>
@@ -500,9 +519,16 @@ const Cms: React.FC = () => {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
+        {pendingDeleteHandbook && (
+          <ConfirmModal
+            nodeId={`Handbook: ${pendingDeleteHandbook.title} (${pendingDeleteHandbook.school_year})`}
+            onConfirm={handleDeleteHandbook}
+            onCancel={() => setPendingDeleteHandbook(null)}
+          />
+        )}
         <header className="bg-blue-800 text-white shadow-sm">
           <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-            <div><h1 className="text-xl font-semibold">Handbook CMS</h1><p className="mt-1 text-xs text-blue-100">4-Level Approval Workflow</p></div>
+            <div><h1 className="text-xl font-semibold">Handbook CMS</h1><p className="mt-1 text-xs text-blue-100">2-Level Approval Workflow</p></div>
             <button type="button" onClick={() => setShowCreateForm(true)} className="flex items-center gap-2 bg-white hover:bg-slate-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-semibold"><FaPlus className="text-xs" /> New handbook</button>
           </div>
         </header>
@@ -534,10 +560,12 @@ const Cms: React.FC = () => {
                 {cardMenuOpenId === h.id && (
                   <div className="absolute right-3 top-12 z-10 w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-1">
                     <button type="button" onClick={() => openEditorForHandbook(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Edit contents</button>
-                    <button type="button" onClick={() => openAssignmentForHandbook(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Assign L2 Departments</button>
+                    <button type="button" onClick={() => openAssignmentForHandbook(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Assign Departments</button>
                     <button type="button" onClick={() => { setScheduleHandbookTarget(h); setCardMenuOpenId(null) }} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Schedule publish date</button>
                     <button type="button" onClick={() => handlePublishNow(h.id)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Publish now</button>
                     <button type="button" onClick={() => openMonitor(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">View approval status</button>
+                    <div className="border-t border-slate-100 my-1" />
+                    <button type="button" onClick={() => { setPendingDeleteHandbook(h); setCardMenuOpenId(null) }} className="w-full text-left px-3 py-2 text-xs text-rose-600 hover:bg-rose-50">Delete handbook</button>
                   </div>
                 )}
               </div>
@@ -558,7 +586,10 @@ const Cms: React.FC = () => {
             <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-6 space-y-4">
               <h2 className="text-sm font-semibold text-slate-900">Create handbook</h2>
               <input value={newHandbookTitle} onChange={(e) => setNewHandbookTitle(e.target.value)} placeholder="Title" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-              <input value={newSchoolYear} onChange={(e) => setNewSchoolYear(e.target.value)} placeholder="School year (e.g. 2026-2027)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-slate-500">Academic Year</span>
+                <input value={newSchoolYear} disabled placeholder="Fetching..." className="w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-500 px-3 py-2 text-sm cursor-not-allowed" />
+              </div>
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setShowCreateForm(false)} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
                 <button type="button" onClick={handleCreateHandbook} disabled={workflowSaving || !newHandbookTitle.trim() || !newSchoolYear.trim()} className="px-4 py-2 rounded-lg bg-blue-700 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed">{workflowSaving ? 'Creating…' : 'Create'}</button>

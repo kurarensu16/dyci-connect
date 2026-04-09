@@ -28,10 +28,10 @@ const PendingApproval: React.FC = () => {
       const role = (data.role as string).toLowerCase()
       if (data.verified) {
         if (role === 'admin') navigate('/admin/dashboard')
-        else if (role === 'faculty') navigate('/faculty/dashboard')
+        else if (role === 'staff') navigate('/staff/dashboard')
         else navigate('/student/dashboard')
       } else {
-        if (role === 'faculty') navigate('/faculty/dashboard')
+        if (role === 'staff') navigate('/staff/dashboard')
         else navigate('/student/dashboard')
       }
     }

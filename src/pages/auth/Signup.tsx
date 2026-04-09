@@ -8,7 +8,7 @@ import { FaArrowLeft, FaUser, FaEnvelope, FaLock, FaIdBadge, FaImage } from 'rea
 import logo from '../../assets/imgs/logo-connect.png'
 
 interface SignupProps {
-  defaultRole?: 'student' | 'faculty'
+  defaultRole?: 'student' | 'staff'
 }
 
 const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
@@ -268,8 +268,8 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
       return
     }
 
-    const basePath = location.pathname.startsWith('/signup/faculty')
-      ? '/signup/faculty'
+    const basePath = location.pathname.startsWith('/signup/staff')
+      ? '/signup/staff'
       : location.pathname.startsWith('/signup/student')
         ? '/signup/student'
         : '/signup'
@@ -383,6 +383,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
           student_employee_id: form.idNumber,
           role,
           auth_provider: 'email',
+          verified: true,
           first_name: form.firstName,
           middle_name: form.middleName,
           last_name: form.lastName,
@@ -408,7 +409,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
       }
 
       toast.success(
-        'Account created. Please check your @dyci.edu.ph email to confirm your account, then wait for an administrator to verify you.'
+        'Account created! Please check your email to confirm your account.'
       )
 
       // After signup, sign the user out and send them back to login.
@@ -511,7 +512,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                         htmlFor="idNumber"
                         className="block text-xs font-medium text-gray-700"
                       >
-                        {form.role === 'faculty' ? 'Employee ID' : 'Student ID'}
+                        {form.role === 'staff' ? 'Employee ID' : 'Student ID'}
                       </label>
                       <div className="mt-1 flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                         <FaIdBadge className="h-4 w-4 text-gray-400 mr-3" />
@@ -629,8 +630,8 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                 className="space-y-6 text-sm"
                 onSubmit={(e) => {
                   e.preventDefault()
-                  const basePath = location.pathname.startsWith('/signup/faculty')
-                    ? '/signup/faculty'
+                  const basePath = location.pathname.startsWith('/signup/staff')
+                    ? '/signup/staff'
                     : location.pathname.startsWith('/signup/student')
                       ? '/signup/student'
                       : '/signup'
@@ -866,8 +867,8 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                     <button
                       type="button"
                       onClick={() => {
-                        const basePath = location.pathname.startsWith('/signup/faculty')
-                          ? '/signup/faculty'
+                        const basePath = location.pathname.startsWith('/signup/staff')
+                          ? '/signup/staff'
                           : '/signup/student'
                         navigate(basePath)
                       }}
@@ -905,14 +906,14 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
 
                   <div className="space-y-1">
                     <span className="block text-xs font-medium text-gray-700">
-                      {form.role === 'faculty'
+                      {form.role === 'staff'
                         ? 'Employee ID picture'
                         : 'Certificate of Registration (COR)'}
                     </span>
                     <div className="mt-1 flex items-center space-x-3">
                       <label className="inline-flex items-center px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
                         <span>
-                          {form.role === 'faculty' ? 'Upload ID' : 'Upload COR'}
+                          {form.role === 'staff' ? 'Upload ID' : 'Upload COR'}
                         </span>
                         <input
                           type="file"
@@ -932,7 +933,7 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                       )}
                     </div>
                     <p className="mt-1 text-[11px] text-gray-500">
-                      {form.role === 'faculty'
+                      {form.role === 'staff'
                         ? 'Upload a clear image or PDF of your DYCI employee ID for verification.'
                         : 'Upload your latest DYCI Certificate of Registration (PDF or clear image). This may be required later for verification.'}
                     </p>
@@ -1179,8 +1180,8 @@ const Signup: React.FC<SignupProps> = ({ defaultRole = 'student' }) => {
                     <button
                       type="button"
                       onClick={() => {
-                        const basePath = location.pathname.startsWith('/signup/faculty')
-                          ? '/signup/faculty'
+                        const basePath = location.pathname.startsWith('/signup/staff')
+                          ? '/signup/staff'
                           : '/signup/student'
                         navigate(`${basePath}/profile`)
                       }}

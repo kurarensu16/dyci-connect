@@ -101,9 +101,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (lowerEmail.startsWith('admin@')) {
         role = 'admin'
         fullName = 'DYCI Admin'
-      } else if (lowerEmail.startsWith('faculty@')) {
-        role = 'faculty'
-        fullName = 'DYCI Faculty'
+      } else if (lowerEmail.startsWith('staff@') || lowerEmail.startsWith('faculty@')) {
+        role = 'staff'
+        fullName = 'DYCI Staff'
       }
 
       const mockUser: User = {

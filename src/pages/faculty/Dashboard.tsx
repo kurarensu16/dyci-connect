@@ -95,7 +95,7 @@ const FacultyDashboard: React.FC = () => {
       <header className="bg-blue-800 text-white shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-3">
           <h1 className="text-xl font-semibold">
-            Welcome back, {user?.user_metadata?.full_name || 'Faculty'}!
+            Welcome back, {user?.user_metadata?.full_name || 'Staff'}!
           </h1>
           <p className="mt-1 text-xs text-blue-100">
             Monitor approvals and check your teaching schedule today.
