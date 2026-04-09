@@ -17,7 +17,6 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import {
   fetchApproverQueue,
   fetchHandbooks,
-  fetchSectionDiff,
   fetchSectionAuditTrail,
   saveSectionEdit,
   approveSectionAtLevel,
