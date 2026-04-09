@@ -217,7 +217,7 @@ const CompleteFacultyProfile: React.FC = () => {
       toast.error('Please enter your employee ID.')
       return
     }
-    navigate('/complete-profile/faculty/address')
+    navigate('/complete-profile/staff/address')
   }
 
   const handleAddressNext = (e: React.FormEvent) => {
@@ -235,7 +235,7 @@ const CompleteFacultyProfile: React.FC = () => {
       toast.error('Please enter your street / house number.')
       return
     }
-    navigate('/complete-profile/faculty/academic')
+    navigate('/complete-profile/staff/academic')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -313,7 +313,7 @@ const CompleteFacultyProfile: React.FC = () => {
         id: user.id,
         email: user.email ?? '',
         student_employee_id: form.idNumber.trim(),
-        role: 'faculty',
+        role: 'staff',
         auth_provider: authProvider,
         first_name: form.firstName.trim(),
         middle_name: form.middleName.trim() || null,
@@ -338,11 +338,11 @@ const CompleteFacultyProfile: React.FC = () => {
       }
 
       await supabase.auth.updateUser({
-        data: { role: 'faculty', full_name: fullName },
+        data: { role: 'staff', full_name: fullName },
       })
 
       toast.success('Profile submitted. Your account is pending administrator approval.')
-      navigate('/faculty/dashboard')
+      navigate('/staff/dashboard')
     } catch (error) {
       console.error('Error completing faculty profile', error)
       toast.error('Something went wrong while saving your profile.')
@@ -618,7 +618,7 @@ const CompleteFacultyProfile: React.FC = () => {
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
-                onClick={() => navigate('/complete-profile/faculty/account')}
+                onClick={() => navigate('/complete-profile/staff/account')}
                 className="flex-1 inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Back
@@ -761,7 +761,7 @@ const CompleteFacultyProfile: React.FC = () => {
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
-                onClick={() => navigate('/complete-profile/faculty/address')}
+                onClick={() => navigate('/complete-profile/staff/address')}
                 className="flex-1 inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Back

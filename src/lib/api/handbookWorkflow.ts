@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient'
 // ── Types ─────────────────────────────────────────────────────────────────
 
 export type HandbookStatus = 'draft' | 'pending_approval' | 'published' | 'rejected'
-export type SectionStatus = 'draft' | 'l2_review' | 'l3_review' | 'l4_review' | 'published'
+export type SectionStatus = 'draft' | 'dept_review' | 'published'
 
 export type ApproverPosition =
   | 'scholarship'
@@ -12,22 +12,16 @@ export type ApproverPosition =
   | 'guidance'
   | 'property_security'
   | 'academic_council'
-  | 'vice_president'
-  | 'president'
 
 export const L2_POSITIONS: ApproverPosition[] = [
   'scholarship', 'finance', 'registrar',
   'guidance', 'property_security', 'academic_council',
 ]
 
-export const ALL_POSITIONS: ApproverPosition[] = [
-  ...L2_POSITIONS, 'vice_president', 'president',
-]
+export const ALL_POSITIONS: ApproverPosition[] = [...L2_POSITIONS]
 
 export function positionToLevel(position: ApproverPosition): number {
   if (L2_POSITIONS.includes(position)) return 2
-  if (position === 'vice_president') return 3
-  if (position === 'president') return 4
   return 0
 }
 
@@ -118,18 +112,14 @@ export function approverLabel(position: ApproverPosition): string {
     guidance: 'Guidance Office',
     property_security: 'Property/Security Office',
     academic_council: 'Academic Council',
-    vice_president: 'Office of the Vice President',
-    president: 'Office of the President',
   }
   return map[position] ?? position
 }
 
 export function levelLabel(level: number): string {
   switch (level) {
-    case 1: return 'L1 — Admin'
-    case 2: return 'L2 — Department'
-    case 3: return 'L3 — Vice President'
-    case 4: return 'L4 — President'
+    case 1: return 'Admin Draft'
+    case 2: return 'Department Approval'
     default: return `Level ${level}`
   }
 }
@@ -145,8 +135,6 @@ const DEPT_TO_POSITION: Record<string, ApproverPosition> = {
   'Scholarship': 'scholarship',
   'Department of Finance': 'finance',
   'Office of the Registrar': 'registrar',
-  'Office of the Vice President': 'vice_president',
-  'Office of the President': 'president',
   'Guidance Office': 'guidance',
   'Property/Security Office': 'property_security',
   'Academic Council': 'academic_council',
@@ -171,8 +159,6 @@ async function notifyPosition(position: ApproverPosition, message: string, actio
   const { data: recipients } = await supabase
     .from('profiles')
     .select('id')
-    .eq('is_approver', true)
-    .eq('approver_active', true)
     .eq('approver_position', position)
   if (!recipients?.length) return
   const rows = recipients.map((r: { id: string }) => ({
@@ -238,6 +224,14 @@ export async function updateHandbookMeta(
     .select('*')
     .single()
   return { data: (data as Handbook | null) ?? null, error: error?.message ?? null }
+}
+
+export async function deleteHandbook(handbookId: string) {
+  const { error } = await supabase
+    .from('handbooks')
+    .delete()
+    .eq('id', handbookId)
+  return { error: error?.message ?? null }
 }
 
 // ── Section CRUD ──────────────────────────────────────────────────────────
@@ -352,31 +346,32 @@ export async function fetchSectionAssignments(sectionId: string) {
   }
 }
 
-export async function submitSectionToL2(sectionId: string) {
-  // Check that at least one L2 department is assigned
+export async function submitSectionToDeptReview(sectionId: string) {
   const { data: reqs } = await supabase
     .from('handbook_approval_requirements')
     .select('required_position')
     .eq('handbook_section_id', sectionId)
 
-  const l2Assigned = (reqs ?? []).filter((r: { required_position: string }) =>
+  const deptAssigned = (reqs ?? []).filter((r: { required_position: string }) =>
     L2_POSITIONS.includes(r.required_position as ApproverPosition)
   )
-  if (l2Assigned.length === 0) {
-    return { error: 'Assign at least one L2 department before submitting.' }
+  if (deptAssigned.length === 0) {
+    return { error: 'Assign at least one department before submitting.' }
   }
 
   const { error } = await supabase
     .from('handbook_sections')
-    .update({ current_level: 2, status: 'l2_review' })
+    .update({ current_level: 2, status: 'dept_review' })
     .eq('id', sectionId)
   if (error) return { error: error.message }
 
-  // Notify assigned L2 departments
-  await notifyAssignedL2(sectionId, 'A handbook section has been assigned to your department for review.', '/faculty/handbook-approvals')
+  await notifyAssignedL2(sectionId, 'A handbook section has been assigned to your department for review.', '/staff/handbook-approvals')
 
   return { error: null }
 }
+
+/** @deprecated Use submitSectionToDeptReview */
+export const submitSectionToL2 = submitSectionToDeptReview
 
 export async function submitAllSectionsToL2(handbookId: string) {
   const { data: sections, error: secErr } = await supabase
@@ -389,7 +384,7 @@ export async function submitAllSectionsToL2(handbookId: string) {
 
   const errors: string[] = []
   for (const s of sections) {
-    const res = await submitSectionToL2(s.id)
+    const res = await submitSectionToDeptReview(s.id)
     if (res.error) errors.push(`${s.id}: ${res.error}`)
   }
   if (errors.length > 0) return { error: errors.join('; ') }
@@ -445,12 +440,7 @@ export async function approveSectionAtLevel(
   const sectionTitle = sec?.title ?? 'a section'
 
   if (level === 2) {
-    await notifyAdmins(`Update: ${approverLabel(position)} finished "${sectionTitle}". Status: Pending VP.`, '/admin/cms')
-    await notifyPosition('vice_president', `Action Required: Review needed for "${sectionTitle}" by ${approverLabel(position)}.`, '/faculty/handbook-approvals')
-  } else if (level === 3) {
-    await notifyPosition('president', `Action Required: Final review for "${sectionTitle}".`, '/faculty/handbook-approvals')
-  } else if (level === 4) {
-    await notifyAdmins(`Section "${sectionTitle}" has been published by the President.`, '/admin/cms')
+    await notifyAdmins(`Update: ${approverLabel(position)} approved "${sectionTitle}".`, '/admin/cms')
   }
 
   return { error: null }
@@ -487,13 +477,8 @@ export async function rejectSectionAtLevel(
     .single()
   const sectionTitle = sec?.title ?? 'a section'
 
-  if (level === 3) {
-    await notifyAssignedL2(sectionId, `Revision Needed: VP rejected "${sectionTitle}". Comment: "${comment.trim()}"`, '/faculty/handbook-approvals')
-    await notifyAdmins(`Alert: "${sectionTitle}" returned to L2 by VP.`, '/admin/cms')
-  } else if (level === 4) {
-    await notifyAssignedL2(sectionId, `Urgent: President requested changes for "${sectionTitle}". Comment: "${comment.trim()}"`, '/faculty/handbook-approvals')
-    await notifyAdmins(`Notice: "${sectionTitle}" sent back to L2 for Presidential correction.`, '/admin/cms')
-    await notifyPosition('vice_president', `Notice: "${sectionTitle}" sent back to L2 for Presidential correction.`, '/faculty/handbook-approvals')
+  if (level === 2) {
+    await notifyAdmins(`Alert: "${sectionTitle}" returned by department reviewer.`, '/admin/cms')
   }
 
   return { error: null }
@@ -502,25 +487,14 @@ export async function rejectSectionAtLevel(
 // ── Approval Queue (for approver pages) ───────────────────────────────────
 
 export async function fetchApproverQueue(position: ApproverPosition) {
-  const level = positionToLevel(position)
-
-  if (level === 2) {
-    const { data, error } = await supabase
-      .from('handbook_approval_requirements')
-      .select(`
-        handbook_section_id,
-        required_position,
-        handbook_sections!inner(id, title, content, legacy_content, status, is_locked, handbook_id, sort_order, current_level, change_reason)
-      `)
-      .eq('required_position', position)
-    return { data: data ?? null, error: error?.message ?? null }
-  }
-
-  // L3/L4: fetch all sections at the matching level
   const { data, error } = await supabase
-    .from('handbook_sections')
-    .select('id, title, content, legacy_content, status, handbook_id, sort_order, current_level, change_reason')
-    .eq('current_level', level)
+    .from('handbook_approval_requirements')
+    .select(`
+      handbook_section_id,
+      required_position,
+      handbook_sections!inner(id, title, content, legacy_content, status, is_locked, handbook_id, sort_order, current_level, change_reason)
+    `)
+    .eq('required_position', position)
   return { data: data ?? null, error: error?.message ?? null }
 }
 
@@ -664,7 +638,7 @@ export async function publishHandbookNow(handbookId: string) {
   if (sectionErr) return { error: sectionErr.message, waitingForDate: false }
   if (!sections || sections.length === 0) return { error: 'No sections found.', waitingForDate: false }
   if (sections.some((s: { status: string }) => s.status !== 'published')) {
-    return { error: 'All sections must complete the 4-level approval before publishing.', waitingForDate: false }
+    return { error: 'All sections must complete the approval workflow before publishing.', waitingForDate: false }
   }
 
   const { data: hb } = await supabase.from('handbooks').select('publish_at').eq('id', handbookId).single()

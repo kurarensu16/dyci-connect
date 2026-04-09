@@ -262,7 +262,7 @@ const StudentProfile: React.FC = () => {
 
   const roleLabel = (user?.user_metadata?.role as string | undefined) || 'student'
   const roleDisplay =
-    roleLabel === 'faculty' ? 'Faculty' : roleLabel === 'admin' ? 'Admin' : 'Student'
+    roleLabel === 'staff' ? 'Staff' : roleLabel === 'admin' ? 'Admin' : 'Student'
 
   const verified = profile?.verified === true
 
@@ -583,7 +583,7 @@ const StudentProfile: React.FC = () => {
               className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold ${
                 roleDisplay === 'Student'
                   ? 'bg-blue-50 text-blue-700'
-                  : roleDisplay === 'Faculty'
+                  : roleDisplay === 'Staff'
                     ? 'bg-purple-50 text-purple-700'
                     : 'bg-rose-50 text-rose-700'
               }`}
@@ -637,10 +637,10 @@ const StudentProfile: React.FC = () => {
             </div>
             <div>
               <p className="font-medium text-slate-500">
-                {roleDisplay === 'Faculty' ? 'Department' : 'Program'}
+                {roleDisplay === 'Staff' ? 'Department' : 'Program'}
               </p>
               <p className="mt-0.5 text-slate-800">
-                {roleDisplay === 'Faculty'
+                {roleDisplay === 'Staff'
                   ? profile?.department || '—'
                   : profile?.program || '—'}
               </p>
@@ -783,7 +783,7 @@ const StudentProfile: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="block font-medium text-slate-700">
-                      {roleDisplay === 'Faculty' ? 'Employee ID' : 'Student ID'}
+                      {roleDisplay === 'Staff' ? 'Employee ID' : 'Student ID'}
                     </label>
                     <input
                       type="text"

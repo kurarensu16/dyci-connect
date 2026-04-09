@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import {
   FaBookOpen,
-  FaSearch,
   FaChevronLeft,
   FaChevronRight,
 } from 'react-icons/fa'
 import { fetchHandbookTree, buildTree, type HandbookNode } from '../../lib/api/handbook'
+import { searchHandbook, findPathToNode, type HandbookSearchHit } from '../../lib/handbookSearch'
+import HandbookSearchToolbar from '../../components/handbook/HandbookSearchToolbar'
+import HandbookSearchResults from '../../components/handbook/HandbookSearchResults'
 import { handbookData } from '../../data/handbookData'
 
 // Fallback: build tree from static data
@@ -72,14 +74,6 @@ const HandbookPreview: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const filteredLevel = useMemo(() => {
-    if (!searchQuery || navStack.length > 0) return currentLevel
-    const q = searchQuery.toLowerCase()
-    return tree.filter(
-      (n) => n.title.toLowerCase().includes(q) || (n.content ?? '').toLowerCase().includes(q)
-    )
-  }, [currentLevel, searchQuery, navStack, tree])
-
   // Prev / Next across all leaves
   const allLeaves = useMemo(() => flattenLeaves(tree), [tree])
   const leafIndex = isReading ? allLeaves.findIndex((l) => l.id === activeNode.id) : -1
@@ -87,17 +81,24 @@ const HandbookPreview: React.FC = () => {
   const nextLeaf = leafIndex >= 0 && leafIndex < allLeaves.length - 1 ? allLeaves[leafIndex + 1] : null
 
   const navigateToLeaf = (leaf: HandbookNode) => {
-    const buildStack = (nodes: HandbookNode[], target: string): HandbookNode[] | null => {
-      for (const n of nodes) {
-        if (n.id === target) return [n]
-        const sub = buildStack(n.children, target)
-        if (sub) return [n, ...sub]
-      }
-      return null
-    }
-    const stack = buildStack(tree, leaf.id)
+    const stack = findPathToNode(tree, leaf.id)
     if (stack) {
       setNavStack(stack)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  const isSearchActive = searchQuery.trim().length > 0
+  const searchHits = useMemo(
+    () => (isSearchActive ? searchHandbook(tree, searchQuery) : []),
+    [tree, searchQuery, isSearchActive]
+  )
+
+  const handleSearchHitSelect = (hit: HandbookSearchHit) => {
+    const stack = findPathToNode(tree, hit.node.id)
+    if (stack) {
+      setNavStack(stack)
+      setSearchQuery('')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
@@ -116,33 +117,13 @@ const HandbookPreview: React.FC = () => {
         </div>
       </header>
 
-      {/* Sub-bar: Back button + Search — sits below header */}
-      <div className="max-w-6xl mx-auto px-6 pt-4 pb-2 flex items-center gap-3">
-        {navStack.length > 0 && (
-          <button
-            onClick={handleBack}
-            className="text-xs bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm shrink-0"
-          >
-            <FaChevronLeft className="text-[10px]" />
-            Back
-          </button>
-        )}
-        {navStack.length === 0 && (
-          <div className="relative flex-1">
-            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search handbook topics..."
-              className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all shadow-sm"
-            />
-          </div>
-        )}
-        {navStack.length > 0 && (
-          <p className="text-xs text-slate-400 font-mono">{breadcrumbs}</p>
-        )}
-      </div>
+      <HandbookSearchToolbar
+        showBack={navStack.length > 0}
+        onBack={handleBack}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        breadcrumbText={navStack.length > 0 ? breadcrumbs : null}
+      />
 
       <main className="max-w-6xl mx-auto px-6 py-2">
         {loading && (
@@ -155,8 +136,18 @@ const HandbookPreview: React.FC = () => {
           </div>
         )}
 
+        {!loading && isSearchActive && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <HandbookSearchResults
+              hits={searchHits}
+              query={searchQuery}
+              onSelect={handleSearchHitSelect}
+            />
+          </div>
+        )}
+
         {/* Chapter list */}
-        {!loading && navStack.length === 0 && (
+        {!loading && !isSearchActive && navStack.length === 0 && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 text-center mb-6">
               <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -169,7 +160,7 @@ const HandbookPreview: React.FC = () => {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              {filteredLevel.map((node) => (
+              {currentLevel.map((node) => (
                 <button
                   key={node.id}
                   onClick={() => handleNodeClick(node)}
@@ -184,17 +175,12 @@ const HandbookPreview: React.FC = () => {
                   </div>
                 </button>
               ))}
-              {filteredLevel.length === 0 && (
-                <div className="col-span-full py-10 text-center text-slate-500">
-                  No results for "{searchQuery}"
-                </div>
-              )}
             </div>
           </div>
         )}
 
         {/* Drill-down list */}
-        {!loading && navStack.length > 0 && !isReading && (
+        {!loading && !isSearchActive && navStack.length > 0 && !isReading && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="mb-6">
               <span className="text-[10px] font-bold tracking-wider text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-md">
@@ -221,7 +207,7 @@ const HandbookPreview: React.FC = () => {
         )}
 
         {/* Content reader */}
-        {!loading && isReading && (
+        {!loading && !isSearchActive && isReading && (
           <div className="animate-in zoom-in-95 duration-300 max-w-4xl mx-auto">
             <div className="bg-white rounded-t-2xl border-x border-t border-slate-200 p-6 pb-4">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mb-2">

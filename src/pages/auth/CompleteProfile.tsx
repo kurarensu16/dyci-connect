@@ -10,7 +10,7 @@ const CompleteProfile: React.FC = () => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({
-    role: 'student' as 'student' | 'faculty',
+    role: 'student' as 'student' | 'staff',
   })
 
   useEffect(() => {
@@ -31,7 +31,7 @@ const CompleteProfile: React.FC = () => {
       if (data?.role && data.verified) {
         const role = (data.role as string).toLowerCase()
         if (role === 'admin') navigate('/admin/dashboard')
-        else if (role === 'faculty') navigate('/faculty/dashboard')
+        else if (role === 'staff') navigate('/staff/dashboard')
         else navigate('/student/dashboard')
         return
       }
@@ -40,7 +40,7 @@ const CompleteProfile: React.FC = () => {
         return
       }
       if (data?.role) {
-        setForm({ role: (data.role as string).toLowerCase() === 'faculty' ? 'faculty' : 'student' })
+        setForm({ role: (data.role as string).toLowerCase() === 'staff' ? 'staff' : 'student' })
       }
       setLoading(false)
     }
@@ -51,7 +51,7 @@ const CompleteProfile: React.FC = () => {
     const { name, value } = e.target
     setForm((prev) => ({
       ...prev,
-      [name]: name === 'role' ? (value as 'student' | 'faculty') : value,
+      [name]: name === 'role' ? (value as 'student' | 'staff') : value,
     }))
   }
 
@@ -61,8 +61,8 @@ const CompleteProfile: React.FC = () => {
       toast.error('Please select your role.')
       return
     }
-    if (form.role === 'faculty') {
-      navigate('/complete-profile/faculty/account')
+    if (form.role === 'staff') {
+      navigate('/complete-profile/staff/account')
     } else {
       navigate('/complete-profile/student/account')
     }
@@ -105,7 +105,7 @@ const CompleteProfile: React.FC = () => {
               className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="student">Student</option>
-              <option value="faculty">Faculty</option>
+              <option value="staff">Staff / Faculty</option>
             </select>
           </div>
           <button

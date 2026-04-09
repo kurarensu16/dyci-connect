@@ -1,15 +1,52 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FaArrowLeft } from 'react-icons/fa'
 import logo from '../../assets/imgs/logo-connect.png'
+import { useAuth } from '../../contexts/AuthContext'
+import { supabase } from '../../lib/supabaseClient'
+import { fetchSchoolSettings, acceptConforme } from '../../lib/api/settings'
+import toast from 'react-hot-toast'
 
 const Conforme: React.FC = () => {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [agreed, setAgreed] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [academicYear, setAcademicYear] = useState<string | null>(null)
 
-  const handleAgree = () => {
-    // Later, you can record this consent server-side.
-    navigate('/login')
+  useEffect(() => {
+    fetchSchoolSettings().then(({ data }) => {
+      if (data) setAcademicYear(data.current_academic_year)
+    })
+  }, [])
+
+  const handleAgree = async () => {
+    if (!user?.id || !academicYear) {
+      // Not logged in — just navigate to login (original behavior)
+      navigate('/login')
+      return
+    }
+
+    setSaving(true)
+    const { error } = await acceptConforme(user.id, academicYear)
+    setSaving(false)
+
+    if (error) {
+      toast.error('Failed to save acceptance. Please try again.')
+      return
+    }
+
+    // Redirect to correct dashboard based on role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const role = profile?.role?.toString().toLowerCase() ?? 'student'
+    if (role === 'admin') navigate('/admin/dashboard')
+    else if (role === 'staff' || role === 'faculty') navigate('/staff/dashboard')
+    else navigate('/student/dashboard')
   }
 
   return (
@@ -34,6 +71,11 @@ const Conforme: React.FC = () => {
             <h2 className="mt-2 text-lg font-semibold text-gray-900">
               User Conforme & Data Privacy Agreement
             </h2>
+            {academicYear && (
+              <p className="mt-1 text-xs font-semibold text-blue-700 bg-blue-50 inline-block px-2 py-0.5 rounded-full">
+                Academic Year {academicYear}
+              </p>
+            )}
 
             <div className="mt-4 space-y-4 max-h-[320px] overflow-y-auto pr-1 text-xs text-gray-700">
               <section>
@@ -119,11 +161,11 @@ const Conforme: React.FC = () => {
 
               <button
                 type="button"
-                disabled={!agreed}
+                disabled={!agreed || saving}
                 onClick={handleAgree}
                 className="w-full inline-flex justify-center rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                I Agree &amp; Continue
+                {saving ? 'Saving…' : 'I Agree & Continue'}
               </button>
             </div>
           </div>
@@ -153,4 +195,3 @@ const Conforme: React.FC = () => {
 }
 
 export default Conforme
-

@@ -10,8 +10,29 @@ import toast from 'react-hot-toast'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { buildAdminDepartmentOptions, isOfficeDepartment } from '../../lib/departmentOptions'
 
-type Role = 'Student' | 'Faculty' | 'Admin'
+type Role = 'Student' | 'Staff' | 'Admin'
+type StaffPosition =
+  | ''
+  | 'scholarship'
+  | 'finance'
+  | 'registrar'
+  | 'guidance'
+  | 'property_security'
+  | 'academic_council'
+  | 'vice_president'
+  | 'president'
 type Status = 'Active' | 'Pending' | 'Disabled' | 'Archived'
+
+const POSITION_LABELS: Record<string, string> = {
+  scholarship: 'Scholarship',
+  finance: 'Finance',
+  registrar: 'Registrar',
+  guidance: 'Guidance',
+  property_security: 'Property / Security',
+  academic_council: 'Academic Council',
+  vice_president: 'Vice President',
+  president: 'President',
+}
 
 interface AdminUserRow {
   id: string
@@ -21,14 +42,34 @@ interface AdminUserRow {
   avatarUrl?: string
   verified: boolean
   role: Role
+  position: StaffPosition
+  roleLabel: string
+  /** College / office when staff has no approver_position */
+  department: string | null
   status: Status
   lastLogin: string
   storageMb: number
 }
 
+function normalizeStaffPosition(raw: unknown): StaffPosition {
+  const s = (raw ?? '').toString().trim().toLowerCase().replace(/\s+/g, '_')
+  if (!s) return ''
+  if (s in POSITION_LABELS) return s as StaffPosition
+  return s as StaffPosition
+}
+
+/** Office approver role, or department name when no approver_position is set */
+function buildStaffRoleLabel(position: StaffPosition, department: string | null): string {
+  if (position) {
+    return POSITION_LABELS[position] ?? position.replace(/_/g, ' ')
+  }
+  const d = (department ?? '').trim()
+  return d || 'Staff'
+}
+
 const rolePillClasses: Record<Role, string> = {
   Student: 'bg-blue-50 text-blue-700',
-  Faculty: 'bg-purple-50 text-purple-700',
+  Staff: 'bg-purple-50 text-purple-700',
   Admin: 'bg-rose-50 text-rose-700',
 }
 
@@ -44,6 +85,8 @@ const Users: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [roleFilter, setRoleFilter] = useState<'All' | Role>('All')
+  const [positionFilter, setPositionFilter] = useState<'All' | 'Faculty' | StaffPosition>('All')
+  const [departmentFilter, setDepartmentFilter] = useState<'All' | string>('All')
   const [statusFilter, setStatusFilter] = useState<'All' | Status>('All')
   const [showArchived, setShowArchived] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -72,29 +115,17 @@ const Users: React.FC = () => {
     lastName: '',
     email: '',
     password: '',
-    role: 'student' as 'student' | 'faculty' | 'admin',
+    confirmPassword: '',
+    role: 'student' as 'student' | 'staff' | 'admin',
     idNumber: '',
     nickname: '',
-    address: '',
-    region: '',
-    province: '',
-    city: '',
-    barangay: '',
     department: '',
     program: '',
     yearLevel: '',
     section: '',
-    isApprover: false,
     approverPosition: '' as '' | 'scholarship' | 'finance' | 'registrar' | 'guidance' | 'property_security' | 'academic_council' | 'vice_president' | 'president',
-    approverActive: true,
-    markVerified: false,
   })
 
-  // Live PSGC data
-  const [regions, setRegions] = useState<any[]>([])
-  const [provinces, setProvinces] = useState<any[]>([])
-  const [cities, setCities] = useState<any[]>([])
-  const [barangays, setBarangays] = useState<any[]>([])
   const [departments, setDepartments] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [yearLevels, setYearLevels] = useState<any[]>([])
@@ -104,17 +135,6 @@ const Users: React.FC = () => {
   )
 
   useEffect(() => {
-    const loadRegions = async () => {
-      try {
-        const res = await fetch('https://psgc.cloud/api/regions')
-        if (!res.ok) throw new Error(`Failed to load regions: ${res.status}`)
-        const data = await res.json()
-        setRegions(data)
-      } catch (error) {
-        console.error('Error loading PSGC regions', error)
-      }
-    }
-
     const loadAcademicLookups = async () => {
       if (!isSupabaseConfigured) return
       try {
@@ -131,63 +151,8 @@ const Users: React.FC = () => {
       }
     }
 
-    loadRegions()
     loadAcademicLookups()
   }, [])
-
-  const handleRegionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    setCreateForm((prev) => ({ ...prev, region: value, province: '', city: '', barangay: '' }))
-    setProvinces([])
-    setCities([])
-    setBarangays([])
-    if (!value) return
-    try {
-      const res = await fetch(`https://psgc.cloud/api/regions/${value}/provinces`)
-      if (!res.ok) throw new Error(`Failed to load provinces: ${res.status}`)
-      const data = await res.json()
-      setProvinces(data)
-      if (Array.isArray(data) && data.length === 0) {
-        const cityRes = await fetch(`https://psgc.cloud/api/regions/${value}/cities-municipalities`)
-        if (!cityRes.ok) throw new Error(`Failed to load cities: ${cityRes.status}`)
-        const cityData = await cityRes.json()
-        setCities(cityData)
-      }
-    } catch (error) {
-      console.error('Error loading PSGC provinces / cities', error)
-    }
-  }
-
-  const handleProvinceChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    setCreateForm((prev) => ({ ...prev, province: value, city: '', barangay: '' }))
-    setCities([])
-    setBarangays([])
-    if (!value) return
-    try {
-      const res = await fetch(`https://psgc.cloud/api/provinces/${value}/cities-municipalities`)
-      if (!res.ok) throw new Error(`Failed to load cities: ${res.status}`)
-      const data = await res.json()
-      setCities(data)
-    } catch (error) {
-      console.error('Error loading PSGC cities', error)
-    }
-  }
-
-  const handleCityChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    setCreateForm((prev) => ({ ...prev, city: value, barangay: '' }))
-    setBarangays([])
-    if (!value) return
-    try {
-      const res = await fetch(`https://psgc.cloud/api/cities-municipalities/${value}/barangays`)
-      if (!res.ok) throw new Error(`Failed to load barangays: ${res.status}`)
-      const data = await res.json()
-      setBarangays(data)
-    } catch (error) {
-      console.error('Error loading PSGC barangays', error)
-    }
-  }
 
   const loadUsers = useCallback(async () => {
     if (!isSupabaseConfigured) {
@@ -208,15 +173,25 @@ const Users: React.FC = () => {
       setUsers([])
     } else {
       const mapped: AdminUserRow[] = (data || []).map((row: any) => {
-        const dbRole = (row.role ?? '').toString().toLowerCase()
+        const dbRole = (row.role ?? '').toString().toLowerCase().trim()
         let role: Role
         if (dbRole === 'admin') role = 'Admin'
-        else if (dbRole === 'faculty') role = 'Faculty'
+        else if (dbRole === 'staff' || dbRole === 'faculty') role = 'Staff'
         else role = 'Student'
+
+        const dept =
+          row.department != null && String(row.department).trim() !== ''
+            ? String(row.department).trim()
+            : null
+
+        const position: StaffPosition =
+          role === 'Staff' ? normalizeStaffPosition(row.approver_position) : ''
+        const roleLabel =
+          role === 'Staff' ? buildStaffRoleLabel(position, dept) : role
 
         const verified = row.verified === true
         const isArchived = row.is_archived === true || !!row.archived_at
-        const isDisabled = row.disabled === true || !!row.disabled_at
+        const isDisabled = !!row.disabled_at
 
         const status: Status = isArchived
           ? 'Archived'
@@ -236,6 +211,9 @@ const Users: React.FC = () => {
           avatarUrl: row.avatar_url ?? undefined,
           verified,
           role,
+          position,
+          roleLabel,
+          department: dept,
           status,
           lastLogin: row.last_login ?? '',
           storageMb: Number(row.storage_mb ?? 0),
@@ -251,25 +229,45 @@ const Users: React.FC = () => {
     loadUsers()
   }, [loadUsers])
 
+  const staffDepartmentOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const u of users) {
+      if (u.role === 'Staff' && u.department) set.add(u.department)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [users])
+
   const filteredUsers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim()
     return users.filter((u) => {
       if (roleFilter !== 'All' && u.role !== roleFilter) return false
+      if (roleFilter === 'Staff' && positionFilter !== 'All') {
+        if (positionFilter === 'Faculty') {
+          if (u.position !== '') return false
+        } else {
+          if (u.position !== positionFilter) return false
+        }
+      }
+      if (roleFilter === 'Staff' && departmentFilter !== 'All' && u.department !== departmentFilter) {
+        return false
+      }
       if (statusFilter !== 'All' && u.status !== statusFilter) return false
       if (!showArchived && u.status === 'Archived') return false
       if (!q) return true
       return (
         u.fullName.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
-        u.userId.toLowerCase().includes(q)
+        u.userId.toLowerCase().includes(q) ||
+        u.roleLabel.toLowerCase().includes(q) ||
+        (u.department?.toLowerCase().includes(q) ?? false)
       )
     })
-  }, [users, roleFilter, statusFilter, searchQuery, showArchived])
+  }, [users, roleFilter, positionFilter, departmentFilter, statusFilter, searchQuery, showArchived])
 
   // Reset to first page when filters/search change
   useEffect(() => {
     setCurrentPage(1)
-  }, [roleFilter, statusFilter, searchQuery, showArchived])
+  }, [roleFilter, positionFilter, departmentFilter, statusFilter, searchQuery, showArchived])
 
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize))
 
@@ -578,20 +576,53 @@ const Users: React.FC = () => {
         <section className="space-y-2">
           {/* Role tabs & actions */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-1 bg-white rounded-2xl border border-slate-200 px-1 py-1 text-[11px]">
-              {(['All', 'Student', 'Faculty', 'Admin'] as const).map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => setRoleFilter(role)}
-                  className={`px-2 py-1 rounded-xl font-medium ${roleFilter === role
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                >
-                  {role}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 bg-white rounded-2xl border border-slate-200 px-1 py-1 text-[11px]">
+                {(['All', 'Student', 'Staff', 'Admin'] as const).map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => {
+                      setRoleFilter(role)
+                      setPositionFilter('All')
+                      setDepartmentFilter('All')
+                    }}
+                    className={`px-2 py-1 rounded-xl font-medium ${roleFilter === role
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+
+              {roleFilter === 'Staff' && (
+                <>
+                  <select
+                    value={positionFilter}
+                    onChange={(e) => setPositionFilter(e.target.value as typeof positionFilter)}
+                    className="rounded-xl border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[140px] sm:max-w-none"
+                  >
+                    <option value="All">All staff</option>
+                    <option value="Faculty">No approver role</option>
+                    {Object.entries(POSITION_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={departmentFilter}
+                    onChange={(e) => setDepartmentFilter(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[200px]"
+                    title="Filter by department / office"
+                  >
+                    <option value="All">All departments</option>
+                    {staffDepartmentOptions.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
 
             <div className="flex gap-2 justify-end">
@@ -604,22 +635,15 @@ const Users: React.FC = () => {
                     lastName: '',
                     email: '',
                     password: '',
+                    confirmPassword: '',
                     role: 'student',
                     idNumber: '',
                     nickname: '',
-                    address: '',
-                    region: '',
-                    province: '',
-                    city: '',
-                    barangay: '',
                     department: '',
                     program: '',
                     yearLevel: '',
                     section: '',
-                    isApprover: false,
                     approverPosition: '',
-                    approverActive: true,
-                    markVerified: false,
                   })
                   setCreateError(null)
                   setCreateOpen(true)
@@ -787,11 +811,12 @@ const Users: React.FC = () => {
                     </div>
 
                     {/* Role */}
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-2 min-w-0">
                       <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${rolePillClasses[u.role]}`}
+                        title={u.roleLabel}
+                        className={`inline-flex max-w-full rounded-full px-2 py-0.5 text-[11px] font-semibold wrap-break-word text-left leading-snug ${rolePillClasses[u.role]}`}
                       >
-                        {u.role}
+                        {u.roleLabel}
                       </span>
                     </div>
 
@@ -1017,10 +1042,10 @@ const Users: React.FC = () => {
                       </div>
                       <div>
                         <p className="font-medium text-slate-500">
-                          {reviewingUser.role === 'Faculty' ? 'Program' : 'Year level'}
+                          {reviewingUser.role === 'Staff' ? 'Program' : 'Year level'}
                         </p>
                         <p className="mt-0.5 text-slate-800">
-                          {reviewingUser.role === 'Faculty'
+                          {reviewingUser.role === 'Staff'
                             ? reviewProfile.program || '—'
                             : reviewProfile.year_level || '—'}
                         </p>
@@ -1032,7 +1057,7 @@ const Users: React.FC = () => {
 
               <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4 space-y-3">
                 <p className="text-[11px] font-medium text-slate-700">
-                  {reviewingUser.role === 'Faculty'
+                  {reviewingUser.role === 'Staff'
                     ? 'Employee ID picture'
                     : 'Certificate of Registration (COR)'}
                 </p>
@@ -1052,7 +1077,7 @@ const Users: React.FC = () => {
                         className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
                       >
                         View uploaded{' '}
-                        {reviewingUser.role === 'Faculty' ? 'ID' : 'COR'}
+                        {reviewingUser.role === 'Staff' ? 'ID' : 'COR'}
                       </a>
                     ) : (
                       <p className="text-[11px] text-slate-500">
@@ -1192,7 +1217,7 @@ const Users: React.FC = () => {
                     Create user
                   </h2>
                   <p className="mt-1 text-[11px] text-slate-500">
-                    Manually add a student, faculty, or admin account.
+                    Manually add a student, staff, or admin account.
                   </p>
                 </div>
                 <button
@@ -1222,6 +1247,12 @@ const Users: React.FC = () => {
                       return
                     }
 
+                    if (createForm.password !== createForm.confirmPassword) {
+                      setCreateError('Passwords do not match.')
+                      toast.error('Passwords do not match.')
+                      return
+                    }
+
                     setCreateSaving(true)
                     setCreateError(null)
                     try {
@@ -1234,19 +1265,12 @@ const Users: React.FC = () => {
                         middleName: createForm.middleName,
                         lastName: createForm.lastName,
                         nickname: createForm.nickname,
-                        address: createForm.address,
-                        region: createForm.region,
-                        province: createForm.province,
-                        city: createForm.city,
-                        barangay: createForm.barangay,
                         department: createForm.department,
                         program: createForm.program,
                         yearLevel: createForm.yearLevel,
                         section: createForm.section,
-                        isApprover: createForm.isApprover,
-                        approverPosition: createForm.isApprover ? createForm.approverPosition : null,
-                        approverActive: createForm.approverActive,
-                        markVerified: createForm.markVerified,
+                        approverPosition: createForm.approverPosition || null,
+                        markVerified: true,
                       }
 
                       const {
@@ -1315,13 +1339,32 @@ const Users: React.FC = () => {
                         minLength={8}
                       />
                     </div>
+                    <div className="space-y-1">
+                      <label className="block font-medium text-slate-700">Confirm password</label>
+                      <input
+                        type="password"
+                        value={createForm.confirmPassword}
+                        onChange={(e) => setCreateForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                        className={`mt-1 block w-full rounded-xl border bg-slate-50 px-3 py-2 text-[11px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 ${
+                          createForm.confirmPassword && createForm.password !== createForm.confirmPassword
+                            ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500'
+                            : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500'
+                        }`}
+                        placeholder="Re-enter password"
+                        required
+                        minLength={8}
+                      />
+                      {createForm.confirmPassword && createForm.password !== createForm.confirmPassword && (
+                        <p className="text-[10px] text-rose-500 mt-1">Passwords do not match</p>
+                      )}
+                    </div>
                       <div className="space-y-1">
                         <label className="block font-medium text-slate-700">Role</label>
                           <select
                             value={createForm.role}
                             onChange={(e) =>
                               setCreateForm((prev) => {
-                                const nextRole = e.target.value as 'student' | 'faculty' | 'admin'
+                                const nextRole = e.target.value as 'student' | 'staff' | 'admin'
                                 const isStudent = nextRole === 'student'
                                 return {
                                   ...prev,
@@ -1338,7 +1381,7 @@ const Users: React.FC = () => {
                           className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="student">Student</option>
-                          <option value="faculty">Faculty</option>
+                          <option value="staff">Staff / Faculty</option>
                           <option value="admin">Admin</option>
                         </select>
                       </div>
@@ -1346,14 +1389,14 @@ const Users: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="block font-medium text-slate-700">
-                          {createForm.role === 'faculty' ? 'Employee ID' : 'Student ID'}
+                          {createForm.role === 'staff' ? 'Employee ID' : 'Student ID'}
                         </label>
                         <input
                           type="text"
                           value={createForm.idNumber}
                           onChange={(e) => setCreateForm((prev) => ({ ...prev, idNumber: e.target.value }))}
                           className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          placeholder={createForm.role === 'faculty' ? 'FAC-2024-00001' : '2024-00001'}
+                          placeholder={createForm.role === 'staff' ? 'FAC-2024-00001' : '2024-00001'}
                         />
                       </div>
                     </div>
@@ -1381,41 +1424,6 @@ const Users: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="space-y-1">
-                        <label className="block font-medium text-slate-700">Region</label>
-                        <select value={createForm.region} onChange={handleRegionChange} className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                          <option value="">Select region</option>
-                          {regions.map((r: any) => <option key={r.code} value={r.code}>{r.name}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block font-medium text-slate-700">Province</label>
-                        <select value={createForm.province} onChange={handleProvinceChange} disabled={!createForm.region || provinces.length === 0} className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                          <option value="">{!createForm.region ? 'Select region first' : provinces.length === 0 ? 'No provinces for this region' : 'Select province'}</option>
-                          {provinces.map((p: any) => <option key={p.code} value={p.code}>{p.name}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block font-medium text-slate-700">City / Municipality</label>
-                        <select value={createForm.city} onChange={handleCityChange} disabled={!createForm.region || (provinces.length > 0 && !createForm.province)} className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                          <option value="">{!createForm.region ? 'Select region first' : provinces.length > 0 && !createForm.province ? 'Select province first' : 'Select city'}</option>
-                          {cities.map((c: any) => <option key={c.code} value={c.code}>{c.name}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block font-medium text-slate-700">Barangay</label>
-                        <select value={createForm.barangay} onChange={(e) => setCreateForm(prev => ({ ...prev, barangay: e.target.value }))} disabled={!createForm.city} className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                          <option value="">{!createForm.city ? 'Select city first' : 'Select barangay'}</option>
-                          {barangays.map((b: any) => <option key={b.code} value={b.code}>{b.name}</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block font-medium text-slate-700">Street / House number</label>
-                      <input type="text" value={createForm.address} onChange={(e) => setCreateForm((prev) => ({ ...prev, address: e.target.value }))} className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="e.g. 123 Sampaguita St." />
-                    </div>
                   </div>
 
                   {/* Academic Info */}
@@ -1466,80 +1474,39 @@ const Users: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-slate-100 flex items-center">
-                    <label className="inline-flex items-center gap-2 text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={createForm.markVerified}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            markVerified: e.target.checked,
-                          }))
-                        }
-                        className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span>Mark as verified immediately</span>
-                    </label>
-                  </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
-                    <label className="inline-flex items-center gap-2 text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={createForm.isApprover}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            isApprover: e.target.checked,
-                            approverPosition: e.target.checked ? prev.approverPosition : '',
-                          }))
-                        }
-                        className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span>Set as handbook approver</span>
-                    </label>
-
-                    {createForm.isApprover && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <label className="block font-medium text-slate-700">Approver position</label>
-                          <select
-                            value={createForm.approverPosition}
-                            onChange={(e) =>
-                              setCreateForm((prev) => ({
-                                ...prev,
-                                approverPosition: e.target.value as '' | 'scholarship' | 'finance' | 'registrar' | 'guidance' | 'property_security' | 'academic_council' | 'vice_president' | 'president',
-                              }))
-                            }
-                            className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            required
-                          >
-                            <option value="">Select position</option>
-                            <option value="scholarship">Scholarship</option>
-                            <option value="finance">Department of Finance</option>
-                            <option value="registrar">Office of the Registrar</option>
-                            <option value="guidance">Guidance Office</option>
-                            <option value="property_security">Property/Security Office</option>
-                            <option value="academic_council">Academic Council</option>
-                            <option value="vice_president">Office of the Vice President</option>
-                            <option value="president">Office of the President</option>
-                          </select>
-                        </div>
-                        <label className="inline-flex items-center gap-2 text-slate-600 mt-5">
-                          <input
-                            type="checkbox"
-                            checked={createForm.approverActive}
-                            onChange={(e) =>
-                              setCreateForm((prev) => ({ ...prev, approverActive: e.target.checked }))
-                            }
-                            className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span>Approver active</span>
+                  {createForm.role === 'staff' && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
+                      <div className="space-y-1">
+                        <label className="block font-medium text-slate-700">
+                          Approver position <span className="text-slate-400 font-normal">(optional)</span>
                         </label>
+                        <p className="text-[10px] text-slate-500 mb-1">
+                          Assign a position to make this staff member a handbook approver.
+                        </p>
+                        <select
+                          value={createForm.approverPosition}
+                          onChange={(e) =>
+                            setCreateForm((prev) => ({
+                              ...prev,
+                              approverPosition: e.target.value as '' | 'scholarship' | 'finance' | 'registrar' | 'guidance' | 'property_security' | 'academic_council' | 'vice_president' | 'president',
+                            }))
+                          }
+                          className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">None (no approver role)</option>
+                          <option value="scholarship">Scholarship</option>
+                          <option value="finance">Department of Finance</option>
+                          <option value="registrar">Office of the Registrar</option>
+                          <option value="guidance">Guidance Office</option>
+                          <option value="property_security">Property/Security Office</option>
+                          <option value="academic_council">Academic Council</option>
+                          <option value="vice_president">Office of the Vice President</option>
+                          <option value="president">Office of the President</option>
+                        </select>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   <p className="text-[10px] text-slate-500">
                     Accounts created here are added to Supabase Auth and a matching row is saved in

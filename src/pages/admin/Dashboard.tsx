@@ -6,9 +6,10 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate()
   const [activeUsers, setActiveUsers] = useState<number | null>(null)
-  const [publishedNodes, setPublishedNodes] = useState<number | null>(null)
+  const [chapterCount, setChapterCount] = useState<number | null>(null)
+  const [sectionCount, setSectionCount] = useState<number | null>(null)
   const [pendingConformes, setPendingConformes] = useState<number | null>(null)
-  const [handbookViews, setHandbookViews] = useState<number | null>(null)
+  const [engagement, setEngagement] = useState<{ count: number; seconds: number } | null>(null)
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -21,11 +22,19 @@ const AdminDashboard: React.FC = () => {
         .eq('verified', true)
       if (typeof userCount === 'number') setActiveUsers(userCount)
 
-      // Published nodes — all handbook_nodes (chapters + sections)
-      const { count: nodeCount } = await supabase
+      // Handbook Chapters (depth = 0)
+      const { count: cCount } = await supabase
         .from('handbook_nodes')
         .select('id', { count: 'exact', head: true })
-      if (typeof nodeCount === 'number') setPublishedNodes(nodeCount)
+        .eq('depth', 0)
+      if (typeof cCount === 'number') setChapterCount(cCount)
+
+      // Handbook Sections (depth > 0)
+      const { count: sCount } = await supabase
+        .from('handbook_nodes')
+        .select('id', { count: 'exact', head: true })
+        .gt('depth', 0)
+      if (typeof sCount === 'number') setSectionCount(sCount)
 
       // Pending conformes
       const { count: conformeCount } = await supabase
@@ -34,22 +43,31 @@ const AdminDashboard: React.FC = () => {
         .eq('status', 'pending')
       if (typeof conformeCount === 'number') setPendingConformes(conformeCount)
 
-      // Handbook views total
-      const { count: viewCount, error: viewError } = await supabase
+      // Handbook engagement (total views + total time)
+      const { data: viewData, error: viewError } = await supabase
         .from('handbook_views')
-        .select('id', { count: 'exact', head: true })
+        .select('duration_seconds')
       if (viewError) {
         console.error('handbook_views query error:', viewError.message)
-        setHandbookViews(0)
-      } else if (typeof viewCount === 'number') {
-        setHandbookViews(viewCount)
+        setEngagement({ count: 0, seconds: 0 })
+      } else if (viewData) {
+        const totalSeconds = viewData.reduce((sum, v) => sum + (v.duration_seconds || 0), 0)
+        setEngagement({ count: viewData.length, seconds: totalSeconds })
       }
     }
 
     load()
   }, [])
 
-  const fmt = (n: number | null) => (n !== null ? n.toLocaleString() : '—')
+  const fmt = (n: number | null | undefined) => (n !== null && n !== undefined ? n.toLocaleString() : '—')
+  const fmtDuration = (s: number | undefined) => {
+    if (s === undefined) return '—'
+    if (s < 60) return `${s}s`
+    const m = Math.floor(s / 60)
+    if (m < 60) return `${m}m`
+    const h = (s / 3600).toFixed(1)
+    return `${h}h`
+  }
 
   return (
     <>
@@ -64,25 +82,30 @@ const AdminDashboard: React.FC = () => {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-5">
-        {/* Top metric cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Top metric cards - now 5 cards */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
             <p className="text-[11px] text-slate-500">Active Users</p>
             <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(activeUsers)}</p>
           </div>
           <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
-            <p className="text-[11px] text-slate-500">Published Nodes</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(publishedNodes)}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Chapters &amp; Sections</p>
+            <p className="text-[11px] text-slate-500 uppercase tracking-wider font-medium">Handbook Chapters</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(chapterCount)}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Top-level categories</p>
+          </div>
+          <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
+            <p className="text-[11px] text-slate-500 uppercase tracking-wider font-medium">Handbook Sections</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(sectionCount)}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Polices &amp; Detailed content</p>
           </div>
           <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
             <p className="text-[11px] text-slate-500">Pending Conformes</p>
             <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(pendingConformes)}</p>
           </div>
           <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
-            <p className="text-[11px] text-slate-500">Handbook Views</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(handbookViews)}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Total section opens</p>
+            <p className="text-[11px] text-slate-500 uppercase tracking-wider font-medium">Handbook Engagement</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{fmtDuration(engagement?.seconds)}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{fmt(engagement?.count)} total section opens</p>
           </div>
         </section>
 
@@ -103,6 +126,7 @@ const AdminDashboard: React.FC = () => {
               </button>
               <button
                 type="button"
+                onClick={() => navigate('/admin/reports')}
                 className="bg-white rounded-lg px-5 py-4 text-left border border-slate-100 shadow-sm hover:bg-slate-50"
               >
                 <p className="text-sm font-semibold text-slate-900">View Reports</p>

@@ -17,7 +17,6 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import {
   fetchApproverQueue,
   fetchHandbooks,
-  fetchSectionDiff,
   fetchSectionAuditTrail,
   saveSectionEdit,
   approveSectionAtLevel,
@@ -37,31 +36,9 @@ function stripHtml(html: string): string {
   return d.textContent || d.innerText || ''
 }
 
-function wordDiff(oldText: string, newText: string): { type: 'same' | 'add' | 'del'; text: string }[] {
-  const oldWords = stripHtml(oldText).split(/\s+/).filter(Boolean)
-  const newWords = stripHtml(newText).split(/\s+/).filter(Boolean)
-  const result: { type: 'same' | 'add' | 'del'; text: string }[] = []
-  let oi = 0, ni = 0
-  while (oi < oldWords.length && ni < newWords.length) {
-    if (oldWords[oi] === newWords[ni]) {
-      result.push({ type: 'same', text: oldWords[oi] }); oi++; ni++
-    } else {
-      const newIdx = newWords.indexOf(oldWords[oi], ni)
-      if (newIdx !== -1 && newIdx - ni < 6) {
-        while (ni < newIdx) { result.push({ type: 'add', text: newWords[ni] }); ni++ }
-      } else { result.push({ type: 'del', text: oldWords[oi] }); oi++; continue }
-    }
-  }
-  while (oi < oldWords.length) { result.push({ type: 'del', text: oldWords[oi] }); oi++ }
-  while (ni < newWords.length) { result.push({ type: 'add', text: newWords[ni] }); ni++ }
-  return result
-}
-
 const statusColors: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-700 border border-slate-200',
-  l2_review: 'bg-blue-50 text-blue-700 border border-blue-200',
-  l3_review: 'bg-violet-50 text-violet-700 border border-violet-200',
-  l4_review: 'bg-amber-50 text-amber-700 border border-amber-200',
+  dept_review: 'bg-blue-50 text-blue-700 border border-blue-200',
   pending_approval: 'bg-amber-50 text-amber-700 border border-amber-200',
   published: 'bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold',
   rejected: 'bg-rose-50 text-rose-700 border border-rose-200',
@@ -69,10 +46,8 @@ const statusColors: Record<string, string> = {
 
 const ProgressBar: React.FC<{ currentLevel: number }> = ({ currentLevel }) => {
   const levels = [
-    { n: 1, label: 'L1' },
-    { n: 2, label: 'L2' },
-    { n: 3, label: 'L3' },
-    { n: 4, label: 'L4' },
+    { n: 1, label: 'Admin Draft' },
+    { n: 2, label: 'Department' },
   ]
   return (
     <div className="flex items-center gap-0.5">
@@ -131,9 +106,8 @@ const HandbookApprovals: React.FC = () => {
 
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
     const derived = derivePositionFromProfile(profile ?? {})
-    const isActive = (profile?.is_approver === true || derived !== null) && profile?.approver_active !== false
 
-    if (!isActive || !derived) { setPosition(null); setSections([]); setLoading(false); return }
+    if (!derived) { setPosition(null); setSections([]); setLoading(false); return }
 
     setPosition(derived)
     const lvl = positionToLevel(derived)
@@ -222,7 +196,7 @@ const HandbookApprovals: React.FC = () => {
     const { error } = await approveSectionAtLevel(sectionId, position, 2)
     setSavingId(null)
     if (error) { toast.error(error); return }
-    toast.success('Section submitted to VP for review.')
+    toast.success('Section approved.')
     setEditingSectionId(null)
     await loadContext()
   }
@@ -246,7 +220,7 @@ const HandbookApprovals: React.FC = () => {
     const { error } = await rejectSectionAtLevel(sectionId, position, userLevel, comment)
     setSavingId(null)
     if (error) { toast.error(error); return }
-    toast.success('Section rejected and returned to L2.')
+    toast.success('Section rejected and returned to admin.')
     setCommentBySection((p) => ({ ...p, [sectionId]: '' }))
     await loadContext()
   }
@@ -282,9 +256,7 @@ const HandbookApprovals: React.FC = () => {
             <h1 className="text-xl font-semibold">Handbook Approvals</h1>
             <p className="mt-1 text-xs text-blue-100">
               {userLevel === 2 ? 'Edit and approve sections assigned to your department.' :
-                userLevel === 3 ? 'Review department changes and approve or reject.' :
-                  userLevel === 4 ? 'Final executive review and sign-off.' :
-                    'Review handbook sections.'}
+                  'Review handbook sections.'}
             </p>
           </div>
         </header>
@@ -350,7 +322,7 @@ const HandbookApprovals: React.FC = () => {
               <p className="mt-1 text-xs text-blue-100">{activeHandbook?.school_year}</p>
             </div>
           </div>
-          {userLevel >= 3 && handbookSections.length > 0 && (
+          {userLevel === 2 && handbookSections.length > 0 && (
             <button type="button" onClick={handleBulkApprove} disabled={bulkSaving} className="shrink-0 flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60">
               {bulkSaving ? <FaSpinner className="animate-spin text-xs" /> : <FaCheckDouble className="text-xs" />} {bulkSaving ? 'Approving All…' : `Bulk Approve All (${handbookSections.length})`}
             </button>
@@ -461,16 +433,12 @@ const SectionCard: React.FC<SectionCardProps> = ({
   onStartEdit, onEditorInput, onExecCmd, onChangeReason, onComment,
   onL2SaveAndApprove, onApprove, onReject,
 }) => {
-  const [diffData, setDiffData] = useState<{ legacy_content: string | null; content: string; change_reason: string | null } | null>(null)
   const [auditTrail, setAuditTrail] = useState<AuditTrailEntry[]>([])
   const isSaving = savingId === section.id
 
   useEffect(() => {
-    if (userLevel >= 3) {
-      fetchSectionDiff(section.id).then((res) => { if (res.data) setDiffData(res.data) })
-    }
     fetchSectionAuditTrail(section.id).then((res) => { if (res.data) setAuditTrail(res.data) })
-  }, [section.id, userLevel])
+  }, [section.id])
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -497,8 +465,16 @@ const SectionCard: React.FC<SectionCardProps> = ({
                   Edit content
                 </button>
                 <button type="button" disabled={isSaving} onClick={onApprove} className="px-4 py-2 rounded-lg bg-emerald-700 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-60">
-                  {isSaving ? 'Submitting…' : 'Submit for Review'}
+                  {isSaving ? 'Approving…' : 'Approve Section'}
                 </button>
+                <div className="ml-auto w-1/3">
+                   <div className="flex gap-2">
+                     <textarea value={comment} onChange={(e) => onComment(e.target.value)} placeholder="Reason for rejection..." className="flex-1 min-h-[30px] rounded-lg border border-slate-200 px-3 py-1.5 text-xs" />
+                     <button type="button" disabled={isSaving} onClick={onReject} className="px-4 py-2 rounded-lg bg-rose-700 text-xs font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
+                       Reject
+                     </button>
+                   </div>
+                </div>
               </div>
             </>
           ) : (
@@ -526,7 +502,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
                 <textarea value={changeReason} onChange={(e) => onChangeReason(e.target.value)} placeholder="e.g., Updated Article II to include hybrid learning rules" className="w-full min-h-[60px] rounded-lg border border-slate-200 px-3 py-2 text-xs" />
               </div>
               <button type="button" disabled={isSaving} onClick={onL2SaveAndApprove} className="px-4 py-2 rounded-lg bg-emerald-700 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-60">
-                {isSaving ? 'Saving…' : 'Save & Submit to VP'}
+                {isSaving ? 'Saving…' : 'Save & Approve Section'}
               </button>
             </>
           )}
@@ -558,78 +534,6 @@ const SectionCard: React.FC<SectionCardProps> = ({
         </div>
       )}
 
-      {/* ── Level 3/4: Review mode with diff ──────────────────── */}
-      {userLevel >= 3 && (
-        <div className="p-5 space-y-3">
-          {diffData && diffData.legacy_content ? (
-            <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-              <h5 className="text-[10px] font-semibold text-slate-500 uppercase">Version Compare (Legacy vs New)</h5>
-              <div className="text-xs leading-relaxed text-slate-700 max-h-64 overflow-y-auto">
-                {wordDiff(diffData.legacy_content, diffData.content).map((seg, i) => (
-                  <span key={i} className={
-                    seg.type === 'del' ? 'bg-rose-100 text-rose-800 line-through mx-0.5' :
-                      seg.type === 'add' ? 'bg-emerald-100 text-emerald-800 mx-0.5' : ''
-                  }>{seg.text} </span>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 max-h-48 overflow-y-auto">
-              <p className="text-sm text-slate-700 whitespace-pre-wrap">{section.content ? stripHtml(section.content) : '(No content)'}</p>
-            </div>
-          )}
-
-          {(diffData?.change_reason || section.change_reason) && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <h5 className="text-[10px] font-semibold text-slate-500 uppercase mb-1">Change Reason (from Department)</h5>
-              <p className="text-xs text-slate-700">{diffData?.change_reason || section.change_reason}</p>
-            </div>
-          )}
-
-          {auditTrail.length > 0 && (
-            <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/50 space-y-4">
-              <h5 className="text-[10px] font-semibold text-slate-500 uppercase flex items-center gap-1.5"><FaHistory /> Discussion & Audit Timeline</h5>
-              <div className="space-y-4 pl-2 border-l-2 border-slate-100">
-                {auditTrail.map((e) => (
-                  <div key={e.id} className="relative pl-4">
-                    <div className={`absolute -left-[11px] top-1.5 h-2 w-2 rounded-full border border-white ${e.decision === 'approved' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xs font-semibold text-slate-900">{e.approver_name}</span>
-                        <span className="text-[10px] text-slate-500">{levelLabel(e.level)} • {approverLabel(e.position)}</span>
-                      </div>
-                      {e.decided_at && <span className="text-[10px] text-slate-400">{new Date(e.decided_at).toLocaleString()}</span>}
-                      {e.comment && (
-                        <div className="mt-1.5 rounded-r-xl rounded-bl-xl bg-white border border-slate-200 p-3 shadow-sm relative">
-                          <p className="text-xs text-slate-700">"{e.comment}"</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <textarea
-              value={comment}
-              onChange={(e) => onComment(e.target.value)}
-              placeholder={userLevel === 3 ? 'VP review comment…' : 'Presidential directive…'}
-              className="w-full min-h-[60px] rounded-lg border border-slate-200 px-3 py-2 text-xs"
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <button type="button" disabled={isSaving} onClick={onApprove} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-60">
-              {isSaving ? 'Saving…' : 'Approve'}
-            </button>
-            <button type="button" disabled={isSaving} onClick={onReject} className="rounded-lg bg-rose-700 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
-              {isSaving ? 'Saving…' : 'Reject'}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

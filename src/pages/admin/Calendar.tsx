@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../contexts/AuthContext'
+import { fetchSchoolSettings, updateAcademicYear, removeGraduates } from '../../lib/api/settings'
 
 type EventType = 'holiday' | 'exam' | 'class' | 'enrollment' | 'event'
 
@@ -59,7 +61,21 @@ const Calendar: React.FC = () => {
   const [rangeEndDay, setRangeEndDay] = useState<number | ''>('')
   const [events, setEvents] = useState<CalendarEvent[]>([])
 
+  // GLOBAL SETTINGS
+  const [globalAcademicYear, setGlobalAcademicYear] = useState('2025-2026')
+  const [savingYear, setSavingYear] = useState(false)
+  const [showRemoveGradsModal, setShowRemoveGradsModal] = useState(false)
+  const [removingGrads, setRemovingGrads] = useState(false)
+
   useEffect(() => {
+    const loadSettings = async () => {
+      const { data } = await fetchSchoolSettings()
+      if (data) {
+        setGlobalAcademicYear(data.current_academic_year)
+      }
+    }
+    loadSettings()
+
     const fetchEvents = async () => {
       const { data, error } = await supabase.from('calendar_events').select('*')
       if (error) {
@@ -177,8 +193,35 @@ const Calendar: React.FC = () => {
     setIsTargetRunnerOpen(false)
   }
 
+  const handleRemoveGrads = async () => {
+    setRemovingGrads(true)
+    const { count, error } = await removeGraduates()
+    setRemovingGrads(false)
+    setShowRemoveGradsModal(false)
+    if (error) toast.error(error)
+    else if (count === 0) toast('No 4th year students found to remove.')
+    else toast.success(`Removed ${count} graduated student${count !== 1 ? 's' : ''} from the system.`)
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Remove Graduates Confirmation Modal */}
+      {showRemoveGradsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-slate-900">Remove Graduated Students</h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This will permanently remove all <span className="font-semibold text-rose-700">4th Year</span> students from the system database. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowRemoveGradsModal(false)} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={handleRemoveGrads} disabled={removingGrads} className="px-4 py-2 rounded-lg bg-rose-700 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-50">
+                {removingGrads ? 'Removing…' : 'Confirm Removal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Dark blue header bar, matching dashboard */}
       <header className="bg-blue-800 text-white shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
@@ -190,12 +233,44 @@ const Calendar: React.FC = () => {
               Configure academic milestones and events for the institution.
             </p>
           </div>
-          <button
-            onClick={() => setIsTargetRunnerOpen(true)}
-            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg text-sm font-semibold transition-all flex items-center gap-2"
-          >
-            <span>Bulk Actions</span>
-          </button>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-blue-900/50 outline outline-1 outline-blue-400/30 rounded-lg px-3 py-1.5">
+              <span className="text-xs font-semibold text-blue-200">Active Academic Year:</span>
+              <input 
+                type="text" 
+                value={globalAcademicYear} 
+                onChange={(e) => setGlobalAcademicYear(e.target.value)} 
+                className="w-28 bg-transparent border-b border-blue-400/50 text-white text-sm font-bold focus:outline-none focus:border-white px-1 py-0.5"
+                placeholder="e.g. 2025-2026"
+              />
+              <button 
+                onClick={async () => {
+                  setSavingYear(true)
+                  const { error } = await updateAcademicYear(globalAcademicYear)
+                  setSavingYear(false)
+                  if (!error) toast.success('Academic Year updated. All users must re-accept the Conforme.')
+                  else toast.error(error)
+                }}
+                disabled={savingYear}
+                className="px-2 py-1 ml-1 bg-white hover:bg-slate-100 text-blue-800 rounded text-[10px] font-bold disabled:opacity-50 transition-colors"
+                title="Save Global Academic Year"
+              >
+                {savingYear ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+            <button
+              onClick={() => setShowRemoveGradsModal(true)}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold transition-colors"
+            >
+              Remove Graduates
+            </button>
+            <button
+              onClick={() => setIsTargetRunnerOpen(true)}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg text-sm font-semibold transition-all flex items-center gap-2"
+            >
+              <span>Bulk Actions</span>
+            </button>
+          </div>
         </div>
       </header>
 

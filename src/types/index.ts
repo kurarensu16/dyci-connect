@@ -2,7 +2,7 @@ export interface User {
   id: string;
   email: string;
   user_metadata: {
-    role: 'student' | 'faculty' | 'admin';
+    role: 'student' | 'staff' | 'admin';
     full_name?: string;
     student_id?: string;
     department?: string;

@@ -32,7 +32,7 @@ const Navbar: React.FC = () => {
                   Dashboard
                 </Link>
               )}
-              {user.user_metadata?.role === 'admin' && (
+              {(user.user_metadata?.role === 'admin' || user.user_metadata?.role === 'staff') && (
                 <Link
                   to="/admin/dashboard"
                   className="text-sm font-medium text-slate-700 hover:text-blue-600"

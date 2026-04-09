@@ -53,8 +53,8 @@ const AuthCallback: React.FC = () => {
         return
       }
       if (!verified && role !== 'admin') {
-        if (role === 'faculty') {
-          navigate('/faculty/dashboard', { replace: true })
+        if (role === 'staff') {
+          navigate('/staff/dashboard', { replace: true })
         } else {
           navigate('/student/dashboard', { replace: true })
         }
@@ -63,8 +63,8 @@ const AuthCallback: React.FC = () => {
       }
       if (role === 'admin') {
         navigate('/admin/dashboard', { replace: true })
-      } else if (role === 'faculty') {
-        navigate('/faculty/dashboard', { replace: true })
+      } else if (role === 'staff') {
+        navigate('/staff/dashboard', { replace: true })
       } else {
         navigate('/student/dashboard', { replace: true })
       }

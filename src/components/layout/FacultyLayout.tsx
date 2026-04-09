@@ -7,11 +7,11 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import logo from '../../assets/imgs/logo-connect.png'
 import { MdSpaceDashboard } from "react-icons/md";
 
-interface FacultyLayoutProps {
+interface StaffLayoutProps {
   children: ReactNode
 }
 
-const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
+const StaffLayout: React.FC<StaffLayoutProps> = ({ children }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
@@ -35,29 +35,15 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
         .maybeSingle()
 
       if (error) {
-        console.error('Error loading verification status (faculty)', error)
+        console.error('Error loading verification status (staff)', error)
         setIsVerified(null)
         setIsApprover(false)
       } else {
-        const officeDeptNames = new Set([
-          'Department of Finance',
-          'Office of the Registrar',
-          'Office of the Vice President',
-          'Office of the President',
-          'Guidance Office',
-          'Property/Security Office',
-          'Academic Council',
-        ])
         const hasApproverPosition =
           typeof data?.approver_position === 'string' && data.approver_position.trim().length > 0
-        const fromDepartmentFallback =
-          typeof data?.department === 'string' && officeDeptNames.has(data.department)
 
         setIsVerified(data?.verified === true)
-        setIsApprover(
-          (data?.is_approver === true || hasApproverPosition || fromDepartmentFallback) &&
-            data?.approver_active !== false
-        )
+        setIsApprover(hasApproverPosition)
       }
 
     }
@@ -95,17 +81,18 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
     disabled?: boolean
     badge?: number
   }> = [
-    { label: 'Dashboard', icon: MdSpaceDashboard, path: '/faculty/dashboard' },
-    { label: 'Notifications', icon: FaBell, path: '/faculty/notifications', badge: unreadCount },
-    { label: 'School Calendar', icon: FaCalendarAlt, path: '/faculty/calendar' },
-    { label: 'Handbook', icon: FaBookOpen, path: '/faculty/handbook' },
+    { label: 'Dashboard', icon: MdSpaceDashboard, path: '/staff/dashboard' },
+    { label: 'Notifications', icon: FaBell, path: '/staff/notifications', badge: unreadCount },
+    { label: 'School Calendar', icon: FaCalendarAlt, path: '/staff/calendar' },
+    { label: 'Handbook', icon: FaBookOpen, path: '/staff/handbook' },
     ...(isApprover
-      ? [{ label: 'Handbook Approvals', icon: FaCheckSquare, path: '/faculty/handbook-approvals' }]
+      ? [{ label: 'Handbook Approvals', icon: FaCheckSquare, path: '/staff/handbook-approvals' }]
       : []),
-    { label: 'Profile', icon: FaUserCircle, path: '/faculty/profile' },
+    { label: 'Profile', icon: FaUserCircle, path: '/staff/profile' },
   ]
 
-  const isLocked = isSupabaseConfigured && isVerified === false
+    const isLocked = isSupabaseConfigured && isVerified === false
+  const lockPath = '/staff/dashboard'
 
   return (
     <div className="min-h-screen bg-slate-100 md:flex">
@@ -125,7 +112,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
                 <span className="text-[10px] font-semibold tracking-[0.25em] text-blue-900 uppercase">
                   DYCI CONNECT
                 </span>
-                <span className="text-[10px] text-slate-400">Faculty portal</span>
+                <span className="text-[10px] text-slate-400">Staff portal</span>
               </div>
             )}
           </div>
@@ -144,7 +131,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
           {navItems.map((item) => {
             const isActive = location.pathname === item.path
             const Icon = item.icon
-            const locked = isLocked && item.path !== '/faculty/dashboard'
+            const locked = isLocked && item.path !== lockPath
 
             const baseClasses =
               'w-full flex items-center rounded-xl px-3 py-2 text-xs font-medium transition-colors'
@@ -174,10 +161,10 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
           {!collapsed && (
             <div className="mb-2">
               <p className="text-xs font-semibold text-slate-800">
-                {user?.user_metadata?.full_name || 'Faculty'}
+                {user?.user_metadata?.full_name || 'Staff'}
               </p>
               <p className="text-[10px] text-slate-500">
-                {user?.email || 'faculty@dyci.edu.ph'}
+                {user?.email || 'staff@dyci.edu.ph'}
               </p>
             </div>
           )}
@@ -212,7 +199,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
                   <span className="text-[10px] font-semibold tracking-[0.25em] text-blue-900 uppercase">
                     DYCI CONNECT
                   </span>
-                  <span className="text-[10px] text-slate-400">Faculty portal</span>
+                  <span className="text-[10px] text-slate-400">Staff portal</span>
                 </div>
               </div>
             </div>
@@ -278,7 +265,7 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
           >
             <FaBars className="h-4 w-4" />
           </button>
-          <span className="text-xs font-semibold text-slate-700">Faculty menu</span>
+          <span className="text-xs font-semibold text-slate-700">Staff menu</span>
         </div>
 
         {isLocked && (
@@ -302,4 +289,4 @@ const FacultyLayout: React.FC<FacultyLayoutProps> = ({ children }) => {
   )
 }
 
-export default FacultyLayout
+export default StaffLayout

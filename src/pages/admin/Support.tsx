@@ -61,7 +61,7 @@ const Support: React.FC = () => {
         <div className="max-w-6xl mx-auto px-6 py-3">
           <h1 className="text-xl font-semibold">Support Chat</h1>
           <p className="mt-1 text-xs text-blue-100">
-            Respond to questions from students and faculty
+            Respond to questions from students and staff
           </p>
         </div>
       </header>

@@ -54,8 +54,8 @@ const Login: React.FC = () => {
 
       if (role === 'admin') {
         navigate('/admin/dashboard')
-      } else if (role === 'faculty') {
-        navigate('/faculty/dashboard')
+      } else if (role === 'staff') {
+        navigate('/staff/dashboard')
       } else if (role === 'student') {
         navigate('/student/dashboard')
       } else {
@@ -245,7 +245,7 @@ const Login: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setShowRoleChooser(false)
-                  navigate('/signup/faculty')
+                  navigate('/signup/staff')
                 }}
                 className="w-full rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-left text-xs font-semibold text-purple-800 hover:bg-purple-100"
               >

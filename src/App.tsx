@@ -38,20 +38,17 @@ import Cms from './pages/admin/Cms'
 import Reports from './pages/admin/Reports'
 import AdminNotifications from './pages/student/Notifications'
 
-// Faculty Pages
-// (Add faculty pages imports here when available)
-import FacultyDashboard from './pages/faculty/Dashboard'
-import FacultyCalendar from './pages/faculty/Calendar'
-import FacultyHandbook from './pages/faculty/Handbook'
+// Staff Pages
+import StaffDashboard from './pages/faculty/Dashboard'
+import StaffCalendar from './pages/faculty/Calendar'
+import StaffHandbook from './pages/faculty/Handbook'
 import HandbookApprovals from './pages/faculty/HandbookApprovals'
-import FacultyNotifications from './pages/student/Notifications'
-
-
+import StaffNotifications from './pages/student/Notifications'
 
 // Shared Components
 import StudentLayout from './components/layout/StudentLayout'
 import AdminLayout from './components/layout/AdminLayout'
-import FacultyLayout from './components/layout/FacultyLayout'
+import StaffLayout from './components/layout/FacultyLayout'
 import StudentProfile from './pages/student/Profile'
 
 
@@ -64,7 +61,9 @@ const AppContent: React.FC = () => {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup/student/*" element={<Signup defaultRole="student" />} />
-        <Route path="/signup/faculty/*" element={<Signup defaultRole="faculty" />} />
+        <Route path="/signup/staff/*" element={<Signup defaultRole="staff" />} />
+        {/* Legacy redirect for old faculty signup links */}
+        <Route path="/signup/faculty/*" element={<Signup defaultRole="staff" />} />
         {/* Fallback for old links */}
         <Route path="/signup/*" element={<Signup defaultRole="student" />} />
         <Route path="/signup/conforme" element={<ConformePage />} />
@@ -87,6 +86,15 @@ const AppContent: React.FC = () => {
             </RequireUser>
           }
         />
+        <Route
+          path="/complete-profile/staff/*"
+          element={
+            <RequireUser>
+              <CompleteFacultyProfile />
+            </RequireUser>
+          }
+        />
+        {/* Legacy redirect */}
         <Route
           path="/complete-profile/faculty/*"
           element={
@@ -176,68 +184,64 @@ const AppContent: React.FC = () => {
           }
         />
 
-        {/* Faculty Routes (reusing Student pages) */}
+        {/* Staff Routes */}
         <Route
-    path="/faculty/dashboard"
-    element={
-      <PrivateRoute allowedRoles={['faculty']}>
-        <FacultyLayout>
-          <FacultyDashboard />
-        </FacultyLayout>
-      </PrivateRoute>
-    }
-  />
-      <Route
-    path="/faculty/notifications"
-    element={
-      <PrivateRoute allowedRoles={['faculty']}>
-        <FacultyLayout>
-          <FacultyNotifications />
-        </FacultyLayout>
-      </PrivateRoute>
-    }
-  />
-      <Route
-    path="/faculty/calendar"
-    element={
-      <PrivateRoute allowedRoles={['faculty']}>
-        <FacultyLayout>
-          <FacultyCalendar />
-        </FacultyLayout>
-      </PrivateRoute>
-    }
-  />
-
-  <Route
-    path="/faculty/handbook"
-    element={
-      <PrivateRoute allowedRoles={['faculty']}>
-        <FacultyLayout>
-          <FacultyHandbook />
-        </FacultyLayout>
-      </PrivateRoute>
-    }
-  />
-  <Route
-    path="/faculty/handbook-approvals"
-    element={
-      <PrivateRoute allowedRoles={['faculty']}>
-        <FacultyLayout>
-          <HandbookApprovals />
-        </FacultyLayout>
-      </PrivateRoute>
-    }
-  />
-
-
-
-        <Route
-          path="/faculty/profile"
+          path="/staff/dashboard"
           element={
-            <PrivateRoute allowedRoles={['faculty']}>
-              <FacultyLayout>
+            <PrivateRoute allowedRoles={['staff']}>
+              <StaffLayout>
+                <StaffDashboard />
+              </StaffLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/staff/notifications"
+          element={
+            <PrivateRoute allowedRoles={['staff']}>
+              <StaffLayout>
+                <StaffNotifications />
+              </StaffLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/staff/calendar"
+          element={
+            <PrivateRoute allowedRoles={['staff']}>
+              <StaffLayout>
+                <StaffCalendar />
+              </StaffLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/staff/handbook"
+          element={
+            <PrivateRoute allowedRoles={['staff']}>
+              <StaffLayout>
+                <StaffHandbook />
+              </StaffLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/staff/handbook-approvals"
+          element={
+            <PrivateRoute allowedRoles={['staff']}>
+              <StaffLayout>
+                <HandbookApprovals />
+              </StaffLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/staff/profile"
+          element={
+            <PrivateRoute allowedRoles={['staff']}>
+              <StaffLayout>
                 <StudentProfile />
-              </FacultyLayout>
+              </StaffLayout>
             </PrivateRoute>
           }
         />
