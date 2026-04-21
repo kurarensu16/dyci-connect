@@ -8,15 +8,14 @@ import RequireUser from './components/auth/RequireUser'
 // Public Pages
 import Home from './pages/Home'
 import Login from './pages/auth/Login'
-import Signup from './pages/auth/Signup'
 import ConformePage from './pages/auth/Conforme'
+import ForcePasswordReset from './pages/auth/ForcePasswordReset'
 import AuthCallback from './pages/auth/AuthCallback'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
 import CompleteProfile from './pages/auth/CompleteProfile'
 import CompleteStudentProfile from './pages/auth/CompleteStudentProfile'
 import CompleteFacultyProfile from './pages/auth/CompleteFacultyProfile'
-import PendingApproval from './pages/auth/PendingApproval'
 import NotFound from './pages/NotFound'
 
 // Student Pages
@@ -30,7 +29,6 @@ import StudentNotifications from './pages/student/Notifications'
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard'
 import Users from './pages/admin/Users'
-import Conforme from './pages/admin/Conforme'
 import Support from './pages/admin/Support'
 import AdminCalendar from './pages/admin/Calendar'
 import HandbookPreview from './pages/admin/HandbookPreview'
@@ -60,13 +58,15 @@ const AppContent: React.FC = () => {
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/signup/student/*" element={<Signup defaultRole="student" />} />
-        <Route path="/signup/staff/*" element={<Signup defaultRole="staff" />} />
-        {/* Legacy redirect for old faculty signup links */}
-        <Route path="/signup/faculty/*" element={<Signup defaultRole="staff" />} />
-        {/* Fallback for old links */}
-        <Route path="/signup/*" element={<Signup defaultRole="student" />} />
-        <Route path="/signup/conforme" element={<ConformePage />} />
+        <Route path="/conforme" element={<ConformePage />} />
+        <Route
+          path="/force-password-reset"
+          element={
+            <RequireUser>
+              <ForcePasswordReset />
+            </RequireUser>
+          }
+        />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
@@ -103,14 +103,7 @@ const AppContent: React.FC = () => {
             </RequireUser>
           }
         />
-        <Route
-          path="/pending-approval"
-          element={
-            <RequireUser>
-              <PendingApproval />
-            </RequireUser>
-          }
-        />
+
 
         {/* Student Routes */}
         <Route
@@ -277,16 +270,7 @@ const AppContent: React.FC = () => {
             </PrivateRoute>
           }
         />
-        <Route
-          path="/admin/conforme"
-          element={
-            <PrivateRoute allowedRoles={['admin']}>
-              <AdminLayout>
-                <Conforme />
-              </AdminLayout>
-            </PrivateRoute>
-          }
-        />
+
         <Route
           path="/admin/support"
           element={

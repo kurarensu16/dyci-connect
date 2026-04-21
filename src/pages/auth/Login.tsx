@@ -12,7 +12,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [showRoleChooser, setShowRoleChooser] = useState(false)
-  const { signIn, signInWithGoogle } = useAuth()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,13 +69,6 @@ const Login: React.FC = () => {
     }
   }
 
-  const handleGoogleSignIn = async () => {
-    const { error } = await signInWithGoogle()
-    if (error) {
-      toast.error(error.message || 'Google sign-in is not configured yet.')
-    }
-    // If no error, Supabase redirects to Google then back to /auth/callback
-  }
 
   return (
     <div className="min-h-screen flex bg-gray-50">
@@ -93,22 +86,7 @@ const Login: React.FC = () => {
               Back to home
             </button>
 
-            {/* Google sign-in */}
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              className="w-full inline-flex items-center justify-center space-x-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium py-3 shadow-sm hover:bg-slate-50 transition-colors"
-            >
-              <FaGoogle className="h-4 w-4" />
-              <span>Sign in with Google</span>
-            </button>
 
-            {/* Divider */}
-            <div className="my-6 flex items-center text-xs text-gray-400">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="px-3">Or continue with email</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
 
             {/* Email/password form */}
             <form className="space-y-5" onSubmit={handleSubmit}>
@@ -183,17 +161,6 @@ const Login: React.FC = () => {
               </button>
             </form>
 
-            {/* Footer */}
-            <p className="mt-6 text-center text-xs text-gray-500">
-              Don&apos;t have an account?
-              <button
-                type="button"
-                onClick={() => setShowRoleChooser(true)}
-                className="ml-1 font-semibold text-blue-600 hover:text-blue-500"
-              >
-                Register
-              </button>
-            </p>
           </div>
         </div>
 
@@ -217,54 +184,7 @@ const Login: React.FC = () => {
         </div>
       </div>
 
-      {/* Role chooser modal */}
-      {showRoleChooser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl px-6 py-6 space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900">
-              Choose how you&apos;d like to join
-            </h2>
-            <p className="text-xs text-gray-500">
-              This helps us customize your DYCI Connect experience.
-            </p>
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRoleChooser(false)
-                  navigate('/signup/student')
-                }}
-                className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left text-xs font-semibold text-blue-800 hover:bg-blue-100"
-              >
-                I&apos;m a Student
-                <span className="block mt-1 text-[11px] font-normal text-blue-700">
-                  Access your handbook, files, tools, and announcements.
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRoleChooser(false)
-                  navigate('/signup/staff')
-                }}
-                className="w-full rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-left text-xs font-semibold text-purple-800 hover:bg-purple-100"
-              >
-                I&apos;m an Educator
-                <span className="block mt-1 text-[11px] font-normal text-purple-700">
-                  Manage classes and connect with your students.
-                </span>
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowRoleChooser(false)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+
     </div>
   )
 }

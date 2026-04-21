@@ -36,7 +36,12 @@ const Conforme: React.FC = () => {
       return
     }
 
-    // Redirect to correct dashboard based on role
+    // Redirect to correct dashboard based on role (or password reset if required)
+    if (user?.user_metadata?.must_reset_password === true) {
+      navigate('/force-password-reset')
+      return
+    }
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')

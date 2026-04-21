@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import {
   FaPlus,
   FaDownload,
@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { buildAdminDepartmentOptions, isOfficeDepartment } from '../../lib/departmentOptions'
+import * as XLSX from 'xlsx'
 
 type Role = 'Student' | 'Staff' | 'Admin'
 type StaffPosition =
@@ -82,6 +83,158 @@ const statusPillClasses: Record<Status, string> = {
 
 const Users: React.FC = () => {
   const [users, setUsers] = useState<AdminUserRow[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isImporting, setIsImporting] = useState(false)
+
+  const handleBatchImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!isSupabaseConfigured) {
+      toast.error('Supabase is not configured.')
+      return
+    }
+
+    setIsImporting(true)
+    try {
+      let rows: any[] = []
+      const fileName = file.name.toLowerCase()
+
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Handle Excel
+        const data = await file.arrayBuffer()
+        const workbook = XLSX.read(data)
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+        rows = jsonData.filter(r => r.length >= 2)
+      } else {
+        // Handle CSV
+        const text = await file.text()
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+        rows = lines.map(l => l.split(',').map(p => p.trim().replace(/^"|"$/g, '')))
+      }
+
+      if (rows.length === 0) {
+        toast.error('The file is empty or invalid.')
+        setIsImporting(false)
+        return
+      }
+
+      let successCount = 0
+      let errorCount = 0
+      const errorMessages: string[] = []
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        toast.error('You are not logged in.')
+        setIsImporting(false)
+        return
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      const fnUrl = `${supabaseUrl}/functions/v1/admin-create-user`
+
+      let emailIdx = 0
+      let firstIdx = 1
+      let lastIdx = 2
+      let passwordIdx = 3
+      let isHeaderProcessed = false
+
+      for (let i = 0; i < rows.length; i++) {
+        const parts = rows[i]
+        if (!parts || parts.length < 2) continue
+
+        // Check first row for headers
+        if (!isHeaderProcessed) {
+          const lowerParts = parts.map((p: any) => (p || '').toString().toLowerCase())
+          const eIdx = lowerParts.findIndex((p: string) => p.includes('email') || p.includes('user'))
+          const pIdx = lowerParts.findIndex((p: string) => p.includes('pass'))
+          const fIdx = lowerParts.findIndex((p: string) => p.includes('first') || p.includes('fname'))
+          const lIdx = lowerParts.findIndex((p: string) => p.includes('last') || p.includes('lname'))
+
+          if (eIdx !== -1 && pIdx !== -1) {
+            emailIdx = eIdx
+            passwordIdx = pIdx
+            firstIdx = fIdx === -1 ? 1 : fIdx
+            lastIdx = lIdx === -1 ? 2 : lIdx
+            console.log(`[Import Debug] Detected headers at indices: Email=${emailIdx}, Pass=${passwordIdx}, First=${firstIdx}, Last=${lastIdx}`)
+            isHeaderProcessed = true
+            continue
+          }
+          isHeaderProcessed = true
+        }
+
+        const email = (parts[emailIdx] || '').toString().trim()
+        const password = (parts[passwordIdx] || '').toString().trim()
+        const firstName = firstIdx !== -1 ? (parts[firstIdx] || '').toString().trim() : ''
+        const lastName = lastIdx !== -1 ? (parts[lastIdx] || '').toString().trim() : ''
+
+        if (!email || !email.includes('@')) continue
+
+        const payload = {
+          email,
+          password,
+          firstName,
+          lastName,
+          role: 'student',
+          markVerified: true,
+          mustResetPassword: true,
+        }
+
+        console.log(`[Import Debug] Mapped ${email}:`, { 
+          passwordLength: password.length,
+          passwordValue: password,
+          firstName,
+          lastName
+        })
+
+        try {
+          const res = await fetch(fnUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseAnonKey,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify(payload),
+          })
+
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({ error: 'Unknown error' }))
+            const errMsg = errBody.error || `HTTP ${res.status}`
+            console.error(`Failed to import ${email}: [${res.status}] ${errMsg}`)
+            errorMessages.push(`${email}: ${errMsg}`)
+            errorCount++
+          } else {
+            successCount++
+          }
+        } catch (fetchErr) {
+          console.error(`Failed to import ${email}:`, fetchErr)
+          errorMessages.push(`${email}: Network error`)
+          errorCount++
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Imported ${successCount} user${successCount > 1 ? 's' : ''} successfully!`)
+      }
+      if (errorCount > 0) {
+        const summary = errorMessages.slice(0, 3).join('\n')
+        const more = errorMessages.length > 3 ? `\n...and ${errorMessages.length - 3} more` : ''
+        toast.error(`${errorCount} failed:\n${summary}${more}`, { duration: 8000 })
+        console.error('All import errors:', errorMessages)
+      }
+      await loadUsers()
+    } catch (err) {
+      console.error('Batch import failed', err)
+      toast.error('Failed to parse or import data.')
+    } finally {
+      setIsImporting(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [roleFilter, setRoleFilter] = useState<'All' | Role>('All')
@@ -626,6 +779,31 @@ const Users: React.FC = () => {
             </div>
 
             <div className="flex gap-2 justify-end">
+              <input 
+                type="file" 
+                accept=".csv, .xlsx, .xls" 
+                className="hidden" 
+                ref={fileInputRef} 
+                onChange={handleBatchImportChange} 
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isImporting}
+                className="inline-flex items-center rounded-xl bg-purple-700 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-800 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <FaDownload className="mr-2 h-3 w-3" />
+                {isImporting ? (
+                  'Importing...'
+                ) : (
+                  <div className="flex items-center">
+                    <span>Batch Import Users</span>
+                    <span className="ml-2 inline-flex items-center rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                      Students only
+                    </span>
+                  </div>
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1285,15 +1463,23 @@ const Users: React.FC = () => {
                         return
                       }
 
-                      const { error } = await supabase.functions.invoke('admin-create-user', {
-                        body: payload,
+                      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+                      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+                      const fnUrl = `${supabaseUrl}/functions/v1/admin-create-user`
+
+                      const res = await fetch(fnUrl, {
+                        method: 'POST',
                         headers: {
-                          Authorization: `Bearer ${session.access_token}`,
+                          'Content-Type': 'application/json',
+                          'apikey': supabaseAnonKey,
+                          'Authorization': `Bearer ${session.access_token}`,
                         },
+                        body: JSON.stringify(payload),
                       })
 
-                      if (error) {
-                        const msg = error.message || 'Failed to create user.'
+                      if (!res.ok) {
+                        const errBody = await res.json().catch(() => ({ error: 'Failed to create user.' }))
+                        const msg = errBody.error || 'Failed to create user.'
                         setCreateError(msg)
                         toast.error(msg)
                         return

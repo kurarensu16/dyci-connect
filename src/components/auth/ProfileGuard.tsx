@@ -100,6 +100,11 @@ const ProfileGuard: React.FC<ProfileGuardProps> = ({ children, allowedRoles }) =
     return <Navigate to="/conforme" replace />
   }
 
+  // Check if they need to reset their given password (happens after Conforme)
+  if (user?.user_metadata?.must_reset_password === true) {
+    return <Navigate to="/force-password-reset" replace />
+  }
+
   if (!allowedRoles.includes(role)) {
     return <Navigate to="/" replace />
   }

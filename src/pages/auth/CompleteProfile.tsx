@@ -35,10 +35,7 @@ const CompleteProfile: React.FC = () => {
         else navigate('/student/dashboard')
         return
       }
-      if (data?.role && !data.verified) {
-        navigate('/pending-approval')
-        return
-      }
+
       if (data?.role) {
         setForm({ role: (data.role as string).toLowerCase() === 'staff' ? 'staff' : 'student' })
       }

@@ -34,23 +34,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true)
 
   useEffect(() => {
-    // Check active sessions and set the user (only when Supabase is configured)
-    if (isSupabaseConfigured) {
-      supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
-        setUser(session?.user as User | null)
-        setLoading(false)
-      })
-
-      // Listen for changes on auth state
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-        setUser(session?.user as User | null)
-      })
-
-      return () => subscription.unsubscribe()
-    } else {
-      // In mock mode we start with no user and finish loading immediately
+    // Check active sessions and set the user
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
+      setUser(session?.user as User | null)
       setLoading(false)
-    }
+    })
+
+    // Listen for changes on auth state
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
+      setUser(session?.user as User | null)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const signUp = async (email: string, password: string, role: string, userData: any) => {
@@ -92,30 +87,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const signIn = async (email: string, password: string) => {
-    // If Supabase isn't configured, create a mock logged-in user for now
     if (!isSupabaseConfigured) {
-      const lowerEmail = email.toLowerCase()
-      let role: User['user_metadata']['role'] = 'student'
-      let fullName = 'DYCI Student'
-
-      if (lowerEmail.startsWith('admin@')) {
-        role = 'admin'
-        fullName = 'DYCI Admin'
-      } else if (lowerEmail.startsWith('staff@') || lowerEmail.startsWith('faculty@')) {
-        role = 'staff'
-        fullName = 'DYCI Staff'
-      }
-
-      const mockUser: User = {
-        id: `mock-${role}`,
-        email,
-        user_metadata: {
-          role,
-          full_name: fullName,
-        },
-      }
-      setUser(mockUser)
-      return { data: { user: mockUser }, error: null }
+      return { data: null, error: new Error('Supabase environment variables are missing. Please restart your dev server.') }
     }
 
     // Real Supabase sign in
@@ -142,10 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const signOut = async () => {
-    if (!isSupabaseConfigured) {
-      setUser(null)
-      return { error: null }
-    }
+    if (!isSupabaseConfigured) return { error: null }
 
     const { error } = await supabase.auth.signOut()
     if (!error) {
