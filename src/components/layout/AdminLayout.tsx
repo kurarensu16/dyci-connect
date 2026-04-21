@@ -6,7 +6,6 @@ import {
   FaBookOpen,
   FaCalendarAlt,
   FaComments,
-  FaCheckSquare,
   FaCogs,
   FaChartBar,
   FaSignOutAlt,

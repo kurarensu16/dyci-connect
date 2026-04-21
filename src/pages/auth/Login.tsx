@@ -4,14 +4,13 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { checkProfileCompleteness, createIncompleteProfileNotification } from '../../utils/profileUtils'
 import toast from 'react-hot-toast'
-import { FaEnvelope, FaLock, FaGoogle, FaArrowLeft } from 'react-icons/fa'
+import { FaEnvelope, FaLock, FaArrowLeft } from 'react-icons/fa'
 import logo from '../../assets/imgs/logo-connect.png'
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState<string>('')
   const [password, setPassword] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
-  const [showRoleChooser, setShowRoleChooser] = useState(false)
   const { signIn } = useAuth()
   const navigate = useNavigate()
 
