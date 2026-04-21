@@ -6,7 +6,6 @@ import {
   FaBookOpen,
   FaCalendarAlt,
   FaComments,
-  FaCheckSquare,
   FaCogs,
   FaChartBar,
   FaSignOutAlt,
@@ -57,17 +56,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     path: string
     badge?: number
   }> = [
-    { label: 'Dashboard', icon: MdSpaceDashboard, path: '/admin/dashboard' },
-    { label: 'Notifications', icon: FaBell, path: '/admin/notifications', badge: unreadCount },
-    { label: 'User Management', icon: FaUsers, path: '/admin/users' },
-    { label: 'Conforme Monitoring', icon: FaCheckSquare, path: '/admin/conforme' },
-    { label: 'Support Chat', icon: FaComments, path: '/admin/support' },
-    { label: 'Handbook Preview', icon: FaBookOpen, path: '/admin/handbook-preview' },
-    { label: 'Reports', icon: FaChartBar, path: '/admin/reports' },
-    { label: 'CMS', icon: FaCogs, path: '/admin/cms' },
-    { label: 'School Calendar', icon: FaCalendarAlt, path: '/admin/calendar' },
-    { label: 'Profile', icon: FaUserCircle, path: '/admin/profile' },
-  ]
+      { label: 'Dashboard', icon: MdSpaceDashboard, path: '/admin/dashboard' },
+      { label: 'Notifications', icon: FaBell, path: '/admin/notifications', badge: unreadCount },
+      { label: 'User Management', icon: FaUsers, path: '/admin/users' },
+      { label: 'Support Chat', icon: FaComments, path: '/admin/support' },
+      { label: 'Handbook Preview', icon: FaBookOpen, path: '/admin/handbook-preview' },
+      { label: 'Reports', icon: FaChartBar, path: '/admin/reports' },
+      { label: 'CMS', icon: FaCogs, path: '/admin/cms' },
+      { label: 'School Calendar', icon: FaCalendarAlt, path: '/admin/calendar' },
+      { label: 'Profile', icon: FaUserCircle, path: '/admin/profile' },
+    ]
 
   const handleSignOut = async () => {
     await signOut()
@@ -78,9 +76,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-slate-50 md:flex">
       {/* Desktop sidebar (collapsible) */}
       <aside
-        className={`hidden md:flex md:flex-col md:h-screen md:sticky md:top-0 md:border-r md:border-slate-200 bg-white transition-all duration-200 ease-in-out ${
-          collapsed ? 'md:w-20' : 'md:w-64'
-        }`}
+        className={`hidden md:flex md:flex-col md:h-screen md:sticky md:top-0 md:border-r md:border-slate-200 bg-white transition-all duration-200 ease-in-out ${collapsed ? 'md:w-20' : 'md:w-64'
+          }`}
       >
         <div className="relative h-14 px-4 flex items-center border-b border-slate-200">
           <div className="flex items-center space-x-2 overflow-hidden">
@@ -119,9 +116,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 key={item.label}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`${baseClasses} ${
-                  isActive ? 'bg-blue-700 text-white' : 'text-slate-700 hover:bg-slate-100'
-                } ${collapsed ? 'justify-center' : 'space-x-3'} relative`}
+                className={`${baseClasses} ${isActive ? 'bg-blue-700 text-white' : 'text-slate-700 hover:bg-slate-100'
+                  } ${collapsed ? 'justify-center' : 'space-x-3'} relative`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {!collapsed && <span>{item.label}</span>}
@@ -147,9 +143,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           <button
             type="button"
             onClick={handleSignOut}
-            className={`w-full inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 ${
-              collapsed ? 'justify-center' : 'space-x-2'
-            }`}
+            className={`w-full inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 ${collapsed ? 'justify-center' : 'space-x-2'
+              }`}
           >
             <FaSignOutAlt className="h-3 w-3" />
             {!collapsed && <span>Sign out</span>}
@@ -196,11 +191,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                       navigate(item.path)
                       setMobileOpen(false)
                     }}
-                    className={`${baseClasses} relative ${
-                      isActive
-                        ? 'bg-blue-700 text-white'
-                        : 'text-slate-700 hover:bg-slate-100'
-                    }`}
+                    className={`${baseClasses} relative ${isActive
+                      ? 'bg-blue-700 text-white'
+                      : 'text-slate-700 hover:bg-slate-100'
+                      }`}
                   >
                     <Icon className="h-3.5 w-3.5" />
                     <span>{item.label}</span>

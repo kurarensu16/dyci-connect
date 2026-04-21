@@ -6,6 +6,7 @@ export interface User {
     full_name?: string;
     student_id?: string;
     department?: string;
+    must_reset_password?: boolean;
   };
 }
 

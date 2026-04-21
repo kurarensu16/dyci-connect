@@ -1,15 +1,57 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import toast from 'react-hot-toast'
+import { FaCheckCircle, FaTimesCircle, FaEye, FaEyeSlash } from 'react-icons/fa'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { getAuthProvider } from '../../utils/profileUtils'
+import { useLocation, useNavigate } from 'react-router-dom'
+
+// --- Password strength helpers ---
+interface Criterion {
+  label: string
+  pass: boolean
+}
+
+function evaluatePassword(pw: string): { criteria: Criterion[]; score: number; label: string; color: string; barColor: string } {
+  const criteria: Criterion[] = [
+    { label: 'At least 8 characters', pass: pw.length >= 8 },
+    { label: 'At least one uppercase letter (A–Z)', pass: /[A-Z]/.test(pw) },
+    { label: 'At least one lowercase letter (a–z)', pass: /[a-z]/.test(pw) },
+    { label: 'At least one number (0–9)', pass: /\d/.test(pw) },
+    { label: 'At least one symbol (e.g. !, @, #, &, *)', pass: /[\W_]/.test(pw) },
+  ]
+  const score = criteria.filter((c) => c.pass).length
+
+  let label = ''
+  let color = ''
+  let barColor = ''
+
+  if (pw.length === 0) {
+    label = ''; color = ''; barColor = ''
+  } else if (score <= 1) {
+    label = 'Too Weak'; color = 'text-red-600'; barColor = 'bg-red-500'
+  } else if (score === 2) {
+    label = 'Weak'; color = 'text-orange-500'; barColor = 'bg-orange-400'
+  } else if (score === 3) {
+    label = 'Fair'; color = 'text-yellow-500'; barColor = 'bg-yellow-400'
+  } else if (score === 4) {
+    label = 'Good'; color = 'text-blue-500'; barColor = 'bg-blue-500'
+  } else {
+    label = 'Strong'; color = 'text-emerald-600'; barColor = 'bg-emerald-500'
+  }
+
+  return { criteria, score, label, color, barColor }
+}
 
 const StudentProfile: React.FC = () => {
   const { user, updatePassword } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editOpen, setEditOpen] = useState(false)
+  const [isForcedEdit, setIsForcedEdit] = useState(false)
   const [editSaving, setEditSaving] = useState(false)
   const [editForm, setEditForm] = useState({
     firstName: '',
@@ -50,9 +92,15 @@ const StudentProfile: React.FC = () => {
     newPassword: '',
     confirmPassword: '',
   })
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const authProvider = getAuthProvider(user)
   const isGoogleUser = authProvider === 'google'
+
+  const strength = useMemo(() => evaluatePassword(passwordForm.newPassword), [passwordForm.newPassword])
+  const allPass = strength.score === 5
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -115,8 +163,8 @@ const StudentProfile: React.FC = () => {
           : null,
         city
           ? fetch(
-              `https://psgc.cloud/api/cities-municipalities/${city}`
-            ).catch(() => null)
+            `https://psgc.cloud/api/cities-municipalities/${city}`
+          ).catch(() => null)
           : null,
         barangay
           ? fetch(`https://psgc.cloud/api/barangays/${barangay}`).catch(() => null)
@@ -287,8 +335,24 @@ const StudentProfile: React.FC = () => {
       yearLevel: profile?.year_level || '',
       section: profile?.section || '',
     })
+    setIsForcedEdit(false) // Safe default when opened manually
     setEditOpen(true)
   }
+
+  // Auto-open edit modal if query param '?edit=true' is present
+  useEffect(() => {
+    if (profile && !loading) {
+      const params = new URLSearchParams(location.search)
+      if (params.get('edit') === 'true' && !editOpen) {
+        setIsForcedEdit(true)
+        openEditProfile()
+        // Override the false setting from openEditProfile
+        setIsForcedEdit(true)
+        // Optionally, remove the query param so refresh doesn't trigger it again
+        navigate(location.pathname, { replace: true })
+      }
+    }
+  }, [profile, loading, location.search, editOpen, navigate])
 
   const handleEditChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -429,6 +493,7 @@ const StudentProfile: React.FC = () => {
           return next
         })
         toast.success('Your profile has been updated.')
+        setIsForcedEdit(false)
         setEditOpen(false)
       }
     } catch (err) {
@@ -473,8 +538,9 @@ const StudentProfile: React.FC = () => {
       toast.error('New password and confirmation do not match.')
       return
     }
-    if (newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters.')
+    const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/
+    if (!strongPasswordRegex.test(newPassword)) {
+      toast.error('Password does not meet the strong password criteria.')
       return
     }
     setPasswordSaving(true)
@@ -580,20 +646,18 @@ const StudentProfile: React.FC = () => {
           <div />
           <div className="flex items-center gap-2">
             <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold ${
-                roleDisplay === 'Student'
-                  ? 'bg-blue-50 text-blue-700'
-                  : roleDisplay === 'Staff'
-                    ? 'bg-purple-50 text-purple-700'
-                    : 'bg-rose-50 text-rose-700'
-              }`}
+              className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold ${roleDisplay === 'Student'
+                ? 'bg-blue-50 text-blue-700'
+                : roleDisplay === 'Staff'
+                  ? 'bg-purple-50 text-purple-700'
+                  : 'bg-rose-50 text-rose-700'
+                }`}
             >
               {roleDisplay}
             </span>
             <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold ${
-                verified ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-              }`}
+              className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold ${verified ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                }`}
             >
               {verified ? 'Verified' : 'Pending verification'}
             </span>
@@ -601,125 +665,125 @@ const StudentProfile: React.FC = () => {
         </div>
 
         <div className="grid gap-5 lg:gap-6 md:grid-cols-3 items-start">
-        {/* Identity card */}
-        <section className="md:col-span-2 rounded-2xl border border-slate-100 bg-white px-5 py-4 space-y-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-800 overflow-hidden">
-              {profile?.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt={fullName}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                fullName
-                  .split(' ')
-                  .map((p: string) => p[0])
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase()
-              )}
+          {/* Identity card */}
+          <section className="md:col-span-2 rounded-2xl border border-slate-100 bg-white px-5 py-4 space-y-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-800 overflow-hidden">
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt={fullName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  fullName
+                    .split(' ')
+                    .map((p: string) => p[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase()
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{fullName}</p>
+                <p className="text-[11px] text-slate-500">
+                  {user?.email || profile?.email || 'student@dyci.edu.ph'}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">{fullName}</p>
-              <p className="text-[11px] text-slate-500">
-                {user?.email || profile?.email || 'student@dyci.edu.ph'}
-              </p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3 text-[11px] text-slate-600 mt-2">
-            <div>
-              <p className="font-medium text-slate-500">ID number</p>
-              <p className="mt-0.5 text-slate-800">
-                {profile?.student_employee_id || '—'}
-              </p>
+            <div className="grid grid-cols-2 gap-3 text-[11px] text-slate-600 mt-2">
+              <div>
+                <p className="font-medium text-slate-500">ID number</p>
+                <p className="mt-0.5 text-slate-800">
+                  {profile?.student_employee_id || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-slate-500">
+                  {roleDisplay === 'Staff' ? 'Department' : 'Program'}
+                </p>
+                <p className="mt-0.5 text-slate-800">
+                  {roleDisplay === 'Staff'
+                    ? profile?.department || '—'
+                    : profile?.program || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-slate-500">Year level</p>
+                <p className="mt-0.5 text-slate-800">{profile?.year_level || '—'}</p>
+              </div>
+              <div>
+                <p className="font-medium text-slate-500">Joined</p>
+                <p className="mt-0.5 text-slate-800">
+                  {profile?.created_at
+                    ? new Date(profile.created_at).toLocaleDateString()
+                    : '—'}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-medium text-slate-500">
-                {roleDisplay === 'Staff' ? 'Department' : 'Program'}
-              </p>
-              <p className="mt-0.5 text-slate-800">
-                {roleDisplay === 'Staff'
-                  ? profile?.department || '—'
-                  : profile?.program || '—'}
-              </p>
-            </div>
-            <div>
-              <p className="font-medium text-slate-500">Year level</p>
-              <p className="mt-0.5 text-slate-800">{profile?.year_level || '—'}</p>
-            </div>
-            <div>
-              <p className="font-medium text-slate-500">Joined</p>
-              <p className="mt-0.5 text-slate-800">
-                {profile?.created_at
-                  ? new Date(profile.created_at).toLocaleDateString()
-                  : '—'}
-              </p>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        {/* Account actions */}
-        <section className="rounded-2xl border border-slate-100 bg-white px-5 py-4 space-y-3 shadow-sm">
-          <h2 className="text-xs font-semibold text-slate-800">Account actions</h2>
-          <button
-            type="button"
-            className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
-            onClick={openEditProfile}
-            disabled={!profile}
-          >
-            Edit profile
-          </button>
-          <button
-            type="button"
-            className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
-            onClick={openAvatarModal}
-            disabled={!profile}
-          >
-            Change profile picture
-          </button>
-          <button
-            type="button"
-            className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
-            onClick={openPasswordModal}
-            disabled={!isSupabaseConfigured || isGoogleUser}
-          >
-            Change password
-          </button>
-          {isGoogleUser && (
-            <p className="mt-1 text-[10px] text-slate-500">
-              You sign in with Google. To change your password, go to your Google Account settings.
-            </p>
-          )}
-        </section>
-      </div>
+          {/* Account actions */}
+          <section className="rounded-2xl border border-slate-100 bg-white px-5 py-4 space-y-3 shadow-sm">
+            <h2 className="text-xs font-semibold text-slate-800">Account actions</h2>
+            <button
+              type="button"
+              className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+              onClick={openEditProfile}
+              disabled={!profile}
+            >
+              Edit profile
+            </button>
+            <button
+              type="button"
+              className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+              onClick={openAvatarModal}
+              disabled={!profile}
+            >
+              Change profile picture
+            </button>
+            <button
+              type="button"
+              className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={openPasswordModal}
+              disabled={!isSupabaseConfigured || isGoogleUser}
+            >
+              Change password
+            </button>
+            {isGoogleUser && (
+              <p className="mt-1 text-[10px] text-slate-500">
+                You sign in with Google. To change your password, go to your Google Account settings.
+              </p>
+            )}
+          </section>
+        </div>
 
         {/* Personal & contact info */}
         <section className="rounded-2xl border border-slate-100 bg-white px-5 py-4 space-y-3 shadow-sm">
-        <h2 className="text-xs font-semibold text-slate-800">Personal & contact</h2>
-        <div className="grid gap-3 md:grid-cols-3 text-[11px] text-slate-600">
-          <div className="md:col-span-1">
-            <p className="font-medium text-slate-500">Nickname</p>
-            <p className="mt-0.5 text-slate-800">{profile?.nickname || '—'}</p>
+          <h2 className="text-xs font-semibold text-slate-800">Personal & contact</h2>
+          <div className="grid gap-3 md:grid-cols-3 text-[11px] text-slate-600">
+            <div className="md:col-span-1">
+              <p className="font-medium text-slate-500">Nickname</p>
+              <p className="mt-0.5 text-slate-800">{profile?.nickname || '—'}</p>
+            </div>
+            <div className="md:col-span-2">
+              <p className="font-medium text-slate-500">Address</p>
+              <p className="mt-0.5 text-slate-800">
+                {profile?.address || '—'}
+                {(locationNames.barangay ||
+                  locationNames.city ||
+                  locationNames.province) && (
+                    <>
+                      <br />
+                      {[locationNames.barangay, locationNames.city, locationNames.province]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </>
+                  )}
+              </p>
+            </div>
           </div>
-          <div className="md:col-span-2">
-            <p className="font-medium text-slate-500">Address</p>
-            <p className="mt-0.5 text-slate-800">
-              {profile?.address || '—'}
-              {(locationNames.barangay ||
-                locationNames.city ||
-                locationNames.province) && (
-                <>
-                  <br />
-                  {[locationNames.barangay, locationNames.city, locationNames.province]
-                    .filter(Boolean)
-                    .join(', ')}
-                </>
-              )}
-            </p>
-          </div>
-        </div>
         </section>
 
         {loading && (
@@ -735,10 +799,13 @@ const StudentProfile: React.FC = () => {
         {editOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl p-6 space-y-4 text-[11px]">
-              <h2 className="text-sm font-semibold text-slate-900">Edit profile</h2>
+              <h2 className="text-sm font-semibold text-slate-900">
+                {isForcedEdit ? 'Complete Profile' : 'Edit profile'}
+              </h2>
               <p className="text-slate-500">
-                Update your basic information. These details are visible to administrators and may be
-                used for verification.
+                {isForcedEdit
+                  ? 'Please complete your missing information (such as Program and Student ID) before continuing to your dashboard.'
+                  : 'Update your basic information. These details are visible to administrators and may be used for verification.'}
               </p>
 
               <form className="space-y-3" onSubmit={handleEditSubmit}>
@@ -920,9 +987,41 @@ const StudentProfile: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {roleDisplay === 'Student' ? (
                     <>
+                      {/* Department */}
+                      <div className="space-y-1">
+                        <label className="block font-medium text-slate-700">Department / College</label>
+                        <select
+                          name="department"
+                          value={editForm.department}
+                          onChange={(e) => {
+                            handleEditChange(e)
+                            // Clear program when department changes since options will differ
+                            setEditForm((prev) => ({ ...prev, department: e.target.value, program: '' }))
+                          }}
+                          className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">Select department</option>
+                          {departments.length > 0
+                            ? departments.map((d: any) => (
+                              <option key={d.id} value={d.name}>
+                                {d.name}
+                              </option>
+                            ))
+                            : (
+                              <>
+                                <option value="CCS">College of Computer Studies</option>
+                                <option value="COED">College of Education</option>
+                                <option value="CBM">College of Business Management</option>
+                                <option value="CAS">College of Arts and Sciences</option>
+                              </>
+                            )}
+                        </select>
+                      </div>
+
+                      {/* Program — filtered by selected department */}
                       <div className="space-y-1">
                         <label className="block font-medium text-slate-700">Program</label>
                         <select
@@ -934,17 +1033,17 @@ const StudentProfile: React.FC = () => {
                           <option value="">Select program</option>
                           {departments.length > 0 && programs.length > 0 && editForm.department
                             ? programs
-                                .filter((p: any) =>
-                                  departments.find(
-                                    (d: any) =>
-                                      d.id === p.department_id && d.name === editForm.department
-                                  )
+                              .filter((p: any) =>
+                                departments.find(
+                                  (d: any) =>
+                                    d.id === p.department_id && d.name === editForm.department
                                 )
-                                .map((p: any) => (
-                                  <option key={p.id} value={p.short_code || p.name}>
-                                    {p.name}
-                                  </option>
-                                ))
+                              )
+                              .map((p: any) => (
+                                <option key={p.id} value={p.short_code || p.name}>
+                                  {p.name}
+                                </option>
+                              ))
                             : (
                               <>
                                 <option value="BSIT">BSIT</option>
@@ -956,6 +1055,8 @@ const StudentProfile: React.FC = () => {
                             )}
                         </select>
                       </div>
+
+                      {/* Year Level */}
                       <div className="space-y-1">
                         <label className="block font-medium text-slate-700">Year level</label>
                         <select
@@ -967,10 +1068,10 @@ const StudentProfile: React.FC = () => {
                           <option value="">Select year level</option>
                           {yearLevels.length > 0
                             ? yearLevels.map((y: any) => (
-                                <option key={y.id} value={y.label}>
-                                  {y.label}
-                                </option>
-                              ))
+                              <option key={y.id} value={y.label}>
+                                {y.label}
+                              </option>
+                            ))
                             : (
                               <>
                                 <option value="1st Year">1st Year</option>
@@ -982,6 +1083,8 @@ const StudentProfile: React.FC = () => {
                             )}
                         </select>
                       </div>
+
+                      {/* Section */}
                       <div className="space-y-1">
                         <label className="block font-medium text-slate-700">Section</label>
                         <input
@@ -1034,13 +1137,15 @@ const StudentProfile: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-2 sm:space-y-0 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditOpen(false)}
-                    className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
+                  {!isForcedEdit && (
+                    <button
+                      type="button"
+                      onClick={() => setEditOpen(false)}
+                      className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  )}
                   <button
                     type="submit"
                     disabled={editSaving}
@@ -1128,45 +1233,119 @@ const StudentProfile: React.FC = () => {
             <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-6 space-y-4 text-[11px]">
               <h2 className="text-sm font-semibold text-slate-900">Change password</h2>
               <p className="text-slate-500">
-                Enter your current password, then choose a new password (at least 6 characters).
+                Enter your current password, then choose a new password (at least 8 characters).
               </p>
               <form className="space-y-3" onSubmit={handlePasswordSubmit}>
                 <div className="space-y-1">
                   <label className="block font-medium text-slate-700">Current password</label>
-                  <input
-                    type="password"
-                    name="currentPassword"
-                    value={passwordForm.currentPassword}
-                    onChange={handlePasswordFormChange}
-                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                  />
+                  <div className="relative mt-1">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      name="currentPassword"
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordFormChange}
+                      className="block w-full rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-10 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      {showCurrentPassword ? <FaEyeSlash className="h-3.5 w-3.5" /> : <FaEye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="block font-medium text-slate-700">New password</label>
-                  <input
-                    type="password"
-                    name="newPassword"
-                    value={passwordForm.newPassword}
-                    onChange={handlePasswordFormChange}
-                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                  />
+                  <div className="relative mt-1">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      name="newPassword"
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordFormChange}
+                      className="block w-full rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-10 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      {showNewPassword ? <FaEyeSlash className="h-3.5 w-3.5" /> : <FaEye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                  {/* Dynamic strength bar */}
+                  {passwordForm.newPassword.length > 0 && (
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((seg) => (
+                          <div
+                            key={seg}
+                            className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${strength.score >= seg ? strength.barColor : 'bg-gray-200'
+                              }`}
+                          />
+                        ))}
+                      </div>
+                      <p className={`text-[11px] font-semibold ${strength.color}`}>
+                        {strength.label}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <label className="block font-medium text-slate-700">Confirm new password</label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={passwordForm.confirmPassword}
-                    onChange={handlePasswordFormChange}
-                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                  />
+                  <div className="relative mt-1">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={passwordForm.confirmPassword}
+                      onChange={handlePasswordFormChange}
+                      className="block w-full rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-10 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      {showConfirmPassword ? <FaEyeSlash className="h-3.5 w-3.5" /> : <FaEye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                  {passwordForm.confirmPassword.length > 0 && (
+                    <p className={`text-[11px] mt-1 ${passwordForm.newPassword === passwordForm.confirmPassword ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {passwordForm.newPassword === passwordForm.confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
+                    </p>
+                  )}
                 </div>
+
+                {/* Dynamic criteria checklist when typing */}
+                {passwordForm.newPassword.length > 0 && (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-2 mt-2">
+                    <h3 className="text-xs font-semibold text-slate-700">Password Requirements</h3>
+                    <ul className="space-y-1.5">
+                      {strength.criteria.map((c) => (
+                        <li key={c.label} className="flex items-center gap-2">
+                          {c.pass
+                            ? <FaCheckCircle className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                            : <FaTimesCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
+                          }
+                          <span className={`text-[11px] ${c.pass ? 'text-emerald-700 line-through decoration-emerald-400' : 'text-slate-600'}`}>
+                            {c.label}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {allPass && (
+                      <p className="text-[11px] text-emerald-600 font-semibold pt-1">
+                        ✓ All criteria met! Your password is secure.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-2 sm:space-y-0 pt-1">
                   <button
                     type="button"
@@ -1177,7 +1356,7 @@ const StudentProfile: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={passwordSaving}
+                    disabled={passwordSaving || (passwordForm.newPassword.length > 0 && !allPass)}
                     className="w-full sm:w-auto inline-flex justify-center rounded-xl bg-blue-700 hover:bg-blue-800 px-4 py-2 text-[11px] font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {passwordSaving ? 'Updating…' : 'Update password'}

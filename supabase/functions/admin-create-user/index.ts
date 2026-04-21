@@ -182,6 +182,7 @@ Deno.serve(async (req) => {
     user_metadata: {
       role,
       full_name: fullName || undefined,
+      must_reset_password: payload.mustResetPassword === true ? true : undefined,
     },
   })
 
@@ -199,9 +200,9 @@ Deno.serve(async (req) => {
     student_employee_id: (payload.idNumber ?? '').trim() || null,
     role,
     auth_provider: 'email',
-    first_name: firstName || null,
+    first_name: firstName || '',
     middle_name: middleName || null,
-    last_name: lastName || null,
+    last_name: lastName || '',
     nickname: (payload.nickname ?? '').trim() || null,
     department: payload.department || null,
     program: payload.program || null,
@@ -218,7 +219,7 @@ Deno.serve(async (req) => {
     } catch {
       // ignore
     }
-    return json(500, { error: 'User created, but saving profile failed.' })
+    return json(500, { error: `User created, but saving profile failed: ${profileErr.message}` })
   }
 
   return json(200, { userId: newUserId, profileId: newUserId })

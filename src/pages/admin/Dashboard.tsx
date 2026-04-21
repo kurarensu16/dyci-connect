@@ -8,7 +8,7 @@ const AdminDashboard: React.FC = () => {
   const [activeUsers, setActiveUsers] = useState<number | null>(null)
   const [chapterCount, setChapterCount] = useState<number | null>(null)
   const [sectionCount, setSectionCount] = useState<number | null>(null)
-  const [pendingConformes, setPendingConformes] = useState<number | null>(null)
+
   const [engagement, setEngagement] = useState<{ count: number; seconds: number } | null>(null)
 
   useEffect(() => {
@@ -36,12 +36,7 @@ const AdminDashboard: React.FC = () => {
         .gt('depth', 0)
       if (typeof sCount === 'number') setSectionCount(sCount)
 
-      // Pending conformes
-      const { count: conformeCount } = await supabase
-        .from('conforme_submissions')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending')
-      if (typeof conformeCount === 'number') setPendingConformes(conformeCount)
+
 
       // Handbook engagement (total views + total time)
       const { data: viewData, error: viewError } = await supabase
@@ -82,8 +77,7 @@ const AdminDashboard: React.FC = () => {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-5">
-        {/* Top metric cards - now 5 cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
             <p className="text-[11px] text-slate-500">Active Users</p>
             <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(activeUsers)}</p>
@@ -98,10 +92,7 @@ const AdminDashboard: React.FC = () => {
             <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(sectionCount)}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">Polices &amp; Detailed content</p>
           </div>
-          <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
-            <p className="text-[11px] text-slate-500">Pending Conformes</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{fmt(pendingConformes)}</p>
-          </div>
+
           <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
             <p className="text-[11px] text-slate-500 uppercase tracking-wider font-medium">Handbook Engagement</p>
             <p className="mt-1 text-2xl font-semibold text-slate-900">{fmtDuration(engagement?.seconds)}</p>
