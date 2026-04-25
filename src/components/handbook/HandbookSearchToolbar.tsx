@@ -10,7 +10,7 @@ type Props = {
   breadcrumbText: string | null
 }
 
-const HandbookSearchToolbar: React.FC<Props> = ({
+export const HandbookSearchToolbar: React.FC<Props> = ({
   showBack,
   onBack,
   searchQuery,
@@ -18,6 +18,7 @@ const HandbookSearchToolbar: React.FC<Props> = ({
   breadcrumbText,
 }) => {
   const trimmed = searchQuery.trim()
+  
   return (
     <div className="max-w-6xl mx-auto px-6 pt-4 pb-2 flex flex-col gap-2">
       <div className="flex items-center gap-3 w-full min-w-0">
@@ -40,7 +41,7 @@ const HandbookSearchToolbar: React.FC<Props> = ({
             placeholder="Search all sections by title or keywords…"
             aria-label="Search handbook"
             autoComplete="off"
-            className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-10 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all shadow-sm"
+            className="w-full rounded-2xl border border-slate-200 bg-white pl-9 pr-10 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all shadow-sm"
           />
           {searchQuery.length > 0 && (
             <button
@@ -55,7 +56,9 @@ const HandbookSearchToolbar: React.FC<Props> = ({
         </div>
       </div>
       {breadcrumbText && !trimmed && (
-        <p className="text-xs text-slate-400 font-mono truncate">{breadcrumbText}</p>
+        <p className="text-xs text-slate-400 truncate tracking-tight">
+          {breadcrumbText}
+        </p>
       )}
     </div>
   )

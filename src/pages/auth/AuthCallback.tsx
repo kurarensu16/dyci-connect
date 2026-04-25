@@ -52,7 +52,7 @@ const AuthCallback: React.FC = () => {
         setStatus('done')
         return
       }
-      if (!verified && role !== 'admin') {
+      if (!verified && role !== 'academic_admin') {
         if (role === 'staff') {
           navigate('/staff/dashboard', { replace: true })
         } else {
@@ -61,7 +61,7 @@ const AuthCallback: React.FC = () => {
         setStatus('done')
         return
       }
-      if (role === 'admin') {
+      if (role === 'academic_admin') {
         navigate('/admin/dashboard', { replace: true })
       } else if (role === 'staff') {
         navigate('/staff/dashboard', { replace: true })
@@ -88,7 +88,7 @@ const AuthCallback: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-md rounded-3xl bg-white shadow-xl px-6 py-8 text-center space-y-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl px-6 py-8 text-center space-y-4">
         <h1 className="text-lg font-semibold text-slate-900">Email confirmed</h1>
         <p className="text-sm text-slate-600">
           Your email address has been verified. You can now sign in with your account credentials.
@@ -96,7 +96,7 @@ const AuthCallback: React.FC = () => {
         <div className="pt-2">
           <Link
             to="/login"
-            className="inline-flex items-center justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] px-4 py-2.5 text-sm font-semibold text-white"
+            className="inline-flex items-center justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] px-4 py-2.5 text-sm font-semibold text-white"
           >
             Go to login
           </Link>

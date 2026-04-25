@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import logo from '../assets/imgs/logo-connect.png'
+const logo = '/icons/icon-512x512.png'
 
 const Home: React.FC = () => {
   const navigate = useNavigate()
@@ -16,8 +16,8 @@ const Home: React.FC = () => {
         <div className="max-w-5xl mx-auto px-4 pt-16 pb-20">
           <div className="flex flex-col items-center text-center">
             <div className="mb-6 flex flex-col items-center">
-              <div className="h-20 w-20 rounded-full bg-white shadow-md flex items-center justify-center mb-4">
-                <img src={logo} alt="DYCI Connect logo" className="h-14 w-14 object-contain" />
+              <div className="h-20 w-20 rounded-2xl bg-white shadow-md flex items-center justify-center mb-4">
+                <img src={logo} alt="DYCI Connect logo" className="h-16 w-16 object-contain" />
               </div>
               <h2 className="text-xs font-semibold tracking-[0.3em] text-blue-900">
                 DYCI CONNECT

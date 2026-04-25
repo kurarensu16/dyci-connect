@@ -8,10 +8,37 @@
   --color-primary-500: oklch(0.62 0.22 250);
   --color-primary-600: oklch(0.55 0.25 250);
   --color-primary-700: oklch(0.44 0.26 250);
-  --color-dyci-blue: oklch(0.42 0.17 260);
-  --color-dyci-gold: oklch(0.84 0.16 80);
-  --color-dyci-red: oklch(0.64 0.24 30);
+  --color-dyci-blue: #1434A4;
+  --color-dyci-gold: #D4AF37;
+  --color-dyci-red: #A41414;
+  --color-dyci-green: #14A414;
   --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+@layer components {
+  .legacy-header {
+    @apply bg-dyci-blue text-white pt-10 pb-6 shadow-md border-b border-white/5;
+  }
+  
+  .legacy-header-title {
+    @apply text-3xl font-bold tracking-tight;
+  }
+  
+  .legacy-header-subtitle {
+    @apply text-sm text-blue-100 font-medium mt-1 leading-relaxed max-w-2xl;
+  }
+
+  .legacy-card {
+    @apply bg-white border border-slate-100 rounded-2xl shadow-sm transition-all hover:shadow-md;
+  }
+  
+  .legacy-button-pill {
+    @apply w-full flex items-center justify-center px-6 py-2.5 rounded-full border border-slate-200 bg-white text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-all;
+  }
+  
+  .legacy-sidebar-active {
+    @apply bg-dyci-blue text-white shadow-lg;
+  }
 }
 
 :root {

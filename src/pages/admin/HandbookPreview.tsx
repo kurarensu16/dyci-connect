@@ -5,6 +5,7 @@ import {
   FaChevronRight,
 } from 'react-icons/fa'
 import { fetchHandbookTree, buildTree, type HandbookNode } from '../../lib/api/handbook'
+import { fetchPublishedHandbook } from '../../lib/api/handbookWorkflow'
 import { searchHandbook, findPathToNode, type HandbookSearchHit } from '../../lib/handbookSearch'
 import HandbookSearchToolbar from '../../components/handbook/HandbookSearchToolbar'
 import HandbookSearchResults from '../../components/handbook/HandbookSearchResults'
@@ -49,7 +50,22 @@ const HandbookPreview: React.FC = () => {
     let cancelled = false
     const load = async () => {
       setLoading(true)
-      const { data, error } = await fetchHandbookTree()
+      
+      // Fetch only published handbook
+      const { data: publishedHandbook, error: handbookError } = await fetchPublishedHandbook()
+      
+      if (handbookError || !publishedHandbook) {
+        // No published handbook available, use fallback
+        if (!cancelled) {
+          setTree(buildFallback())
+          setLoading(false)
+        }
+        return
+      }
+
+      // Use the published handbook
+      const { data, error } = await fetchHandbookTree(publishedHandbook.id)
+      
       if (!cancelled) {
         if (error || !data || data.length === 0) {
           setTree(buildFallback())
@@ -103,16 +119,16 @@ const HandbookPreview: React.FC = () => {
     }
   }
 
-  const breadcrumbs = navStack.map((n) => n.id).join(' / ')
+  const breadcrumbs = navStack.map((n) => n.title).join(' / ')
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-10">
-      {/* Header */}
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">Student Handbook</h1>
-          <p className="mt-1 text-xs text-blue-100">
-            Admin Preview
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight pb-10">
+      {/* Standard Legacy Header */}
+      <header className="legacy-header">
+        <div className="max-w-6xl mx-auto px-10">
+          <h1 className="legacy-header-title">Student Handbook</h1>
+          <p className="legacy-header-subtitle">
+            Institutional Academics Governance: Admin Preview Mode
           </p>
         </div>
       </header>
@@ -125,7 +141,7 @@ const HandbookPreview: React.FC = () => {
         breadcrumbText={navStack.length > 0 ? breadcrumbs : null}
       />
 
-      <main className="max-w-6xl mx-auto px-6 py-2">
+      <main className="max-w-6xl mx-auto px-10 py-6">
         {loading && (
           <div className="flex items-center justify-center py-20 text-slate-400">
             <svg className="animate-spin h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24">
@@ -148,26 +164,26 @@ const HandbookPreview: React.FC = () => {
 
         {/* Chapter list */}
         {!loading && !isSearchActive && navStack.length === 0 && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 text-center mb-6">
-              <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                <FaBookOpen className="h-8 w-8" />
-              </div>
-              <h2 className="text-xl font-bold text-slate-800">Welcome to the Student Handbook</h2>
-              <p className="text-slate-500 text-sm mt-1 max-w-md mx-auto">
-                Your guide to academic policies, student conduct, and campus life at Dr. Yanga's Colleges, Inc.
-              </p>
-            </div>
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="legacy-card p-10 text-center">
+               <div className="h-20 w-20 bg-blue-50 text-dyci-blue rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner border border-blue-100">
+                 <FaBookOpen className="h-8 w-8" />
+               </div>
+               <h2 className="text-2xl font-bold text-slate-800 uppercase tracking-tight">Academic Governance Hub</h2>
+               <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest mt-3 max-w-md mx-auto opacity-70">
+                 Institutional policies, student conduct, and campus life governance at Dr. Yanga's Colleges, Inc.
+               </p>
+             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               {currentLevel.map((node) => (
                 <button
                   key={node.id}
                   onClick={() => handleNodeClick(node)}
-                  className="group bg-white rounded-xl shadow-sm border border-slate-200 p-4 hover:shadow-md hover:border-blue-300 transition-all text-left flex items-start gap-4"
+                  className="group bg-white rounded-2xl shadow-sm border border-slate-200 p-4 hover:shadow-md hover:border-blue-300 transition-all text-left flex items-start gap-4"
                 >
                   <div className="h-10 w-10 shrink-0 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    <span className="font-bold text-sm">{node.id}</span>
+                    <FaBookOpen className="h-5 w-5" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">{node.title}</h3>
@@ -184,7 +200,7 @@ const HandbookPreview: React.FC = () => {
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="mb-6">
               <span className="text-[10px] font-bold tracking-wider text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-md">
-                {activeNode.id}
+                Section
               </span>
               <h2 className="text-2xl font-bold text-slate-900 mt-2">{activeNode.title}</h2>
             </div>
@@ -193,10 +209,9 @@ const HandbookPreview: React.FC = () => {
                 <button
                   key={node.id}
                   onClick={() => handleNodeClick(node)}
-                  className="w-full bg-white rounded-xl border border-slate-200 p-4 text-left hover:border-blue-400 hover:shadow-md transition-all flex items-center justify-between group"
+                  className="w-full bg-white rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-400 hover:shadow-md transition-all flex items-center justify-between group"
                 >
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
-                    <span className="mr-2 opacity-60 text-sm font-mono">{node.id}</span>
                     {node.title}
                   </span>
                   <FaChevronRight className="text-slate-300 group-hover:text-blue-500 text-xs" />
@@ -210,10 +225,7 @@ const HandbookPreview: React.FC = () => {
         {!loading && !isSearchActive && isReading && (
           <div className="animate-in zoom-in-95 duration-300 max-w-4xl mx-auto">
             <div className="bg-white rounded-t-2xl border-x border-t border-slate-200 p-6 pb-4">
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mb-2">
-                {activeNode.id}
-              </div>
-              <h2 className="text-xl font-bold text-slate-900">{activeNode.title}</h2>
+                            <h2 className="text-xl font-bold text-slate-900">{activeNode.title}</h2>
             </div>
             <div className="bg-white rounded-b-2xl border border-slate-200 p-6 pt-2 shadow-sm min-h-[300px]">
               <div
@@ -224,7 +236,7 @@ const HandbookPreview: React.FC = () => {
             <div className="mt-6 flex items-center justify-between gap-4">
               <button
                 onClick={() => prevLeaf ? navigateToLeaf(prevLeaf) : handleBack()}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-medium text-sm transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-medium text-sm transition-colors"
               >
                 <FaChevronLeft className="text-xs" />
                 {prevLeaf ? prevLeaf.title : 'Back'}
@@ -232,7 +244,7 @@ const HandbookPreview: React.FC = () => {
               {nextLeaf && (
                 <button
                   onClick={() => navigateToLeaf(nextLeaf)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 shadow-sm transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 shadow-sm transition-colors"
                 >
                   {nextLeaf.title}
                   <FaChevronRight className="text-xs" />

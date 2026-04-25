@@ -1,13 +1,17 @@
 import React, { createContext, useState, useContext, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
-import type { User } from '../types'
-import { getAuthProvider } from '../utils/profileUtils'
+import type { User, UserRole } from '../types'
+import {
+  getAuthProvider,
+  checkAndSendWelcomeNotification
+} from '../utils/profileUtils'
 
 interface AuthContextType {
   user: User | null
+  authoritativeRole: UserRole | null
   loading: boolean
-  signUp: (email: string, password: string, role: string, userData: any) => Promise<{ data: any; error: any }>
+  signUp: (email: string, password: string, role: UserRole, userData: any) => Promise<{ data: any; error: any }>
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>
   signOut: () => Promise<{ error: any }>
   signInWithGoogle: () => Promise<{ error: any }>
@@ -31,29 +35,70 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
+  const [authoritativeRole, setAuthoritativeRole] = useState<UserRole | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
+  const isRefreshing = React.useRef(false)
+
+  const fetchAuthData = async (userId: string) => {
+    try {
+      const [roleRes, versionRes] = await Promise.all([
+        supabase.rpc('get_user_role', { uid: userId }),
+        supabase.rpc('get_auth_version')
+      ]);
+
+      if (!roleRes.error) setAuthoritativeRole(roleRes.data as UserRole);
+
+      // Check and send welcome notification for verified users
+      checkAndSendWelcomeNotification(userId);
+
+      // Check for auth_version mismatch against JWT
+      const session = (await supabase.auth.getSession()).data.session;
+      const jwtVersion = session?.user?.app_metadata?.auth_version || 1;
+      const currentVersion = versionRes.data || 1;
+
+      if (session && jwtVersion < currentVersion && !isRefreshing.current) {
+        console.warn('MISSION-CRITICAL: Auth version mismatch detected. Refreshing session...');
+        isRefreshing.current = true;
+        try {
+          const { error } = await supabase.auth.refreshSession();
+          if (error) throw error;
+        } catch (err) {
+          console.error('Failed to refresh session for auth version sync:', err);
+        } finally {
+          // Allow subsequent refreshes only after a cooldown or new login event
+          setTimeout(() => { isRefreshing.current = false; }, 10000); // 10s cooldown
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching authoritative auth data:', err);
+    }
+  };
 
   useEffect(() => {
-    // Check active sessions and set the user (only when Supabase is configured)
     if (isSupabaseConfigured) {
-      supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
-        setUser(session?.user as User | null)
-        setLoading(false)
-      })
+      supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
+        const currentUser = session?.user as User | null;
+        setUser(currentUser);
+        if (currentUser) await fetchAuthData(currentUser.id);
+        setLoading(false);
+      });
 
-      // Listen for changes on auth state
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-        setUser(session?.user as User | null)
-      })
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+        const currentUser = session?.user as User | null;
+        setUser(currentUser);
+        if (currentUser && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+          fetchAuthData(currentUser.id);
+        }
+        if (!currentUser) setAuthoritativeRole(null);
+      });
 
-      return () => subscription.unsubscribe()
+      return () => subscription.unsubscribe();
     } else {
-      // In mock mode we start with no user and finish loading immediately
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
-  const signUp = async (email: string, password: string, role: string, userData: any) => {
+  const signUp = async (email: string, password: string, role: UserRole, userData: any) => {
     const doSignUp = () =>
       supabase.auth.signUp({
         email,
@@ -92,32 +137,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const signIn = async (email: string, password: string) => {
-    // If Supabase isn't configured, create a mock logged-in user for now
-    if (!isSupabaseConfigured) {
-      const lowerEmail = email.toLowerCase()
-      let role: User['user_metadata']['role'] = 'student'
-      let fullName = 'DYCI Student'
-
-      if (lowerEmail.startsWith('admin@')) {
-        role = 'admin'
-        fullName = 'DYCI Admin'
-      } else if (lowerEmail.startsWith('staff@') || lowerEmail.startsWith('faculty@')) {
-        role = 'staff'
-        fullName = 'DYCI Staff'
-      }
-
-      const mockUser: User = {
-        id: `mock-${role}`,
-        email,
-        user_metadata: {
-          role,
-          full_name: fullName,
-        },
-      }
-      setUser(mockUser)
-      return { data: { user: mockUser }, error: null }
-    }
-
     // Real Supabase sign in
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -142,10 +161,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const signOut = async () => {
-    if (!isSupabaseConfigured) {
-      setUser(null)
-      return { error: null }
-    }
 
     const { error } = await supabase.auth.signOut()
     if (!error) {
@@ -155,9 +170,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const signInWithGoogle = async () => {
-    if (!isSupabaseConfigured) {
-      return { error: { message: 'Google sign-in is not configured.' } }
-    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -202,6 +214,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const value: AuthContextType = {
     user,
+    authoritativeRole,
     loading,
     signUp,
     signIn,

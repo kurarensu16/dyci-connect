@@ -14,13 +14,13 @@ interface ProfileRow {
   id: string
   role: string | null
   verified: boolean | null
-  conforme_accepted_year: string | null
+  student?: any
 }
 
 const ProfileGuard: React.FC<ProfileGuardProps> = ({ children, allowedRoles }) => {
-  const { user } = useAuth()
+  const { user, authoritativeRole } = useAuth()
   const [profile, setProfile] = useState<ProfileRow | null>(null)
-  const [currentAcademicYear, setCurrentAcademicYear] = useState<string | null>(null)
+  const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -35,14 +35,13 @@ const ProfileGuard: React.FC<ProfileGuardProps> = ({ children, allowedRoles }) =
       const [profileRes, settingsRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, role, verified, first_name, last_name, conforme_accepted_year')
+          .select(`
+            id, role, verified, first_name, last_name,
+            student:student_profiles(enrolled_academic_year_id)
+          `)
           .eq('id', user.id)
           .maybeSingle(),
-        supabase
-          .from('school_settings')
-          .select('current_academic_year')
-          .eq('id', 1)
-          .maybeSingle(),
+        supabase.rpc('get_current_academic_year_id'),
       ])
 
       if (cancelled) return
@@ -57,7 +56,7 @@ const ProfileGuard: React.FC<ProfileGuardProps> = ({ children, allowedRoles }) =
         }
       }
 
-      setCurrentAcademicYear(settingsRes.data?.current_academic_year ?? null)
+      setCurrentAcademicYearId(settingsRes.data ?? null)
       setLoading(false)
     }
 
@@ -75,32 +74,28 @@ const ProfileGuard: React.FC<ProfileGuardProps> = ({ children, allowedRoles }) =
     )
   }
 
-  const role = profile?.role?.toString().toLowerCase() ?? ''
-  const verified = profile?.verified === true
+  const role = authoritativeRole ?? ''
 
   if (!profile || !role) {
     return <Navigate to="/complete-profile" replace />
   }
 
-  // Unverified (non-admin) users are allowed through to the dashboard; layouts show "pending" and lock access
-  if (!verified && role !== 'admin') {
-    if (!allowedRoles.includes(role)) {
-      return <Navigate to="/" replace />
-    }
-    return <>{children}</>
-  }
+  // Simplified strict role checking
+  const isRoleAllowed = allowedRoles.includes(role);
 
-  // Conforme check: if the user hasn't accepted for the current academic year, redirect
-  // Admins are exempt from the conforme gate
+  const enrolledYear =
+    profile.student?.[0]?.enrolled_academic_year_id ||
+    profile.student?.enrolled_academic_year_id
+
   if (
-    role !== 'admin' &&
-    currentAcademicYear &&
-    profile.conforme_accepted_year !== currentAcademicYear
+    role === 'student' &&
+    currentAcademicYearId &&
+    enrolledYear !== currentAcademicYearId
   ) {
     return <Navigate to="/conforme" replace />
   }
 
-  if (!allowedRoles.includes(role)) {
+  if (!isRoleAllowed) {
     return <Navigate to="/" replace />
   }
 

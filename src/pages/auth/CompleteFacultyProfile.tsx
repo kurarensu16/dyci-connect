@@ -16,19 +16,10 @@ const CompleteFacultyProfile: React.FC = () => {
     middleName: '',
     lastName: '',
     idNumber: '',
-    address: '',
-    region: '',
-    province: '',
-    city: '',
-    barangay: '',
     nickname: '',
-    department: '',
+    department: '', // department_id (UUID)
   })
 
-  const [regions, setRegions] = useState<any[]>([])
-  const [provinces, setProvinces] = useState<any[]>([])
-  const [cities, setCities] = useState<any[]>([])
-  const [barangays, setBarangays] = useState<any[]>([])
   const [departments, setDepartments] = useState<any[]>([])
 
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null)
@@ -39,9 +30,8 @@ const CompleteFacultyProfile: React.FC = () => {
   const [submitting, setSubmitting] = useState(false)
 
   const pathname = location.pathname
-  const isAddressStep = pathname.endsWith('/address')
   const isAcademicStep = pathname.endsWith('/academic')
-  const isAccountStep = !isAddressStep && !isAcademicStep
+  const isAccountStep = !isAcademicStep
 
   useEffect(() => {
     if (!user) {
@@ -51,19 +41,6 @@ const CompleteFacultyProfile: React.FC = () => {
   }, [user, navigate])
 
   useEffect(() => {
-    const loadRegions = async () => {
-      try {
-        const res = await fetch('https://psgc.cloud/api/regions')
-        if (!res.ok) {
-          throw new Error(`Failed to load regions: ${res.status}`)
-        }
-        const data = await res.json()
-        setRegions(data)
-      } catch (error) {
-        console.error('Error loading PSGC regions', error)
-      }
-    }
-
     const loadDepartments = async () => {
       if (!isSupabaseConfigured) return
       try {
@@ -82,7 +59,6 @@ const CompleteFacultyProfile: React.FC = () => {
       }
     }
 
-    loadRegions()
     loadDepartments()
   }, [])
 
@@ -93,103 +69,6 @@ const CompleteFacultyProfile: React.FC = () => {
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleRegionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-
-    setForm((prev) => ({
-      ...prev,
-      region: value,
-      province: '',
-      city: '',
-      barangay: '',
-    }))
-    setProvinces([])
-    setCities([])
-    setBarangays([])
-
-    if (!value) {
-      return
-    }
-
-    try {
-      const res = await fetch(`https://psgc.cloud/api/regions/${value}/provinces`)
-      if (!res.ok) {
-        throw new Error(`Failed to load provinces: ${res.status}`)
-      }
-      const data = await res.json()
-      setProvinces(data)
-
-      // Some regions (e.g. NCR) have no provinces; load cities directly from the region.
-      if (Array.isArray(data) && data.length === 0) {
-        const cityRes = await fetch(
-          `https://psgc.cloud/api/regions/${value}/cities-municipalities`
-        )
-        if (!cityRes.ok) {
-          throw new Error(`Failed to load cities: ${cityRes.status}`)
-        }
-        const cityData = await cityRes.json()
-        setCities(cityData)
-      }
-    } catch (error) {
-      console.error('Error loading PSGC provinces / cities', error)
-    }
-  }
-
-  const handleProvinceChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-
-    setForm((prev) => ({
-      ...prev,
-      province: value,
-      city: '',
-      barangay: '',
-    }))
-    setCities([])
-    setBarangays([])
-
-    if (!value) {
-      return
-    }
-
-    try {
-      const res = await fetch(`https://psgc.cloud/api/provinces/${value}/cities-municipalities`)
-      if (!res.ok) {
-        throw new Error(`Failed to load cities: ${res.status}`)
-      }
-      const data = await res.json()
-      setCities(data)
-    } catch (error) {
-      console.error('Error loading PSGC cities/municipalities', error)
-    }
-  }
-
-  const handleCityChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-
-    setForm((prev) => ({
-      ...prev,
-      city: value,
-      barangay: '',
-    }))
-    setBarangays([])
-
-    if (!value) {
-      return
-    }
-
-    try {
-      const res = await fetch(
-        `https://psgc.cloud/api/cities-municipalities/${value}/barangays`
-      )
-      if (!res.ok) {
-        throw new Error(`Failed to load barangays: ${res.status}`)
-      }
-      const data = await res.json()
-      setBarangays(data)
-    } catch (error) {
-      console.error('Error loading PSGC barangays', error)
-    }
-  }
 
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -217,26 +96,9 @@ const CompleteFacultyProfile: React.FC = () => {
       toast.error('Please enter your employee ID.')
       return
     }
-    navigate('/complete-profile/staff/address')
-  }
-
-  const handleAddressNext = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (
-      !form.region ||
-      !form.city ||
-      !form.barangay ||
-      (provinces.length > 0 && !form.province)
-    ) {
-      toast.error('Please complete your address.')
-      return
-    }
-    if (!form.address.trim()) {
-      toast.error('Please enter your street / house number.')
-      return
-    }
     navigate('/complete-profile/staff/academic')
   }
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -253,7 +115,6 @@ const CompleteFacultyProfile: React.FC = () => {
 
     setSubmitting(true)
     try {
-      let idUrl: string | undefined
       let avatarUrl: string | undefined
 
       if (idFile) {
@@ -271,10 +132,7 @@ const CompleteFacultyProfile: React.FC = () => {
             'Uploading your employee ID failed. You can try again later or contact the administrator.'
           )
         } else {
-          const { data: publicData } = (supabase as any).storage
-            .from('user-docs')
-            .getPublicUrl(filePath)
-          idUrl = publicData.publicUrl
+          // idUrl = publicData.publicUrl
         }
       }
 
@@ -319,16 +177,22 @@ const CompleteFacultyProfile: React.FC = () => {
         middle_name: form.middleName.trim() || null,
         last_name: form.lastName.trim(),
         nickname: form.nickname.trim(),
-        address: form.address.trim(),
-        region: form.region,
-        province: form.province,
-        city: form.city,
-        barangay: form.barangay,
-        department: form.department,
         avatar_url: avatarUrl,
-        cor_url: idUrl,
         verified: false,
       })
+
+      if (profileError) throw profileError
+
+      // 2. Link to Department in Staff Sub-Profile
+      const { error: staffError } = await supabase
+        .from('staff_profiles')
+        .update({
+          department_id: form.department,
+          office: 'Main Office', // Default or derived
+        })
+        .eq('profile_id', user.id)
+
+      if (staffError) throw staffError
 
       if (profileError) {
         console.error('Error saving profile', profileError)
@@ -361,7 +225,7 @@ const CompleteFacultyProfile: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
         <button
           type="button"
           onClick={() => navigate('/complete-profile')}
@@ -374,7 +238,6 @@ const CompleteFacultyProfile: React.FC = () => {
         <h1 className="text-lg font-semibold text-slate-900">Complete your profile</h1>
         <p className="mt-1 text-sm text-slate-600">
           {isAccountStep && 'Add your school account details.'}
-          {isAddressStep && 'Add your address information.'}
           {isAcademicStep &&
             'Add your academic information. An administrator will verify these details.'}
         </p>
@@ -383,7 +246,7 @@ const CompleteFacultyProfile: React.FC = () => {
           <form className="mt-6 space-y-4" onSubmit={handleAccountNext}>
             <div className="space-y-1">
               <label className="block text-xs font-medium text-gray-700">Email</label>
-              <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              <p className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 {user.email}
               </p>
             </div>
@@ -393,7 +256,7 @@ const CompleteFacultyProfile: React.FC = () => {
                 <label htmlFor="firstName" className="block text-xs font-medium text-gray-700">
                   First name
                 </label>
-                <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                   <FaUser className="h-4 w-4 text-slate-400 mr-2" />
                   <input
                     id="firstName"
@@ -411,7 +274,7 @@ const CompleteFacultyProfile: React.FC = () => {
                 <label htmlFor="middleName" className="block text-xs font-medium text-gray-700">
                   Middle name
                 </label>
-                <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                   <FaUser className="h-4 w-4 text-slate-400 mr-2" />
                   <input
                     id="middleName"
@@ -428,7 +291,7 @@ const CompleteFacultyProfile: React.FC = () => {
                 <label htmlFor="lastName" className="block text-xs font-medium text-gray-700">
                   Last name
                 </label>
-                <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                   <FaUser className="h-4 w-4 text-slate-400 mr-2" />
                   <input
                     id="lastName"
@@ -448,7 +311,7 @@ const CompleteFacultyProfile: React.FC = () => {
               <label htmlFor="idNumber" className="block text-xs font-medium text-gray-700">
                 Employee ID
               </label>
-              <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+              <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                 <FaIdBadge className="h-4 w-4 text-slate-400 mr-2" />
                 <input
                   id="idNumber"
@@ -466,13 +329,13 @@ const CompleteFacultyProfile: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/complete-profile')}
-                className="flex-1 inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="flex-1 inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Back
               </button>
               <button
                 type="submit"
-                className="flex-1 inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm transition-colors"
+                className="flex-1 inline-flex justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm transition-colors"
               >
                 Continue
               </button>
@@ -480,158 +343,6 @@ const CompleteFacultyProfile: React.FC = () => {
           </form>
         )}
 
-        {isAddressStep && (
-          <form className="mt-6 space-y-4" onSubmit={handleAddressNext}>
-            <div className="mt-1 space-y-1">
-              <span className="block text-xs font-medium text-gray-700">Address</span>
-
-              <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label
-                    htmlFor="region"
-                    className="block text-[11px] font-medium text-gray-600"
-                  >
-                    Region
-                  </label>
-                  <select
-                    id="region"
-                    name="region"
-                    value={form.region}
-                    onChange={handleRegionChange}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">Select region</option>
-                    {regions.map((r: any) => (
-                      <option key={r.code} value={r.code}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label
-                    htmlFor="province"
-                    className="block text-[11px] font-medium text-gray-600"
-                  >
-                    Province
-                  </label>
-                  <select
-                    id="province"
-                    name="province"
-                    value={form.province}
-                    onChange={handleProvinceChange}
-                    disabled={!form.region || provinces.length === 0}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">
-                      {!form.region
-                        ? 'Select region first'
-                        : provinces.length === 0
-                          ? 'No provinces for this region'
-                          : 'Select province'}
-                    </option>
-                    {provinces.map((p: any) => (
-                      <option key={p.code} value={p.code}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label
-                    htmlFor="city"
-                    className="block text-[11px] font-medium text-gray-600"
-                  >
-                    City / Municipality
-                  </label>
-                  <select
-                    id="city"
-                    name="city"
-                    value={form.city}
-                    onChange={handleCityChange}
-                    disabled={!form.region || (provinces.length > 0 && !form.province)}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">
-                      {!form.region
-                        ? 'Select region first'
-                        : provinces.length > 0 && !form.province
-                          ? 'Select province first'
-                          : 'Select city / municipality'}
-                    </option>
-                    {cities.map((c: any) => (
-                      <option key={c.code} value={c.code}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label
-                    htmlFor="barangay"
-                    className="block text-[11px] font-medium text-gray-600"
-                  >
-                    Barangay
-                  </label>
-                  <select
-                    id="barangay"
-                    name="barangay"
-                    value={form.barangay}
-                    onChange={handleChange}
-                    disabled={!form.city}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">
-                      {form.city ? 'Select barangay' : 'Select city / municipality first'}
-                    </option>
-                    {barangays.map((b: any) => (
-                      <option key={b.code} value={b.code}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label
-                  htmlFor="address"
-                  className="block text-[11px] font-medium text-gray-600"
-                >
-                  Street / House number
-                </label>
-                <input
-                  id="address"
-                  name="address"
-                  type="text"
-                  value={form.address}
-                  onChange={handleChange}
-                  className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="e.g. 123 Sampaguita St., Brgy. Sample"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 flex gap-3">
-              <button
-                type="button"
-                onClick={() => navigate('/complete-profile/staff/account')}
-                className="flex-1 inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                className="flex-1 inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm transition-colors"
-              >
-                Continue
-              </button>
-            </div>
-          </form>
-        )}
 
         {isAcademicStep && (
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -718,7 +429,7 @@ const CompleteFacultyProfile: React.FC = () => {
                     type="text"
                     value={form.nickname}
                     onChange={handleChange}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="e.g. Sir Juan, Ma'am Ann"
                   />
                 </div>
@@ -736,12 +447,12 @@ const CompleteFacultyProfile: React.FC = () => {
                   name="department"
                   value={form.department}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
                   <option value="">Select department</option>
                   {departments.length > 0 ? (
                     departments.map((d: any) => (
-                      <option key={d.id} value={d.name}>
+                      <option key={d.id} value={d.id}>
                         {d.name}
                       </option>
                     ))
@@ -761,15 +472,15 @@ const CompleteFacultyProfile: React.FC = () => {
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
-                onClick={() => navigate('/complete-profile/staff/address')}
-                className="flex-1 inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => navigate('/complete-profile/staff/account')}
+                className="flex-1 inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Back
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 inline-flex justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Submitting…' : 'Submit for approval'}
               </button>

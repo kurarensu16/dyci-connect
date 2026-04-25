@@ -161,7 +161,7 @@ const Notifications: React.FC = () => {
             {notifications.map((notification) => (
               <div
                 key={notification.id}
-                className={`bg-white rounded-xl border px-4 py-3 ${
+                className={`bg-white rounded-2xl border px-4 py-3 ${
                   notification.read
                     ? 'border-slate-200'
                     : 'border-blue-200 bg-blue-50/30'

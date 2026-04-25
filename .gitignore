@@ -25,3 +25,22 @@ dist-ssr
 
 # Supabase local files
 supabase/.temp/
+
+# Ghost folder (temporary SQL scripts and notes)
+ghost/
+
+# Environment variables
+.env
+
+# Supabase
+supabase/
+
+# Temporary Scratch files
+scratch/
+
+# Vite
+*.timestamp-*
+
+# IDE and Tooling
+.eslintcache
+coverage/

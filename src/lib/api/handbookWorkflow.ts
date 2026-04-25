@@ -1,9 +1,15 @@
 import { supabase } from '../supabaseClient'
+import {
+  notifyRole,
+  notifyPosition,
+  notifyAllVerifiedUsers
+} from './notifications'
+import { formatLevel, formatRole, L2_POSITIONS, L3_POSITIONS } from '../../utils/roleUtils'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-export type HandbookStatus = 'draft' | 'pending_approval' | 'published' | 'rejected'
-export type SectionStatus = 'draft' | 'dept_review' | 'published'
+export type HandbookStatus = 'draft' | 'pending_approval' | 'pending_final_review' | 'published' | 'rejected'
+export type SectionStatus = 'draft' | 'dept_review' | 'dept_approved' | 'published'
 
 export type ApproverPosition =
   | 'scholarship'
@@ -12,23 +18,47 @@ export type ApproverPosition =
   | 'guidance'
   | 'property_security'
   | 'academic_council'
+  | 'president'
+  | 'vice_president'
 
-export const L2_POSITIONS: ApproverPosition[] = [
-  'scholarship', 'finance', 'registrar',
-  'guidance', 'property_security', 'academic_council',
-]
+export interface CollegeOffice {
+  id: string
+  name: string
+  slug: string
+  level: number
+  is_active: boolean
+  sort_order: number
+}
 
-export const ALL_POSITIONS: ApproverPosition[] = [...L2_POSITIONS]
+export const ALL_POSITIONS: ApproverPosition[] = [...L2_POSITIONS, ...L3_POSITIONS]
+
+/**
+ * Fetch all dynamic college offices from the database.
+ * This replaces the hardcoded L2_POSITIONS constants.
+ */
+export async function fetchCollegeOffices() {
+  const { data, error } = await supabase
+    .from('college_offices')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+
+  return { data: data as CollegeOffice[] | null, error }
+}
 
 export function positionToLevel(position: ApproverPosition): number {
   if (L2_POSITIONS.includes(position)) return 2
+  if (L3_POSITIONS.includes(position)) return 3
   return 0
 }
 
 export interface Handbook {
   id: string
   title: string
-  school_year: string
+  academic_year_id: string
+  academic_years?: {
+    year_name: string
+  }
   status: HandbookStatus
   publish_at: string | null
   published_at: string | null
@@ -45,6 +75,7 @@ export interface HandbookSection {
   content: string
   legacy_content: string | null
   current_level: number
+  workflow_stage_id: string
   change_reason: string | null
   sort_order: number
   status: SectionStatus
@@ -58,6 +89,7 @@ export interface HandbookSectionInput {
   title: string
   content: string
   sort_order: number
+  parent_id?: string | null
 }
 
 export interface SectionApproval {
@@ -65,7 +97,7 @@ export interface SectionApproval {
   handbook_section_id: string
   approver_user_id: string
   position: ApproverPosition
-  level: number
+  workflow_stage_id: string
   decision: 'approved' | 'rejected'
   comment: string | null
   decided_at: string
@@ -74,7 +106,7 @@ export interface SectionApproval {
 export interface AuditTrailEntry {
   id: string
   position: ApproverPosition
-  level: number
+  workflow_stage_id: string
   decision: 'approved' | 'rejected'
   comment: string | null
   decided_at: string
@@ -89,10 +121,11 @@ export interface HandbookApprovalMonitorRow {
   sort_order: number
   current_level: number
   required_positions: ApproverPosition[]
+  keywords: string[]
   approvals: Array<{
     handbook_section_id: string
     position: ApproverPosition
-    level: number
+    workflow_stage_id: string
     decision: 'approved' | 'rejected'
     comment: string | null
     decided_at: string
@@ -105,23 +138,11 @@ export interface HandbookApprovalMonitorRow {
 // ── Labels ────────────────────────────────────────────────────────────────
 
 export function approverLabel(position: ApproverPosition): string {
-  const map: Record<ApproverPosition, string> = {
-    finance: 'Department of Finance',
-    registrar: "Office of the Registrar",
-    scholarship: 'Scholarship',
-    guidance: 'Guidance Office',
-    property_security: 'Property/Security Office',
-    academic_council: 'Academic Council',
-  }
-  return map[position] ?? position
+  return formatRole('staff', { position })
 }
 
 export function levelLabel(level: number): string {
-  switch (level) {
-    case 1: return 'Admin Draft'
-    case 2: return 'Department Approval'
-    default: return `Level ${level}`
-  }
+  return formatLevel(level)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -138,6 +159,8 @@ const DEPT_TO_POSITION: Record<string, ApproverPosition> = {
   'Guidance Office': 'guidance',
   'Property/Security Office': 'property_security',
   'Academic Council': 'academic_council',
+  'Office of the President': 'president',
+  'Office of the Vice President': 'vice_president',
 }
 
 export function derivePositionFromProfile(profile: {
@@ -153,30 +176,54 @@ export function derivePositionFromProfile(profile: {
   return null
 }
 
-// ── Notifications ─────────────────────────────────────────────────────────
+// ── Pending Approval Count ─────────────────────────────────────────────────
 
-async function notifyPosition(position: ApproverPosition, message: string, actionUrl: string) {
-  const { data: recipients } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('approver_position', position)
-  if (!recipients?.length) return
-  const rows = recipients.map((r: { id: string }) => ({
-    user_id: r.id, title: 'Handbook Workflow', message, type: 'info', read: false, action_url: actionUrl,
-  }))
-  await supabase.from('notifications').insert(rows)
+export async function fetchPendingApprovalCount(position: ApproverPosition): Promise<number> {
+  try {
+    // Get section IDs assigned to this position
+    const { data: reqs, error: reqsError } = await supabase
+      .from('handbook_approval_requirements')
+      .select('handbook_section_id')
+      .eq('required_position', position)
+
+    if (reqsError || !reqs || reqs.length === 0) return 0
+
+    const sectionIds = reqs.map(r => r.handbook_section_id)
+
+    // Get sections at dept_review status that haven't been approved by this position yet
+    const { data: approved } = await supabase
+      .from('handbook_approvals')
+      .select('handbook_section_id')
+      .eq('position', position)
+      .eq('decision', 'approved')
+      .in('handbook_section_id', sectionIds)
+
+    const approvedIds = new Set((approved || []).map(a => a.handbook_section_id))
+    const pendingIds = sectionIds.filter(id => !approvedIds.has(id))
+
+    // Filter to only sections currently at dept_review
+    const { data: sections, error } = await supabase
+      .from('handbook_sections')
+      .select('id')
+      .eq('status', 'dept_review')
+      .in('id', pendingIds)
+
+    if (error) {
+      console.error('Error fetching pending count:', error)
+      return 0
+    }
+    return sections?.length || 0
+  } catch (err) {
+    console.error('Error in fetchPendingApprovalCount:', err)
+    return 0
+  }
 }
 
+// ── Helper Notifications ──────────────────────────────────────────────────
+// These bridge the gaps for specific workflow logic
+
 async function notifyAdmins(message: string, actionUrl: string) {
-  const { data: admins } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('role', 'admin')
-  if (!admins?.length) return
-  const rows = admins.map((r: { id: string }) => ({
-    user_id: r.id, title: 'Handbook Workflow', message, type: 'info', read: false, action_url: actionUrl,
-  }))
-  await supabase.from('notifications').insert(rows)
+  return notifyRole('academic_admin', 'Handbook Workflow', message, actionUrl)
 }
 
 async function notifyAssignedL2(sectionId: string, message: string, actionUrl: string) {
@@ -187,7 +234,7 @@ async function notifyAssignedL2(sectionId: string, message: string, actionUrl: s
   if (!reqs) return
   for (const r of reqs) {
     if (L2_POSITIONS.includes(r.required_position as ApproverPosition)) {
-      await notifyPosition(r.required_position as ApproverPosition, message, actionUrl)
+      await notifyPosition(r.required_position as ApproverPosition, 'Handbook Workflow', message, actionUrl)
     }
   }
 }
@@ -197,17 +244,42 @@ async function notifyAssignedL2(sectionId: string, message: string, actionUrl: s
 export async function fetchHandbooks() {
   const { data, error } = await supabase
     .from('handbooks')
-    .select('*')
+    .select('*, academic_years(year_name)')
     .order('updated_at', { ascending: false })
   return { data: (data as Handbook[] | null) ?? null, error: error?.message ?? null }
 }
 
-export async function createHandbook(title: string, schoolYear: string) {
-  const userId = await getCurrentUserId()
-  if (!userId) return { data: null, error: 'Not authenticated.' }
+export async function fetchPublishedHandbook(): Promise<{ data: Handbook | null; error: string | null }> {
   const { data, error } = await supabase
     .from('handbooks')
-    .insert({ title, school_year: schoolYear, created_by: userId, status: 'draft' })
+    .select('*, academic_years(year_name)')
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return { data: null, error: error.message }
+  if (!data) return { data: null, error: 'No published handbook found.' }
+  return { data: data as Handbook, error: null }
+}
+
+export async function createHandbook(title: string, academicYearId: string) {
+  const userId = await getCurrentUserId()
+  if (!userId) return { data: null, error: 'Not authenticated.' }
+
+  // Check if a handbook for this academic year already exists
+  const { data: existing, error: checkError } = await supabase
+    .from('handbooks')
+    .select('id')
+    .eq('academic_year_id', academicYearId)
+    .maybeSingle()
+
+  if (checkError) return { data: null, error: checkError.message }
+  if (existing) return { data: null, error: `A handbook for this academic year already exists.` }
+
+  const { data, error } = await supabase
+    .from('handbooks')
+    .insert({ title, academic_year_id: academicYearId, created_by: userId, status: 'draft' })
     .select('*')
     .single()
   return { data: (data as Handbook | null) ?? null, error: error?.message ?? null }
@@ -215,7 +287,7 @@ export async function createHandbook(title: string, schoolYear: string) {
 
 export async function updateHandbookMeta(
   handbookId: string,
-  patch: Partial<Pick<Handbook, 'title' | 'school_year' | 'school_year_locked' | 'publish_at' | 'status'>>
+  patch: Partial<Pick<Handbook, 'title' | 'academic_year_id' | 'status'>>
 ) {
   const { data, error } = await supabase
     .from('handbooks')
@@ -259,6 +331,15 @@ export async function replaceHandbookSections(handbookId: string, sections: Hand
   if (!userId) return { error: 'Not authenticated.' }
   if (sections.length === 0) return { error: 'No sections to sync.' }
 
+  // Fetch the default stage ID once upfront
+  const { data: defaultStage } = await supabase
+    .from('workflow_stages')
+    .select('id')
+    .eq('workflow_name', 'handbook_approval')
+    .eq('stage_order', 2)
+    .single()
+  const defaultStageId = defaultStage?.id
+
   const { data: existing } = await supabase
     .from('handbook_sections')
     .select('id, sort_order')
@@ -277,9 +358,10 @@ export async function replaceHandbookSections(handbookId: string, sections: Hand
           title: s.title,
           content: s.content,
           legacy_content: s.content,
+          parent_id: s.parent_id,
         })
         .eq('id', existingId)
-      
+
       if (error) return { error: error.message }
       handledIds.add(existingId)
     } else {
@@ -291,14 +373,16 @@ export async function replaceHandbookSections(handbookId: string, sections: Hand
           content: s.content,
           legacy_content: s.content,
           sort_order: s.sort_order,
+          parent_id: s.parent_id,
           status: 'draft',
           current_level: 1,
+          workflow_stage_id: defaultStageId,
           is_locked: false,
           created_by: userId,
         })
         .select('id')
         .single()
-        
+
       if (error) return { error: error.message }
       if (data) handledIds.add(data.id)
     }
@@ -359,9 +443,16 @@ export async function submitSectionToDeptReview(sectionId: string) {
     return { error: 'Assign at least one department before submitting.' }
   }
 
+  const { data: stage } = await supabase
+    .from('workflow_stages')
+    .select('id')
+    .eq('workflow_name', 'handbook_approval')
+    .eq('stage_order', 2)
+    .single()
+
   const { error } = await supabase
     .from('handbook_sections')
-    .update({ current_level: 2, status: 'dept_review' })
+    .update({ workflow_stage_id: stage?.id, status: 'dept_review', current_level: 2 })
     .eq('id', sectionId)
   if (error) return { error: error.message }
 
@@ -417,30 +508,55 @@ export async function approveSectionAtLevel(
   const userId = await getCurrentUserId()
   if (!userId) return { error: 'Not authenticated.' }
 
+  // Get the section's workflow_stage_id
+  const { data: section } = await supabase
+    .from('handbook_sections')
+    .select('workflow_stage_id, title')
+    .eq('id', sectionId)
+    .single()
+
+  if (!section?.workflow_stage_id) {
+    return { error: 'Section workflow stage not found.' }
+  }
+
   const { error } = await supabase
     .from('handbook_approvals')
     .upsert({
       handbook_section_id: sectionId,
       approver_user_id: userId,
       position,
-      level,
+      workflow_stage_id: section.workflow_stage_id,
       decision: 'approved',
       comment: comment?.trim() || null,
       decided_at: new Date().toISOString(),
-    }, { onConflict: 'handbook_section_id,approver_user_id,position,level' })
+    }, { onConflict: 'handbook_section_id,approver_user_id,position,workflow_stage_id' })
 
   if (error) return { error: error.message }
 
-  // Fetch section title for notifications
-  const { data: sec } = await supabase
-    .from('handbook_sections')
-    .select('title')
-    .eq('id', sectionId)
-    .single()
-  const sectionTitle = sec?.title ?? 'a section'
+  const sectionTitle = section?.title ?? 'a section'
 
   if (level === 2) {
     await notifyAdmins(`Update: ${approverLabel(position)} approved "${sectionTitle}".`, '/admin/cms')
+
+    // Check if the whole handbook is now ready for final sign-off (all sections approved at L2)
+    const { data: sectionData } = await supabase
+      .from('handbook_sections')
+      .select('handbook_id')
+      .eq('id', sectionId)
+      .single()
+
+    if (sectionData?.handbook_id) {
+      const { data: sections } = await supabase
+        .from('handbook_sections')
+        .select('id, status')
+        .eq('handbook_id', sectionData.handbook_id)
+
+      const allL2Approved = sections?.every(s => s.status === 'approved' || s.status === 'published')
+      if (allL2Approved) {
+        await notifyPosition('president', 'Handbook Update: All sections have been approved by departments and are ready for final executive sign-off.', '/staff/handbook-approvals')
+        await notifyPosition('vp_academic', 'Handbook Update: All sections have been approved by departments and are ready for final executive sign-off.', '/staff/handbook-approvals')
+      }
+    }
   }
 
   return { error: null }
@@ -456,31 +572,49 @@ export async function rejectSectionAtLevel(
   if (!userId) return { error: 'Not authenticated.' }
   if (!comment.trim()) return { error: 'A comment is required when rejecting.' }
 
+  // Get the section's workflow_stage_id
+  const { data: section } = await supabase
+    .from('handbook_sections')
+    .select('workflow_stage_id, title')
+    .eq('id', sectionId)
+    .single()
+
+  if (!section?.workflow_stage_id) {
+    return { error: 'Section workflow stage not found.' }
+  }
+
   const { error } = await supabase
     .from('handbook_approvals')
     .upsert({
       handbook_section_id: sectionId,
       approver_user_id: userId,
       position,
-      level,
+      workflow_stage_id: section.workflow_stage_id,
       decision: 'rejected',
       comment: comment.trim(),
       decided_at: new Date().toISOString(),
-    }, { onConflict: 'handbook_section_id,approver_user_id,position,level' })
+    }, { onConflict: 'handbook_section_id,approver_user_id,position,workflow_stage_id' })
 
   if (error) return { error: error.message }
 
-  const { data: sec } = await supabase
-    .from('handbook_sections')
-    .select('title')
-    .eq('id', sectionId)
-    .single()
-  const sectionTitle = sec?.title ?? 'a section'
+  const sectionTitle = section?.title ?? 'a section'
 
   if (level === 2) {
     await notifyAdmins(`Alert: "${sectionTitle}" returned by department reviewer.`, '/admin/cms')
+  } else if (level === 3) {
+    await notifyAssignedL2(sectionId, `Final Reviewer rejected "${sectionTitle}". Please re-review.`, '/staff/handbook-approvals')
   }
 
+  return { error: null }
+}
+
+// ── Level 3 Final Sign-off ────────────────────────────────────────────────
+
+export async function approveEntireHandbook(handbookId: string) {
+  const { error } = await supabase.rpc('approve_entire_handbook', { handbook_uuid: handbookId })
+  if (error) return { error: error.message }
+
+  await notifyAdmins('The handbook has been fully approved and published.', '/admin/cms')
   return { error: null }
 }
 
@@ -492,7 +626,11 @@ export async function fetchApproverQueue(position: ApproverPosition) {
     .select(`
       handbook_section_id,
       required_position,
-      handbook_sections!inner(id, title, content, legacy_content, status, is_locked, handbook_id, sort_order, current_level, change_reason)
+      handbook_sections!inner(
+        id, title, content, legacy_content, status, is_locked, 
+        handbook_id, sort_order, change_reason, current_level,
+        handbook_keywords(keyword)
+      )
     `)
     .eq('required_position', position)
   return { data: data ?? null, error: error?.message ?? null }
@@ -503,7 +641,7 @@ export async function fetchApproverQueue(position: ApproverPosition) {
 export async function fetchSectionAuditTrail(sectionId: string): Promise<{ data: AuditTrailEntry[] | null; error: string | null }> {
   const { data: approvals, error } = await supabase
     .from('handbook_approvals')
-    .select('id, position, level, decision, comment, decided_at, approver_user_id')
+    .select('id, position, workflow_stage_id, decision, comment, decided_at, approver_user_id')
     .eq('handbook_section_id', sectionId)
     .order('decided_at', { ascending: true })
 
@@ -526,7 +664,7 @@ export async function fetchSectionAuditTrail(sectionId: string): Promise<{ data:
     return {
       id: a.id,
       position: a.position,
-      level: a.level,
+      workflow_stage_id: a.workflow_stage_id,
       decision: a.decision,
       comment: a.comment,
       decided_at: a.decided_at,
@@ -572,7 +710,7 @@ export async function fetchHandbookApprovalMonitor(handbookId: string) {
 
   const { data: approvals } = await supabase
     .from('handbook_approvals')
-    .select('handbook_section_id, position, level, decision, comment, decided_at, approver_user_id')
+    .select('handbook_section_id, position, workflow_stage_id, decision, comment, decided_at, approver_user_id')
     .in('handbook_section_id', sectionIds)
 
   const userIds = Array.from(new Set((approvals ?? []).map((a: any) => a.approver_user_id)))
@@ -586,7 +724,19 @@ export async function fetchHandbookApprovalMonitor(handbookId: string) {
     profileMap.set(p.id, { name, email: p.email ?? '' })
   }
 
+  const { data: keywordsData } = await supabase
+    .from('handbook_keywords')
+    .select('section_id, keyword')
+    .in('section_id', sectionIds)
+
+  const keywordMap = new Map<string, string[]>()
+  for (const k of keywordsData ?? []) {
+    if (!keywordMap.has(k.section_id)) keywordMap.set(k.section_id, [])
+    keywordMap.get(k.section_id)!.push(k.keyword)
+  }
+
   const rows: HandbookApprovalMonitorRow[] = list.map((section: any) => {
+    const sectionKeywords = keywordMap.get(section.id) || []
     const sectionReqs = (reqs ?? [])
       .filter((r: any) => r.handbook_section_id === section.id)
       .map((r: any) => r.required_position as ApproverPosition)
@@ -597,7 +747,7 @@ export async function fetchHandbookApprovalMonitor(handbookId: string) {
         return {
           handbook_section_id: a.handbook_section_id,
           position: a.position as ApproverPosition,
-          level: a.level as number,
+          workflow_stage_id: a.workflow_stage_id as string,
           decision: a.decision as 'approved' | 'rejected',
           comment: a.comment,
           decided_at: a.decided_at,
@@ -613,11 +763,77 @@ export async function fetchHandbookApprovalMonitor(handbookId: string) {
       sort_order: section.sort_order,
       current_level: section.current_level,
       required_positions: sectionReqs,
+      keywords: sectionKeywords,
       approvals: sectionApprovals,
     }
   })
 
   return { data: rows, error: null }
+}
+
+// ── Handbook-Level Approvals (L3 Executive) ───────────────────────────────
+
+export async function fetchHandbookApprovals(handbookId: string): Promise<{ data: any[] | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('handbook_l3_approvals')
+    .select('*')
+    .eq('handbook_id', handbookId)
+    .order('approved_at', { ascending: false })
+
+  return { data, error: error?.message ?? null }
+}
+
+export async function approveHandbookAtLevel(
+  handbookId: string,
+  position: ApproverPosition
+): Promise<{ error: string | null; autoPublished?: boolean }> {
+  const userId = await getCurrentUserId()
+  if (!userId) return { error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('handbook_l3_approvals')
+    .upsert({
+      handbook_id: handbookId,
+      approver_position: position,
+      approver_user_id: userId,
+      decision: 'approved',
+      approved_at: new Date().toISOString(),
+    }, {
+      onConflict: 'handbook_id,approver_position'
+    })
+
+  if (error) return { error: error.message, autoPublished: false }
+
+  // Fetch handbook to check for scheduled publish date
+  const { data: hb } = await supabase
+    .from('handbooks')
+    .select('publish_at')
+    .eq('id', handbookId)
+    .single()
+
+  const now = new Date()
+  const publishAt = hb?.publish_at ? new Date(hb.publish_at) : null
+  const isWithinScheduleRange = !!publishAt && now <= publishAt
+
+  // Update handbook status to indicate L3 approval
+  await supabase
+    .from('handbooks')
+    .update({
+      status: 'approved_by_executive',
+      l3_approved_at: now.toISOString()
+    })
+    .eq('id', handbookId)
+
+  await notifyAdmins(`Final Approval: The handbook has been approved by ${approverLabel(position)}.`, '/admin/cms')
+
+  // Auto-publish if within schedule range
+  let autoPublished = false
+  if (isWithinScheduleRange) {
+    const { error: pubErr } = await publishHandbookNow(handbookId)
+    if (!pubErr) autoPublished = true
+  }
+
+  return { error: null, autoPublished }
 }
 
 // ── Schedule / Publish ────────────────────────────────────────────────────
@@ -631,17 +847,29 @@ export async function scheduleHandbookPublish(handbookId: string, publishAtIso: 
 }
 
 export async function publishHandbookNow(handbookId: string) {
+  // Check if handbook has been approved by an executive (L3)
+  const { data: l3Approvals, error: l3Error } = await supabase
+    .from('handbook_l3_approvals')
+    .select('*')
+    .eq('handbook_id', handbookId)
+    .eq('decision', 'approved')
+
+  if (l3Error) return { error: l3Error.message, waitingForDate: false }
+  if (!l3Approvals || l3Approvals.length === 0) {
+    return { error: 'This handbook must be approved by an Executive (President or VP) before publishing.', waitingForDate: false }
+  }
+
   const { data: sections, error: sectionErr } = await supabase
     .from('handbook_sections')
     .select('status')
     .eq('handbook_id', handbookId)
   if (sectionErr) return { error: sectionErr.message, waitingForDate: false }
   if (!sections || sections.length === 0) return { error: 'No sections found.', waitingForDate: false }
-  if (sections.some((s: { status: string }) => s.status !== 'published')) {
-    return { error: 'All sections must complete the approval workflow before publishing.', waitingForDate: false }
+  if (sections.some((s: { status: string }) => s.status === 'dept_review' || s.status === 'rejected')) {
+    return { error: 'Some sections are still under review or have been rejected. Please resolve them before publishing.', waitingForDate: false }
   }
 
-  const { data: hb } = await supabase.from('handbooks').select('publish_at').eq('id', handbookId).single()
+  const { data: hb } = await supabase.from('handbooks').select('publish_at, academic_year_id').eq('id', handbookId).single()
   const now = new Date()
   const publishAt = hb?.publish_at ? new Date(hb.publish_at) : null
   const waitingForDate = !!publishAt && publishAt.getTime() > now.getTime()
@@ -653,5 +881,19 @@ export async function publishHandbookNow(handbookId: string) {
       : { published_at: now.toISOString(), status: 'published' }
     )
     .eq('id', handbookId)
+
+  if (!waitingForDate && !error) {
+    await notifyAllVerifiedUsers('New Handbook Published', 'The official DYCI Student Handbook for the current academic year has been published. Please review the updated policies.', '/staff/handbook')
+  }
+
+  // If published successfully and not waiting for future date, set academic year as current
+  if (!error && !waitingForDate && hb?.academic_year_id) {
+    // Set this academic year as current
+    await supabase.from('academic_years').update({ is_current: false }).neq('id', hb.academic_year_id)
+    await supabase.from('academic_years').update({ is_current: true }).eq('id', hb.academic_year_id)
+    // Update school settings
+    await supabase.from('school_settings').update({ current_academic_year_id: hb.academic_year_id }).eq('id', 1)
+  }
+
   return { error: error?.message ?? null, waitingForDate }
 }

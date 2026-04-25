@@ -4,15 +4,15 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { checkProfileCompleteness, createIncompleteProfileNotification } from '../../utils/profileUtils'
 import toast from 'react-hot-toast'
-import { FaEnvelope, FaLock, FaGoogle, FaArrowLeft } from 'react-icons/fa'
-import logo from '../../assets/imgs/logo-connect.png'
+import { FaEnvelope, FaLock, FaArrowLeft, FaEye, FaEyeSlash } from 'react-icons/fa'
+const logo = '/icons/icon-512x512.png'
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState<string>('')
   const [password, setPassword] = useState<string>('')
+  const [showPassword, setShowPassword] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(false)
-  const [showRoleChooser, setShowRoleChooser] = useState(false)
-  const { signIn, signInWithGoogle } = useAuth()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,7 +52,9 @@ const Login: React.FC = () => {
         }
       }
 
-      if (role === 'admin') {
+      if (role === 'system_admin') {
+        navigate('/sysadmin/dashboard')
+      } else if (role === 'academic_admin') {
         navigate('/admin/dashboard')
       } else if (role === 'staff') {
         navigate('/staff/dashboard')
@@ -69,20 +71,13 @@ const Login: React.FC = () => {
     }
   }
 
-  const handleGoogleSignIn = async () => {
-    const { error } = await signInWithGoogle()
-    if (error) {
-      toast.error(error.message || 'Google sign-in is not configured yet.')
-    }
-    // If no error, Supabase redirects to Google then back to /auth/callback
-  }
 
   return (
     <div className="min-h-screen flex bg-gray-50">
       <div className="flex w-full flex-col lg:flex-row">
         {/* Left column: card with form */}
         <div className="w-full lg:w-1/2 flex items-center justify-center px-4 sm:px-8 lg:px-12 py-8 lg:py-12">
-          <div className="w-full max-w-md bg-white rounded-3xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
             {/* Back button */}
             <button
               type="button"
@@ -93,22 +88,6 @@ const Login: React.FC = () => {
               Back to home
             </button>
 
-            {/* Google sign-in */}
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              className="w-full inline-flex items-center justify-center space-x-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium py-3 shadow-sm hover:bg-slate-50 transition-colors"
-            >
-              <FaGoogle className="h-4 w-4" />
-              <span>Sign in with Google</span>
-            </button>
-
-            {/* Divider */}
-            <div className="my-6 flex items-center text-xs text-gray-400">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="px-3">Or continue with email</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
 
             {/* Email/password form */}
             <form className="space-y-5" onSubmit={handleSubmit}>
@@ -119,7 +98,7 @@ const Login: React.FC = () => {
                 >
                   Email address
                 </label>
-                <div className="mt-1 flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                <div className="mt-1 flex items-center rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                   <FaEnvelope className="h-4 w-4 text-gray-400 mr-3" />
                   <input
                     id="email"
@@ -142,19 +121,26 @@ const Login: React.FC = () => {
                 >
                   Password
                 </label>
-                <div className="mt-1 flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                <div className="mt-1 flex items-center rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 relative">
                   <FaLock className="h-4 w-4 text-gray-400 mr-3" />
                   <input
                     id="password"
                     name="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full border-0 bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0"
+                    className="w-full border-0 bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0 pr-10"
                     placeholder="Enter your password"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -177,94 +163,41 @@ const Login: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="mt-2 w-full inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="mt-2 w-full inline-flex justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-3 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
             </form>
 
-            {/* Footer */}
-            <p className="mt-6 text-center text-xs text-gray-500">
-              Don&apos;t have an account?
-              <button
-                type="button"
-                onClick={() => setShowRoleChooser(true)}
-                className="ml-1 font-semibold text-blue-600 hover:text-blue-500"
-              >
-                Register
-              </button>
-            </p>
           </div>
         </div>
 
         {/* Right column: brand panel */}
-        <div className="hidden lg:flex w-full lg:w-1/2 bg-[#1434A4] items-center justify-center">
-          <div className="text-center px-8">
-            <div className="inline-flex items-center justify-center mb-4">
+        <div className="hidden lg:flex w-full lg:w-1/2 bg-[#1434A4] items-center justify-center relative overflow-hidden">
+          {/* Decorative elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-400/10 rounded-full -ml-48 -mb-48 blur-3xl"></div>
+
+          <div className="text-center px-8 relative z-10 animate-in fade-in zoom-in duration-700">
+            <div className="inline-flex items-center justify-center mb-8 relative">
+              <div className="absolute inset-0 bg-white/20 rounded-full blur-2xl animate-pulse"></div>
               <img
                 src={logo}
                 alt="DYCI Connect logo"
-                className="h-32 w-32 object-contain rounded-full border-4 border-white shadow-xl"
+                className="h-40 w-40 object-contain rounded-full border-[6px] border-white/20 shadow-2xl relative z-10 p-2 bg-white/10 backdrop-blur-sm"
               />
             </div>
-            <h1 className="text-sm font-semibold tracking-[0.2em] text-blue-100">
+            <h1 className="text-lg font-bold tracking-[0.4em] text-white uppercase mb-2">
               DYCI CONNECT
             </h1>
-            <p className="mt-2 text-sm text-blue-100">
-              Sign in with your account
+            <div className="h-1 w-12 bg-blue-400/50 mx-auto rounded-full mb-6"></div>
+            <p className="text-sm font-medium text-blue-100 tracking-wide max-w-xs mx-auto leading-relaxed">
+              The institutional gateway to your digital student handbook and academic ecosystem.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Role chooser modal */}
-      {showRoleChooser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl px-6 py-6 space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900">
-              Choose how you&apos;d like to join
-            </h2>
-            <p className="text-xs text-gray-500">
-              This helps us customize your DYCI Connect experience.
-            </p>
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRoleChooser(false)
-                  navigate('/signup/student')
-                }}
-                className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left text-xs font-semibold text-blue-800 hover:bg-blue-100"
-              >
-                I&apos;m a Student
-                <span className="block mt-1 text-[11px] font-normal text-blue-700">
-                  Access your handbook, files, tools, and announcements.
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRoleChooser(false)
-                  navigate('/signup/staff')
-                }}
-                className="w-full rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-left text-xs font-semibold text-purple-800 hover:bg-purple-100"
-              >
-                I&apos;m an Educator
-                <span className="block mt-1 text-[11px] font-normal text-purple-700">
-                  Manage classes and connect with your students.
-                </span>
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowRoleChooser(false)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

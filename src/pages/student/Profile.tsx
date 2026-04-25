@@ -3,9 +3,11 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { getAuthProvider } from '../../utils/profileUtils'
+import { FaEye, FaEyeSlash } from 'react-icons/fa'
+import PasswordStrengthIndicator from '../../components/auth/PasswordStrengthIndicator'
 
 const StudentProfile: React.FC = () => {
-  const { user, updatePassword } = useAuth()
+  const { user, authoritativeRole, updatePassword } = useAuth()
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -16,7 +18,7 @@ const StudentProfile: React.FC = () => {
     middleName: '',
     lastName: '',
     nickname: '',
-    address: '',
+    streetAddress: '',
     region: '',
     barangay: '',
     city: '',
@@ -38,13 +40,13 @@ const StudentProfile: React.FC = () => {
   const [departments, setDepartments] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [yearLevels, setYearLevels] = useState<any[]>([])
-  const [locationNames, setLocationNames] = useState<{
-    barangay?: string
-    city?: string
-    province?: string
-  }>({})
+  const [sections, setSections] = useState<any[]>([])
   const [passwordOpen, setPasswordOpen] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordValid, setPasswordValid] = useState(false)
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -66,7 +68,28 @@ const StudentProfile: React.FC = () => {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          *,
+          student:student_profiles (
+            department_id, program_id, year_level_id, section_id,
+            enrolled_academic_year_id,
+            street_address,
+            barangay:barangay_id (
+              code, name,
+              city:city_id (
+                code, name,
+                province:province_id (
+                  code, name,
+                  region:region_id (code, name)
+                )
+              )
+            ),
+            department:department_id (name),
+            program:program_id (name),
+            year_level:year_level_id (label),
+            section:section_id (label)
+          )
+        `)
         .eq('id', user.id)
         .maybeSingle()
 
@@ -75,10 +98,6 @@ const StudentProfile: React.FC = () => {
         setError('Failed to load your profile. Please try again later.')
       } else {
         setProfile(data)
-        // Load human-readable PSGC names for display
-        if (data) {
-          loadLocationNames(data)
-        }
         // Sync auth_provider for Google users (fix rows that were saved as 'email')
         const provider = getAuthProvider(user)
         if (provider === 'google' && data?.auth_provider !== 'google') {
@@ -94,63 +113,6 @@ const StudentProfile: React.FC = () => {
 
     loadProfile()
   }, [user?.id])
-
-  const loadLocationNames = async (profileData: any) => {
-    if (!profileData) {
-      setLocationNames({})
-      return
-    }
-
-    const { province, city, barangay } = profileData
-
-    if (!province && !city && !barangay) {
-      setLocationNames({})
-      return
-    }
-
-    try {
-      const [provinceRes, cityRes, barangayRes] = await Promise.all([
-        province
-          ? fetch(`https://psgc.cloud/api/provinces/${province}`).catch(() => null)
-          : null,
-        city
-          ? fetch(
-              `https://psgc.cloud/api/cities-municipalities/${city}`
-            ).catch(() => null)
-          : null,
-        barangay
-          ? fetch(`https://psgc.cloud/api/barangays/${barangay}`).catch(() => null)
-          : null,
-      ])
-
-      let provinceName: string | undefined
-      let cityName: string | undefined
-      let barangayName: string | undefined
-
-      if (provinceRes && provinceRes.ok) {
-        const p = await provinceRes.json()
-        provinceName = p?.name
-      }
-
-      if (cityRes && cityRes.ok) {
-        const c = await cityRes.json()
-        cityName = c?.name
-      }
-
-      if (barangayRes && barangayRes.ok) {
-        const b = await barangayRes.json()
-        barangayName = b?.name
-      }
-
-      setLocationNames({
-        province: provinceName,
-        city: cityName,
-        barangay: barangayName,
-      })
-    } catch (err) {
-      console.error('Error loading PSGC names for profile display', err)
-    }
-  }
 
   // Load PSGC regions once
   useEffect(() => {
@@ -170,12 +132,12 @@ const StudentProfile: React.FC = () => {
     loadRegions()
   }, [])
 
-  // Load academic lookups (departments, programs, year levels) similar to signup
+  // Load academic lookups (departments, programs, year levels, sections) similar to signup
   useEffect(() => {
     const loadAcademicLookups = async () => {
       if (!isSupabaseConfigured) return
       try {
-        const [deptRes, progRes, yearRes] = await Promise.all([
+        const [deptRes, progRes, yearRes, sectionsRes] = await Promise.all([
           supabase.from('departments').select('id, name').order('name'),
           supabase
             .from('programs')
@@ -183,6 +145,10 @@ const StudentProfile: React.FC = () => {
             .order('name'),
           supabase
             .from('year_levels')
+            .select('id, label, sort_order')
+            .order('sort_order'),
+          supabase
+            .from('sections')
             .select('id, label, sort_order')
             .order('sort_order'),
         ])
@@ -203,6 +169,12 @@ const StudentProfile: React.FC = () => {
           setYearLevels(yearRes.data)
         } else if (yearRes.error) {
           console.error('Error loading year levels for profile edit', yearRes.error)
+        }
+
+        if (!sectionsRes.error && sectionsRes.data) {
+          setSections(sectionsRes.data)
+        } else if (sectionsRes.error) {
+          console.error('Error loading sections for profile edit', sectionsRes.error)
         }
       } catch (err) {
         console.error('Error loading academic lookups for profile edit', err)
@@ -258,11 +230,16 @@ const StudentProfile: React.FC = () => {
   const fullName =
     profile?.first_name || profile?.last_name
       ? [profile?.first_name, profile?.middle_name, profile?.last_name].filter(Boolean).join(' ')
-      : (user?.user_metadata?.full_name as string | undefined) || 'Student'
+      : (user?.user_metadata?.full_name as string | undefined) || 'User'
 
-  const roleLabel = (user?.user_metadata?.role as string | undefined) || 'student'
+  // Use authoritativeRole as source of truth, fallback to metadata or 'student'
+  const roleLabel = authoritativeRole || (user?.user_metadata?.role as string | undefined) || 'student'
+  const isStudent = roleLabel === 'student'
+  const isStaff = roleLabel === 'staff'
+  const isAdmin = roleLabel === 'academic_admin' || roleLabel === 'system_admin'
+
   const roleDisplay =
-    roleLabel === 'staff' ? 'Staff' : roleLabel === 'admin' ? 'Admin' : 'Student'
+    isStaff ? 'Staff' : isAdmin ? 'Admin' : 'Student'
 
   const verified = profile?.verified === true
 
@@ -276,16 +253,16 @@ const StudentProfile: React.FC = () => {
       middleName: profile?.middle_name || '',
       lastName: profile?.last_name || '',
       nickname: profile?.nickname || '',
-      address: profile?.address || '',
-      region: profile?.region || '',
-      barangay: profile?.barangay || '',
-      city: profile?.city || '',
-      province: profile?.province || '',
+      streetAddress: profile?.student?.street_address || profile?.student?.[0]?.street_address || '',
+      region: profile?.student?.barangay?.city?.province?.region?.code || profile?.student?.[0]?.barangay?.city?.province?.region?.code || '',
+      province: profile?.student?.barangay?.city?.province?.code || profile?.student?.[0]?.barangay?.city?.province?.code || '',
+      city: profile?.student?.barangay?.city?.code || profile?.student?.[0]?.barangay?.city?.code || '',
+      barangay: profile?.student?.barangay?.code || profile?.student?.[0]?.barangay?.code || '',
       studentId: profile?.student_employee_id || '',
-      program: profile?.program || '',
-      department: profile?.department || '',
-      yearLevel: profile?.year_level || '',
-      section: profile?.section || '',
+      program: profile?.student?.[0]?.program_id || profile?.student?.program_id || '',
+      department: profile?.student?.[0]?.department_id || profile?.student?.department_id || '',
+      yearLevel: profile?.student?.[0]?.year_level_id || profile?.student?.year_level_id || '',
+      section: profile?.student?.[0]?.section_id || profile?.student?.section_id || '',
     })
     setEditOpen(true)
   }
@@ -396,41 +373,68 @@ const StudentProfile: React.FC = () => {
     setEditSaving(true)
 
     const updateData: any = {
-      first_name: editForm.firstName,
-      middle_name: editForm.middleName,
-      last_name: editForm.lastName,
-      nickname: editForm.nickname,
-      address: editForm.address,
-      region: editForm.region,
-      barangay: editForm.barangay,
-      city: editForm.city,
-      province: editForm.province,
-      student_employee_id: editForm.studentId,
-      program: editForm.program,
-      department: editForm.department,
-      year_level: editForm.yearLevel,
-      section: editForm.section,
+      first_name: editForm.firstName.trim(),
+      middle_name: editForm.middleName.trim() || null,
+      last_name: editForm.lastName.trim(),
+      nickname: editForm.nickname.trim(),
+      student_employee_id: editForm.studentId.trim(),
     }
 
+    console.log('[Debug] Updating "profiles" table with:', updateData);
+
     try {
+      const regionName = regions.find((r) => r.code === editForm.region)?.name || ''
+      const provinceName = provinces.find((p) => p.code === editForm.province)?.name || ''
+      const cityName = cities.find((c) => c.code === editForm.city)?.name || ''
+      const barangayName = barangays.find((b) => b.code === editForm.barangay)?.name || ''
+
+      // 1. Sync geographic hierarchy if address changed
+      let barangayId = null;
+      if (editForm.barangay) {
+        const { data: bid, error: syncError } = await supabase.rpc('sync_geographic_hierarchy', {
+          r_code: editForm.region,
+          r_name: regionName,
+          p_code: editForm.province,
+          p_name: provinceName,
+          c_code: editForm.city,
+          c_name: cityName,
+          b_code: editForm.barangay,
+          b_name: barangayName,
+        })
+        if (!syncError && bid) {
+          barangayId = bid
+        }
+      }
+
+      // 2. Update core profile
       const { error: updateError } = await supabase
         .from('profiles')
         .update(updateData)
         .eq('id', user.id)
 
-      if (updateError) {
-        console.error('Error updating profile', updateError)
-        toast.error('Failed to save your changes. Please try again.')
-      } else {
-        setProfile((prev: any) => {
-          const next = prev ? { ...prev, ...updateData } : { ...updateData }
-          // Refresh human-readable location names after edit
-          loadLocationNames(next)
-          return next
-        })
-        toast.success('Your profile has been updated.')
-        setEditOpen(false)
+      if (updateError) throw updateError
+
+      // 3. Update student profile if student
+      if (isStudent) {
+        const { error: studentError } = await supabase
+          .from('student_profiles')
+          .upsert({
+            profile_id: user.id,
+            department_id: editForm.department || null,
+            program_id: editForm.program || null,
+            year_level_id: editForm.yearLevel || null,
+            section_id: editForm.section || null,
+            street_address: editForm.streetAddress.trim(),
+            barangay_id: barangayId,
+            enrolled_academic_year_id: (profile?.student?.[0]?.enrolled_academic_year_id || profile?.student?.enrolled_academic_year_id) || null
+          })
+        if (studentError) throw studentError
       }
+
+      toast.success('Your profile has been updated.')
+      setEditOpen(false)
+      // Re-load the profile to get the fresh joined data
+      window.location.reload()
     } catch (err) {
       console.error('Unexpected error updating profile', err)
       toast.error('Something went wrong while saving. Please try again.')
@@ -473,8 +477,8 @@ const StudentProfile: React.FC = () => {
       toast.error('New password and confirmation do not match.')
       return
     }
-    if (newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters.')
+    if (!passwordValid) {
+      toast.error('Password does not meet institutional security standards.')
       return
     }
     setPasswordSaving(true)
@@ -567,160 +571,177 @@ const StudentProfile: React.FC = () => {
 
   return (
     <>
-      {/* Header */}
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">My Profile</h1>
-          <p className="mt-1 text-xs text-blue-100">This is your DYCI Connect digital ID and account information.</p>
+      {/* Standard Legacy Header */}
+      <header className="legacy-header">
+        <div className="max-w-4xl mx-auto px-10">
+          <h1 className="legacy-header-title">My Profile</h1>
+          <p className="legacy-header-subtitle">
+            This is your DYCI Connect digital ID and account information.
+          </p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 lg:px-8 py-6 space-y-5">
+      <main className="max-w-4xl mx-auto px-10 py-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div />
           <div className="flex items-center gap-2">
             <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold ${
-                roleDisplay === 'Student'
-                  ? 'bg-blue-50 text-blue-700'
-                  : roleDisplay === 'Staff'
-                    ? 'bg-purple-50 text-purple-700'
-                    : 'bg-rose-50 text-rose-700'
-              }`}
+              className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold ${roleDisplay === 'Student'
+                ? 'bg-blue-50 text-blue-700'
+                : roleDisplay === 'Staff'
+                  ? 'bg-purple-50 text-purple-700'
+                  : 'bg-rose-50 text-rose-700'
+                }`}
             >
               {roleDisplay}
             </span>
             <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold ${
-                verified ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-              }`}
+              className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold ${verified ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                }`}
             >
               {verified ? 'Verified' : 'Pending verification'}
             </span>
           </div>
         </div>
 
-        <div className="grid gap-5 lg:gap-6 md:grid-cols-3 items-start">
-        {/* Identity card */}
-        <section className="md:col-span-2 rounded-2xl border border-slate-100 bg-white px-5 py-4 space-y-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-800 overflow-hidden">
-              {profile?.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt={fullName}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                fullName
-                  .split(' ')
-                  .map((p: string) => p[0])
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase()
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+          {/* Identity card */}
+          <section className="h-full">
+            <div className="legacy-card p-10 flex flex-col justify-between h-full">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-800 overflow-hidden">
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={fullName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    fullName
+                      .split(' ')
+                      .map((p: string) => p[0])
+                      .join('')
+                      .slice(0, 2)
+                      .toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{fullName}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {user?.email || profile?.email || 'student@dyci.edu.ph'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-[11px] text-slate-600 mt-2">
+                <div>
+                  <p className="font-medium text-slate-500">{isStudent ? 'ID number' : 'Employee ID'}</p>
+                  <p className="mt-0.5 text-slate-800">
+                    {profile?.student_employee_id || '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-slate-500">Nickname</p>
+                  <p className="mt-0.5 text-slate-800">{profile?.nickname || '—'}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="font-medium text-slate-500">Joined</p>
+                  <p className="mt-0.5 text-slate-800">
+                    {profile?.created_at
+                      ? new Date(profile.created_at).toLocaleDateString()
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Account actions */}
+          <section className="h-full">
+            <div className="legacy-card p-8 h-full">
+              <h3 className="text-sm font-bold text-slate-800 mb-6 font-sans">Account actions</h3>
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  className="legacy-button-pill"
+                  onClick={openEditProfile}
+                  disabled={!profile}
+                >
+                  Edit profile
+                </button>
+                <button
+                  type="button"
+                  className="legacy-button-pill"
+                  onClick={openAvatarModal}
+                  disabled={!profile}
+                >
+                  Change profile picture
+                </button>
+                <button
+                  type="button"
+                  className="legacy-button-pill"
+                  onClick={openPasswordModal}
+                  disabled={!isSupabaseConfigured || isGoogleUser}
+                >
+                  Change password
+                </button>
+              </div>
+              {isGoogleUser && (
+                <p className="mt-1 text-[10px] text-slate-500">
+                  You sign in with Google. To change your password, go to your Google Account settings.
+                </p>
               )}
             </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">{fullName}</p>
-              <p className="text-[11px] text-slate-500">
-                {user?.email || profile?.email || 'student@dyci.edu.ph'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-[11px] text-slate-600 mt-2">
-            <div>
-              <p className="font-medium text-slate-500">ID number</p>
-              <p className="mt-0.5 text-slate-800">
-                {profile?.student_employee_id || '—'}
-              </p>
-            </div>
-            <div>
-              <p className="font-medium text-slate-500">
-                {roleDisplay === 'Staff' ? 'Department' : 'Program'}
-              </p>
-              <p className="mt-0.5 text-slate-800">
-                {roleDisplay === 'Staff'
-                  ? profile?.department || '—'
-                  : profile?.program || '—'}
-              </p>
-            </div>
-            <div>
-              <p className="font-medium text-slate-500">Year level</p>
-              <p className="mt-0.5 text-slate-800">{profile?.year_level || '—'}</p>
-            </div>
-            <div>
-              <p className="font-medium text-slate-500">Joined</p>
-              <p className="mt-0.5 text-slate-800">
-                {profile?.created_at
-                  ? new Date(profile.created_at).toLocaleDateString()
-                  : '—'}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Account actions */}
-        <section className="rounded-2xl border border-slate-100 bg-white px-5 py-4 space-y-3 shadow-sm">
-          <h2 className="text-xs font-semibold text-slate-800">Account actions</h2>
-          <button
-            type="button"
-            className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
-            onClick={openEditProfile}
-            disabled={!profile}
-          >
-            Edit profile
-          </button>
-          <button
-            type="button"
-            className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
-            onClick={openAvatarModal}
-            disabled={!profile}
-          >
-            Change profile picture
-          </button>
-          <button
-            type="button"
-            className="w-full inline-flex justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
-            onClick={openPasswordModal}
-            disabled={!isSupabaseConfigured || isGoogleUser}
-          >
-            Change password
-          </button>
-          {isGoogleUser && (
-            <p className="mt-1 text-[10px] text-slate-500">
-              You sign in with Google. To change your password, go to your Google Account settings.
-            </p>
-          )}
-        </section>
-      </div>
-
-        {/* Personal & contact info */}
-        <section className="rounded-2xl border border-slate-100 bg-white px-5 py-4 space-y-3 shadow-sm">
-        <h2 className="text-xs font-semibold text-slate-800">Personal & contact</h2>
-        <div className="grid gap-3 md:grid-cols-3 text-[11px] text-slate-600">
-          <div className="md:col-span-1">
-            <p className="font-medium text-slate-500">Nickname</p>
-            <p className="mt-0.5 text-slate-800">{profile?.nickname || '—'}</p>
-          </div>
-          <div className="md:col-span-2">
-            <p className="font-medium text-slate-500">Address</p>
-            <p className="mt-0.5 text-slate-800">
-              {profile?.address || '—'}
-              {(locationNames.barangay ||
-                locationNames.city ||
-                locationNames.province) && (
-                <>
-                  <br />
-                  {[locationNames.barangay, locationNames.city, locationNames.province]
-                    .filter(Boolean)
-                    .join(', ')}
-                </>
-              )}
-            </p>
-          </div>
+          </section>
         </div>
-        </section>
+
+        {isStudent && (
+          <section className="rounded-2xl border border-slate-100 bg-white px-6 py-5 space-y-4 shadow-sm">
+            <h2 className="text-xs font-semibold text-slate-800">Academic & Contact Information</h2>
+            <div className="grid gap-4 md:grid-cols-2 text-[11px] text-slate-600">
+              <div>
+                <p className="font-medium text-slate-500">Program</p>
+                <p className="mt-0.5 text-slate-800">
+                  {profile?.student?.[0]?.program?.name || profile?.student?.program?.name || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-slate-500">Department</p>
+                <p className="mt-0.5 text-slate-800">
+                  {profile?.student?.[0]?.department?.name || profile?.student?.department?.name || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-slate-500">Year level</p>
+                <p className="mt-0.5 text-slate-800">
+                  {profile?.student?.[0]?.year_level?.label || profile?.student?.year_level?.label || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-slate-500">Section</p>
+                <p className="mt-0.5 text-slate-800">
+                  {profile?.student?.[0]?.section?.label || profile?.student?.section?.label || '—'}
+                </p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="font-medium text-slate-500">Full Address</p>
+                <p className="mt-1 text-slate-800 leading-tight">
+                  {profile?.student?.[0]?.street_address || profile?.student?.street_address || '—'}
+                  {(profile?.student?.[0]?.barangay || profile?.student?.barangay) && (
+                    <>
+                      , {[
+                        (profile.student?.[0]?.barangay || profile.student?.barangay).name,
+                        (profile.student?.[0]?.barangay || profile.student?.barangay).city?.name,
+                        (profile.student?.[0]?.barangay || profile.student?.barangay).city?.province?.name,
+                        (profile.student?.[0]?.barangay || profile.student?.barangay).city?.province?.region?.name
+                      ].filter(Boolean).join(', ')}
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {loading && (
           <p className="text-[11px] text-slate-500">Loading your profile…</p>
@@ -750,7 +771,7 @@ const StudentProfile: React.FC = () => {
                       name="firstName"
                       value={editForm.firstName}
                       onChange={handleEditChange}
-                      className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Juan"
                       required
                     />
@@ -762,7 +783,7 @@ const StudentProfile: React.FC = () => {
                       name="middleName"
                       value={editForm.middleName}
                       onChange={handleEditChange}
-                      className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Santos"
                     />
                   </div>
@@ -773,7 +794,7 @@ const StudentProfile: React.FC = () => {
                       name="lastName"
                       value={editForm.lastName}
                       onChange={handleEditChange}
-                      className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       placeholder="Dela Cruz"
                       required
                     />
@@ -783,15 +804,15 @@ const StudentProfile: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="block font-medium text-slate-700">
-                      {roleDisplay === 'Staff' ? 'Employee ID' : 'Student ID'}
+                      {isStudent ? 'Student ID' : 'Employee ID'}
                     </label>
                     <input
                       type="text"
                       name="studentId"
                       value={editForm.studentId}
                       onChange={handleEditChange}
-                      className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="2024-0000"
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder={isStudent ? "2024-0000" : "EMP-0000"}
                     />
                   </div>
                   <div className="space-y-1">
@@ -801,250 +822,185 @@ const StudentProfile: React.FC = () => {
                       name="nickname"
                       value={editForm.nickname}
                       onChange={handleEditChange}
-                      className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="e.g. Juan, CJ, Ate Ann"
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="e.g. Jun"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="block font-medium text-slate-700">Address</label>
-
-                  <div className="mt-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {/* Region */}
-                    <div className="space-y-1">
-                      <span className="block text-[11px] font-medium text-slate-600">
-                        Region
-                      </span>
-                      <select
-                        name="region"
-                        value={editForm.region}
-                        onChange={handleRegionSelectChange}
-                        className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">Select region</option>
-                        {regions.map((r: any) => (
-                          <option key={r.code} value={r.code}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Province */}
-                    <div className="space-y-1">
-                      <span className="block text-[11px] font-medium text-slate-600">
-                        Province
-                      </span>
-                      <select
-                        name="province"
-                        value={editForm.province}
-                        onChange={handleProvinceSelectChange}
-                        disabled={!editForm.region}
-                        className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">
-                          {editForm.region ? 'Select province' : 'Select region first'}
-                        </option>
-                        {provinces.map((p: any) => (
-                          <option key={p.code} value={p.code}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* City / Municipality */}
-                    <div className="space-y-1">
-                      <span className="block text-[11px] font-medium text-slate-600">
-                        City / Municipality
-                      </span>
-                      <select
-                        name="city"
-                        value={editForm.city}
-                        onChange={handleCitySelectChange}
-                        disabled={!editForm.province}
-                        className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">
-                          {editForm.province
-                            ? 'Select city / municipality'
-                            : 'Select province first'}
-                        </option>
-                        {cities.map((c: any) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Barangay */}
-                    <div className="space-y-1">
-                      <span className="block text-[11px] font-medium text-slate-600">
-                        Barangay
-                      </span>
-                      <select
-                        name="barangay"
-                        value={editForm.barangay}
-                        onChange={handleEditChange}
-                        disabled={!editForm.city}
-                        className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">
-                          {editForm.city
-                            ? 'Select barangay'
-                            : 'Select city / municipality first'}
-                        </option>
-                        {barangays.map((b: any) => (
-                          <option key={b.code} value={b.code}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="block text-[11px] font-medium text-slate-600">
-                      Street / house number
-                    </span>
-                    <textarea
-                      name="address"
-                      value={editForm.address}
-                      onChange={handleEditChange}
-                      className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      rows={2}
-                      placeholder="e.g. 123 Sampaguita St."
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {roleDisplay === 'Student' ? (
-                    <>
+                {isStudent && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="block font-medium text-slate-700">Department</label>
+                        <select
+                          name="department"
+                          value={editForm.department}
+                          onChange={handleEditChange}
+                          className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">Select department</option>
+                          {departments.map((d: any) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="space-y-1">
                         <label className="block font-medium text-slate-700">Program</label>
                         <select
                           name="program"
                           value={editForm.program}
                           onChange={handleEditChange}
-                          className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="">Select program</option>
-                          {departments.length > 0 && programs.length > 0 && editForm.department
-                            ? programs
-                                .filter((p: any) =>
-                                  departments.find(
-                                    (d: any) =>
-                                      d.id === p.department_id && d.name === editForm.department
-                                  )
-                                )
-                                .map((p: any) => (
-                                  <option key={p.id} value={p.short_code || p.name}>
-                                    {p.name}
-                                  </option>
-                                ))
-                            : (
-                              <>
-                                <option value="BSIT">BSIT</option>
-                                <option value="BSCS">BSCS</option>
-                                <option value="BSEd">BSEd</option>
-                                <option value="BSA">BSA</option>
-                                <option value="Other">Other</option>
-                              </>
-                            )}
+                          {programs
+                            .filter((p: any) => !editForm.department || p.department_id === editForm.department)
+                            .map((p: any) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
                         </select>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="block font-medium text-slate-700">Year level</label>
                         <select
                           name="yearLevel"
                           value={editForm.yearLevel}
                           onChange={handleEditChange}
-                          className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="">Select year level</option>
-                          {yearLevels.length > 0
-                            ? yearLevels.map((y: any) => (
-                                <option key={y.id} value={y.label}>
-                                  {y.label}
-                                </option>
-                              ))
-                            : (
-                              <>
-                                <option value="1st Year">1st Year</option>
-                                <option value="2nd Year">2nd Year</option>
-                                <option value="3rd Year">3rd Year</option>
-                                <option value="4th Year">4th Year</option>
-                                <option value="Graduate">Graduate</option>
-                              </>
-                            )}
+                          {yearLevels.map((y: any) => (
+                            <option key={y.id} value={y.id}>
+                              {y.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div className="space-y-1">
                         <label className="block font-medium text-slate-700">Section</label>
-                        <input
-                          type="text"
+                        <select
                           name="section"
                           value={editForm.section}
                           onChange={handleEditChange}
-                          className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          placeholder="e.g. A"
-                        />
+                          className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">Select section</option>
+                          {sections.map((s: any) => (
+                            <option key={s.id} value={s.id}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    </>
-                  ) : (
-                    <>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block font-medium text-slate-700">Address</label>
+                      <textarea
+                        name="streetAddress"
+                        value={editForm.streetAddress}
+                        onChange={handleEditChange}
+                        className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Street name, Bldg, etc."
+                        rows={2}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="block font-medium text-slate-700">Department</label>
-                        <input
-                          type="text"
-                          name="department"
-                          value={editForm.department}
-                          onChange={handleEditChange}
-                          className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          placeholder="Department"
-                        />
+                        <label className="block font-medium text-slate-700">Region</label>
+                        <select
+                          name="region"
+                          value={editForm.region}
+                          onChange={handleRegionSelectChange}
+                          className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">Select region</option>
+                          {regions.map((r) => (
+                            <option key={r.code} value={r.code}>
+                              {r.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div className="space-y-1">
-                        <label className="block font-medium text-slate-700">Year level</label>
-                        <input
-                          type="text"
-                          name="yearLevel"
-                          value={editForm.yearLevel}
-                          onChange={handleEditChange}
-                          className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          placeholder="e.g. 1st Year"
-                        />
+                        <label className="block font-medium text-slate-700">Province</label>
+                        <select
+                          name="province"
+                          value={editForm.province}
+                          onChange={handleProvinceSelectChange}
+                          disabled={!editForm.region}
+                          className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                        >
+                          <option value="">Select province</option>
+                          {provinces.map((p) => (
+                            <option key={p.code} value={p.code}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="block font-medium text-slate-700">City / Municipality</label>
+                        <select
+                          name="city"
+                          value={editForm.city}
+                          onChange={handleCitySelectChange}
+                          disabled={!editForm.province}
+                          className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                        >
+                          <option value="">Select city</option>
+                          {cities.map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div className="space-y-1">
-                        <label className="block font-medium text-slate-700">Section</label>
-                        <input
-                          type="text"
-                          name="section"
-                          value={editForm.section}
+                        <label className="block font-medium text-slate-700">Barangay</label>
+                        <select
+                          name="barangay"
+                          value={editForm.barangay}
                           onChange={handleEditChange}
-                          className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          placeholder="e.g. A"
-                        />
+                          disabled={!editForm.city}
+                          className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                        >
+                          <option value="">Select barangay</option>
+                          {barangays.map((b) => (
+                            <option key={b.code} value={b.code}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-2 sm:space-y-0 pt-2">
                   <button
                     type="button"
                     onClick={() => setEditOpen(false)}
-                    className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    className="w-full sm:w-auto inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={editSaving}
-                    className="w-full sm:w-auto inline-flex justify-center rounded-xl bg-blue-700 hover:bg-blue-800 px-4 py-2 text-[11px] font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto inline-flex justify-center rounded-2xl bg-blue-700 hover:bg-blue-800 px-4 py-2 text-[11px] font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {editSaving ? 'Saving…' : 'Save changes'}
                   </button>
@@ -1105,14 +1061,14 @@ const StudentProfile: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setAvatarOpen(false)}
-                    className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    className="w-full sm:w-auto inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={avatarSaving}
-                    className="w-full sm:w-auto inline-flex justify-center rounded-xl bg-blue-700 hover:bg-blue-800 px-4 py-2 text-[11px] font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto inline-flex justify-center rounded-2xl bg-blue-700 hover:bg-blue-800 px-4 py-2 text-[11px] font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {avatarSaving ? 'Saving…' : 'Save picture'}
                   </button>
@@ -1133,52 +1089,85 @@ const StudentProfile: React.FC = () => {
               <form className="space-y-3" onSubmit={handlePasswordSubmit}>
                 <div className="space-y-1">
                   <label className="block font-medium text-slate-700">Current password</label>
-                  <input
-                    type="password"
-                    name="currentPassword"
-                    value={passwordForm.currentPassword}
-                    onChange={handlePasswordFormChange}
-                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? "text" : "password"}
+                      name="currentPassword"
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordFormChange}
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showCurrentPassword ? <FaEyeSlash className="w-3.5 h-3.5" /> : <FaEye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="block font-medium text-slate-700">New password</label>
-                  <input
-                    type="password"
-                    name="newPassword"
-                    value={passwordForm.newPassword}
-                    onChange={handlePasswordFormChange}
-                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      name="newPassword"
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordFormChange}
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showNewPassword ? <FaEyeSlash className="w-3.5 h-3.5" /> : <FaEye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
+
+                <PasswordStrengthIndicator
+                  password={passwordForm.newPassword}
+                  onValidationChange={setPasswordValid}
+                />
+
                 <div className="space-y-1">
                   <label className="block font-medium text-slate-700">Confirm new password</label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={passwordForm.confirmPassword}
-                    onChange={handlePasswordFormChange}
-                    className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      name="confirmPassword"
+                      value={passwordForm.confirmPassword}
+                      onChange={handlePasswordFormChange}
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showConfirmPassword ? <FaEyeSlash className="w-3.5 h-3.5" /> : <FaEye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-2 sm:space-y-0 pt-1">
                   <button
                     type="button"
                     onClick={() => setPasswordOpen(false)}
-                    className="w-full sm:w-auto inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    className="w-full sm:w-auto inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={passwordSaving}
-                    className="w-full sm:w-auto inline-flex justify-center rounded-xl bg-blue-700 hover:bg-blue-800 px-4 py-2 text-[11px] font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto inline-flex justify-center rounded-2xl bg-blue-700 hover:bg-blue-800 px-4 py-2 text-[11px] font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {passwordSaving ? 'Updating…' : 'Update password'}
                   </button>

@@ -1,54 +1,61 @@
-# DYCI Connect Student Handbook
+# DYCI Connect | Institutional Hub
 
-DYCI Connect is a modern, accessible digital version of the Dr. Yanga's Colleges Inc. Student Handbook. Designed to provide students with quick access to campus policies, academic guidelines, and student services, this project aims to replace bulky physical booklets with a streamlined, searchable mobile or web experience.
+DYCI Connect is a premium, centralized ecosystem designed for **Dr. Yanga's Colleges Inc.** It serves as the digital backbone for student governance, institutional resource management, and secure media broadcasting.
 
-# Features
-  - Smart Search: Quickly find specific rules, sections, or keywords.
-  - Offline Access: View essential handbook information even without an active internet connection.
-  - Categorized Sections: Easy navigation through Academic Policies, Code of Conduct, and Campus Services.
-  - Responsive Design: Optimized for both desktop and mobile devices.
+## 🚀 Key Modules
 
+### 🛡️ Student Onboarding Gauntlet
+A mandatory, state-managed three-gate sequence ensuring identity integrity:
+1. **Security Update:** Forced password rotation for provisioned accounts.
+2. **Legal Compliance:** Integrated split-pane Conforme (Institutional Agreement) module.
+3. **Identity Audit:** Granular profile completion and verification system.
 
-# Tech Stack
+### 🕹️ SysAdmin Control Plane (Level 90)
+A hardened administrative interface for institutional oversight:
+- **User Provisioning:** Minimal-data batch student registration.
+- **Security Watchtower:** Real-time database monitoring and RLS audit.
+- **Role Isolation:** Strict governance between Students (L1), Staff, and System Admins.
 
-**Frontend:**
-- **Framework:** Vite 7.2, React 19.2
-- **Language:** TypeScript 5.9
-- **Routing:** React Router DOM 7.10
-- **Styling:** Tailwind CSS 4.1
-- **Icons:** react-icons 5.5, material-icons 1.13
-- **State/Utils:** React Context API (AuthContext), react-hot-toast
-- **Auth:** Supabase Auth (client-side)
+### 📺 Video Broadcast Network
+A high-performance media pipeline leveraging **Cloudflare R2**:
+- Direct-to-R2 authenticated upload streams.
+- Presigned URL governance for secure institutional content.
+- L90-exclusive broadcast management.
 
-**Backend:**
-- **BaaS:** Supabase (API, Auth)
-- **Auth:** Supabase Auth with JWT (client + Supabase)
-- **Validation:** TypeScript types, Supabase RLS
+## 💻 Tech Stack
 
-**Storage (student files):**
-- **Provider:** Cloudflare R2 (S3-compatible), accessed via a storage API (e.g. Cloudflare Worker) that issues presigned URLs
+- **Frontend:** React 19 + Vite 7 (TypeScript 5.9)
+- **Styling:** Tailwind CSS 4 + Modern CSS Glassmorphism
+- **Authentication:** Supabase Auth (JWT Enforcement)
+- **Database:** Supabase PostgreSQL with Strict RLS Policies
+- **Media Storage:** Cloudflare R2 (S3-Compatible) via Presigned Pipelines
+- **State Management:** React Context + Persistent Auth Guards
 
-**Database:**
-- **Provider:** Supabase (PostgreSQL)
+## 🛠️ Installation & Setup
 
-# Installation & Setup
-1. Clone the repository:
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/ghostbyte1014/dyci_connect.git
+   cd dyci_connect
+   ```
 
-git clone https://github.com/your-username/dyci-connect-handbook.git
-cd dyci-connect-handbook
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-2. Install dependencies:
+3. **Configure Environment:**
+   Create a `.env.local` file with the following keys:
+   ```env
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   VITE_STORAGE_API_URL=your_r2_worker_url
+   ```
 
-npm install
+4. **Launch Development:**
+   ```bash
+   npm run dev
+   ```
 
-3. Set up Environment Variables: Create a `.env.local` file in the root directory and add your keys:
-
-- `VITE_SUPABASE_URL` — your Supabase project URL  
-- `VITE_SUPABASE_ANON_KEY` — your Supabase anonymous key  
-- `VITE_STORAGE_API_URL` — (optional) base URL of your student file-storage API (e.g. Cloudflare Worker) that uses Cloudflare R2; if omitted, the Files page uses mock data.
-
-**Storage API contract (for your R2 backend):** The frontend expects the following endpoints, with `Authorization: Bearer <Supabase JWT>` for auth. List: `GET /api/storage?prefix=students/{userId}/` → `{ objects: [{ id, name, size, type, key, uploadedAt }], totalSize }`. Upload URL: `POST /api/storage/upload-url` body `{ key, contentType }` → `{ url, key }` (presigned PUT). Download URL: `GET /api/storage/download-url?key=...` → `{ url }`. Delete: `DELETE /api/storage?key=...`.
-
-4. Run the development server:
-
-npm run dev
+---
+© 2026 Dr. Yanga's Colleges Inc. | Developed for Institutional Excellence.

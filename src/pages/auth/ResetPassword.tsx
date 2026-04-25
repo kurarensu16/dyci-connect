@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
+import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import toast from 'react-hot-toast'
-import { FaLock } from 'react-icons/fa'
+import PasswordStrengthIndicator from '../../components/auth/PasswordStrengthIndicator'
 
 const ResetPassword: React.FC = () => {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [passwordValid, setPasswordValid] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [ready, setReady] = useState(false)
   const [checking, setChecking] = useState(true)
   const navigate = useNavigate()
@@ -50,7 +54,11 @@ const ResetPassword: React.FC = () => {
       return
     }
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match.')
+      toast.error('Passwords do not match')
+      return
+    }
+    if (!passwordValid) {
+      toast.error('Password does not meet institutional security standards')
       return
     }
     setLoading(true)
@@ -82,7 +90,7 @@ const ResetPassword: React.FC = () => {
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-xl px-6 sm:px-8 py-8 text-center space-y-4">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-8 text-center space-y-4">
           <h1 className="text-lg font-semibold text-slate-900">
             {noParams ? 'Reset link incomplete' : 'Invalid or expired link'}
           </h1>
@@ -102,7 +110,7 @@ const ResetPassword: React.FC = () => {
           </p>
           <Link
             to="/forgot-password"
-            className="inline-flex justify-center rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#4338CA]"
+            className="inline-flex justify-center rounded-2xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#4338CA]"
           >
             Request new link
           </Link>
@@ -116,56 +124,65 @@ const ResetPassword: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
         <h1 className="text-lg font-semibold text-slate-900">Set new password</h1>
         <p className="mt-1 text-sm text-slate-600">
           Enter your new password below. Use at least 6 characters.
         </p>
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-1">
-            <label htmlFor="new-password" className="block text-xs font-medium text-gray-700">
-              New password
-            </label>
-            <div className="mt-1 flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-              <FaLock className="h-4 w-4 text-gray-400 mr-3" />
+            <label className="block text-xs font-medium text-slate-700 ml-1">New Password</label>
+            <div className="relative">
               <input
-                id="new-password"
-                name="newPassword"
-                type="password"
-                autoComplete="new-password"
-                required
+                type={showNewPassword ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full border-0 bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0"
+                className="w-full px-4 py-3 border border-slate-200 bg-slate-50 rounded-2xl focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all pr-10"
                 placeholder="••••••••"
+                required
               />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showNewPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
+
+          <PasswordStrengthIndicator
+            password={newPassword}
+            onValidationChange={setPasswordValid}
+          />
+
           <div className="space-y-1">
-            <label htmlFor="confirm-password" className="block text-xs font-medium text-gray-700">
-              Confirm new password
-            </label>
-            <div className="mt-1 flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-              <FaLock className="h-4 w-4 text-gray-400 mr-3" />
+            <label className="block text-xs font-medium text-slate-700 ml-1">Confirm New Password</label>
+            <div className="relative">
               <input
-                id="confirm-password"
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                required
+                type={showConfirmPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full border-0 bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0"
+                className="w-full px-4 py-3 border border-slate-200 bg-slate-50 rounded-2xl focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all pr-10"
                 placeholder="••••••••"
+                required
               />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showConfirmPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
+
           <button
             type="submit"
-            disabled={loading}
-            className="w-full inline-flex justify-center rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#4338CA] disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={loading || !passwordValid || newPassword !== confirmPassword}
+            className="w-full bg-[#1434A4] hover:bg-[#102a82] text-white font-bold py-4 rounded-full transition-all shadow-lg shadow-blue-900/20 disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest text-xs"
           >
-            {loading ? 'Updating…' : 'Update password'}
+            {loading ? 'Updating...' : 'Reset Password'}
           </button>
         </form>
         <p className="mt-4 text-center text-xs text-slate-500">

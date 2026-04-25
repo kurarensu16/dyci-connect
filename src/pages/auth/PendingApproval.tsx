@@ -27,7 +27,7 @@ const PendingApproval: React.FC = () => {
       }
       const role = (data.role as string).toLowerCase()
       if (data.verified) {
-        if (role === 'admin') navigate('/admin/dashboard')
+        if (role === 'academic_admin') navigate('/admin/dashboard')
         else if (role === 'staff') navigate('/staff/dashboard')
         else navigate('/student/dashboard')
       } else {
@@ -45,7 +45,7 @@ const PendingApproval: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl px-6 sm:px-8 py-8 text-center space-y-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-8 text-center space-y-4">
         <h1 className="text-lg font-semibold text-slate-900">Pending approval</h1>
         <p className="text-sm text-slate-600">
           Your account has been submitted. An administrator will verify your details before you can access DYCI Connect.
@@ -56,7 +56,7 @@ const PendingApproval: React.FC = () => {
         <button
           type="button"
           onClick={handleSignOut}
-          className="inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
           Sign out
         </button>

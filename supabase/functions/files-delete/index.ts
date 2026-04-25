@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { DeleteObjectCommand } from "npm:@aws-sdk/client-s3@3.758.0";
 import { bucket, r2 } from "../_shared/r2.ts";
 
 const corsHeaders = {
@@ -85,18 +84,13 @@ Deno.serve(async (req) => {
       return json(404, { error: "File not found" });
     }
 
-    if (fileRow.object_key) {
-      await r2.send(
-        new DeleteObjectCommand({
-          Bucket: bucket,
-          Key: fileRow.object_key,
-        }),
-      );
-    }
+    // NOTE: Physical deletion from R2 is disabled because the R2 token 
+    // is restricted to Read, Write, and List operations.
+    // Also, the system uses soft-delete via the deleted_at column.
 
     const { error: deleteError } = await authClient
       .from("files")
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq("id", fileId)
       .eq("user_id", user.id);
 

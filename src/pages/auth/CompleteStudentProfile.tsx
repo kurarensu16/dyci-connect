@@ -22,10 +22,10 @@ const CompleteStudentProfile: React.FC = () => {
     city: '',
     barangay: '',
     nickname: '',
-    department: '',
-    program: '',
-    yearLevel: '',
-    section: '',
+    department: '', // department_id (UUID)
+    program: '',    // program_id (UUID)
+    yearLevel: '',  // year_level_id (smallint)
+    section: '',    // section_id (UUID)
   })
 
   const [regions, setRegions] = useState<any[]>([])
@@ -277,7 +277,6 @@ const CompleteStudentProfile: React.FC = () => {
 
     setSubmitting(true)
     try {
-      let corUrl: string | undefined
       let avatarUrl: string | undefined
 
       if (corFile) {
@@ -294,11 +293,6 @@ const CompleteStudentProfile: React.FC = () => {
           toast.error(
             'Uploading your COR failed. You can try again later or contact the administrator.'
           )
-        } else {
-          const { data: publicData } = (supabase as any).storage
-            .from('user-docs')
-            .getPublicUrl(filePath)
-          corUrl = publicData.publicUrl
         }
       }
 
@@ -333,6 +327,35 @@ const CompleteStudentProfile: React.FC = () => {
 
       const authProvider = getAuthProvider(user)
 
+      // 1. Fetch current academic year ID
+      const { data: ayId, error: ayError } = await supabase.rpc('get_current_academic_year_id')
+      if (ayError || !ayId) {
+        throw new Error('Could not resolve current academic year')
+      }
+
+      const regionName = regions.find((r) => r.code === form.region)?.name || ''
+      const provinceName = provinces.find((p) => p.code === form.province)?.name || ''
+      const cityName = cities.find((c) => c.code === form.city)?.name || ''
+      const barangayName = barangays.find((b) => b.code === form.barangay)?.name || ''
+
+      // 1. Sync Geographic Hierarchy and get barangay_id
+      const { data: bid, error: syncError } = await supabase.rpc('sync_geographic_hierarchy', {
+        r_code: form.region,
+        r_name: regionName,
+        p_code: form.province,
+        p_name: provinceName,
+        c_code: form.city,
+        c_name: cityName,
+        b_code: form.barangay,
+        b_name: barangayName,
+      })
+
+      if (syncError) {
+        console.error('Error syncing geographic data', syncError)
+        throw new Error('Failed to save address information.')
+      }
+
+      // 2. Identity & Profile Layer
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: user.id,
         email: user.email ?? '',
@@ -343,19 +366,26 @@ const CompleteStudentProfile: React.FC = () => {
         middle_name: form.middleName.trim() || null,
         last_name: form.lastName.trim(),
         nickname: form.nickname.trim(),
-        address: form.address.trim(),
-        region: form.region,
-        province: form.province,
-        city: form.city,
-        barangay: form.barangay,
-        program: form.program,
-        department: form.department,
-        year_level: form.yearLevel,
-        section: form.section,
         avatar_url: avatarUrl,
-        cor_url: corUrl,
+        profile_complete: true,
         verified: false,
       })
+
+      if (profileError) throw profileError
+
+      // 3. New Student Profile Layer (Academic & Address Metadata)
+      const { error: studentError } = await supabase.from('student_profiles').upsert({
+        profile_id: user.id,
+        department_id: form.department,
+        program_id: form.program,
+        year_level_id: parseInt(form.yearLevel),
+        section_id: form.section || null,
+        street_address: form.address.trim(),
+        barangay_id: bid,
+        enrolled_academic_year_id: ayId,
+      })
+
+      if (studentError) throw studentError
 
       if (profileError) {
         console.error('Error saving profile', profileError)
@@ -388,7 +418,7 @@ const CompleteStudentProfile: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
         <button
           type="button"
           onClick={() => navigate('/complete-profile')}
@@ -410,7 +440,7 @@ const CompleteStudentProfile: React.FC = () => {
           <form className="mt-6 space-y-4" onSubmit={handleAccountNext}>
             <div className="space-y-1">
               <label className="block text-xs font-medium text-gray-700">Email</label>
-              <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              <p className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 {user.email}
               </p>
             </div>
@@ -420,7 +450,7 @@ const CompleteStudentProfile: React.FC = () => {
                 <label htmlFor="firstName" className="block text-xs font-medium text-gray-700">
                   First name
                 </label>
-                <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                   <FaUser className="h-4 w-4 text-slate-400 mr-2" />
                   <input
                     id="firstName"
@@ -438,7 +468,7 @@ const CompleteStudentProfile: React.FC = () => {
                 <label htmlFor="middleName" className="block text-xs font-medium text-gray-700">
                   Middle name
                 </label>
-                <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                   <FaUser className="h-4 w-4 text-slate-400 mr-2" />
                   <input
                     id="middleName"
@@ -455,7 +485,7 @@ const CompleteStudentProfile: React.FC = () => {
                 <label htmlFor="lastName" className="block text-xs font-medium text-gray-700">
                   Last name
                 </label>
-                <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                   <FaUser className="h-4 w-4 text-slate-400 mr-2" />
                   <input
                     id="lastName"
@@ -475,7 +505,7 @@ const CompleteStudentProfile: React.FC = () => {
               <label htmlFor="idNumber" className="block text-xs font-medium text-gray-700">
                 Student ID
               </label>
-              <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+              <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                 <FaIdBadge className="h-4 w-4 text-slate-400 mr-2" />
                 <input
                   id="idNumber"
@@ -493,13 +523,13 @@ const CompleteStudentProfile: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/complete-profile')}
-                className="flex-1 inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="flex-1 inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Back
               </button>
               <button
                 type="submit"
-                className="flex-1 inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm transition-colors"
+                className="flex-1 inline-flex justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm transition-colors"
               >
                 Continue
               </button>
@@ -525,7 +555,7 @@ const CompleteStudentProfile: React.FC = () => {
                     name="region"
                     value={form.region}
                     onChange={handleRegionChange}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">Select region</option>
                     {regions.map((r: any) => (
@@ -549,7 +579,7 @@ const CompleteStudentProfile: React.FC = () => {
                     value={form.province}
                     onChange={handleProvinceChange}
                     disabled={!form.region || provinces.length === 0}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">
                       {!form.region
@@ -579,7 +609,7 @@ const CompleteStudentProfile: React.FC = () => {
                     value={form.city}
                     onChange={handleCityChange}
                     disabled={!form.region || (provinces.length > 0 && !form.province)}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">
                       {!form.region
@@ -609,7 +639,7 @@ const CompleteStudentProfile: React.FC = () => {
                     value={form.barangay}
                     onChange={handleChange}
                     disabled={!form.city}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">
                       {form.city ? 'Select barangay' : 'Select city / municipality first'}
@@ -636,7 +666,7 @@ const CompleteStudentProfile: React.FC = () => {
                   type="text"
                   value={form.address}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   placeholder="e.g. 123 Sampaguita St., Brgy. Sample"
                 />
               </div>
@@ -646,13 +676,13 @@ const CompleteStudentProfile: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/complete-profile/student/account')}
-                className="flex-1 inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="flex-1 inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Back
               </button>
               <button
                 type="submit"
-                className="flex-1 inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm transition-colors"
+                className="flex-1 inline-flex justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm transition-colors"
               >
                 Continue
               </button>
@@ -745,7 +775,7 @@ const CompleteStudentProfile: React.FC = () => {
                     type="text"
                     value={form.nickname}
                     onChange={handleChange}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="e.g. Juan, CJ, Ate Ann"
                   />
                 </div>
@@ -764,7 +794,7 @@ const CompleteStudentProfile: React.FC = () => {
                     name="department"
                     value={form.department}
                     onChange={handleChange}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">Select department</option>
                     {departments.length > 0 ? (
@@ -797,7 +827,7 @@ const CompleteStudentProfile: React.FC = () => {
                     name="program"
                     value={form.program}
                     onChange={handleChange}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">Select program</option>
                     {departments.length > 0 && programs.length > 0 && form.department ? (
@@ -838,7 +868,7 @@ const CompleteStudentProfile: React.FC = () => {
                     name="yearLevel"
                     value={form.yearLevel}
                     onChange={handleChange}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">Select year level</option>
                     {yearLevels.length > 0 ? (
@@ -872,7 +902,7 @@ const CompleteStudentProfile: React.FC = () => {
                     type="text"
                     value={form.section}
                     onChange={handleChange}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="e.g. A"
                   />
                 </div>
@@ -883,14 +913,14 @@ const CompleteStudentProfile: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/complete-profile/student/address')}
-                className="flex-1 inline-flex justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="flex-1 inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Back
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 inline-flex justify-center rounded-xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 inline-flex justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Submitting…' : 'Submit for approval'}
               </button>

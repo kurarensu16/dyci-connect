@@ -1,7 +1,7 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import logo from '../../assets/imgs/logo-connect.png'
+const logo = '/icons/icon-512x512.png'
 
 const Navbar: React.FC = () => {
   const { user, signOut } = useAuth()
@@ -32,7 +32,7 @@ const Navbar: React.FC = () => {
                   Dashboard
                 </Link>
               )}
-              {(user.user_metadata?.role === 'admin' || user.user_metadata?.role === 'staff') && (
+              {(user.user_metadata?.role === 'academic_admin' || user.user_metadata?.role === 'staff') && (
                 <Link
                   to="/admin/dashboard"
                   className="text-sm font-medium text-slate-700 hover:text-blue-600"
@@ -50,11 +50,10 @@ const Navbar: React.FC = () => {
           ) : (
             <Link
               to="/login"
-              className={`px-5 py-2 text-sm font-semibold rounded-full ${
-                isLanding
+              className={`px-5 py-2 text-sm font-semibold rounded-full ${isLanding
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'border border-blue-600 text-blue-600 hover:bg-blue-50'
-              }`}
+                }`}
             >
               Sign in
             </Link>

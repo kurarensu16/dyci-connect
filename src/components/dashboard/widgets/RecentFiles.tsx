@@ -21,8 +21,13 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ files }) => {
                   <FaFileAlt className="h-4 w-4 text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                  <p className="text-sm font-medium text-gray-900 truncate max-w-xs flex items-center gap-2">
                     {file.name}
+                    {file.is_archived && (
+                      <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100 font-bold uppercase tracking-tighter">
+                        Archived
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-gray-500">
                     {(file.size / (1024 * 1024)).toFixed(2)} MB ·{' '}

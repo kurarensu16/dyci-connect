@@ -6,7 +6,6 @@ import {
   FaBookOpen,
   FaCalendarAlt,
   FaComments,
-  FaCheckSquare,
   FaCogs,
   FaChartBar,
   FaSignOutAlt,
@@ -15,11 +14,16 @@ import {
   FaChevronRight,
   FaUserCircle,
   FaBell,
+  FaHdd,
+  FaHistory,
+  FaVideo,
 } from 'react-icons/fa'
-import { MdSpaceDashboard } from "react-icons/md";
-import { useAuth } from '../../contexts/AuthContext'
+import { MdSpaceDashboard, MdSettings } from "react-icons/md";
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
-import logo from '../../assets/imgs/logo-connect.png'
+import { checkAndSendWelcomeNotification } from '../../utils/profileUtils'
+import { useAuth } from '../../contexts/AuthContext'
+import { formatRole } from '../../utils/roleUtils'
+const logo = '/icons/icon-512x512.png'
 
 interface AdminLayoutProps {
   children: ReactNode
@@ -28,10 +32,34 @@ interface AdminLayoutProps {
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, signOut } = useAuth()
+  const { user, authoritativeRole, signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+
+  // Determine institutional titles
+  const userRoleTitle = formatRole(authoritativeRole || '', {
+    position: user?.user_metadata?.approver_position || user?.user_metadata?.department
+  })
+  const consoleTitle = authoritativeRole === 'system_admin' ? 'Institutional Control' : 'Academic Console'
+
+  React.useEffect(() => {
+    const loadVerification = async () => {
+      if (!isSupabaseConfigured || !user?.id) return
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('verified')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const verified = data?.verified === true
+      if (verified) {
+        checkAndSendWelcomeNotification(user.id)
+      }
+    }
+    loadVerification()
+  }, [user?.id])
 
   React.useEffect(() => {
     const loadUnreadCount = async () => {
@@ -51,23 +79,31 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     return () => clearInterval(interval)
   }, [user?.id])
 
-  const navItems: Array<{
-    label: string
-    icon: React.ComponentType<{ className?: string }>
-    path: string
-    badge?: number
-  }> = [
+  // Level 90: Institutional & Infrastructure Control
+  const systemNavItems = [
+    { label: 'Control Center', icon: MdSpaceDashboard, path: '/sysadmin/dashboard' },
+    { label: 'Video Network', icon: FaVideo, path: '/sysadmin/broadcast' },
+    { label: 'Identity Manager', icon: FaUsers, path: '/sysadmin/users' },
+    { label: 'Forensic Logs', icon: FaHistory, path: '/sysadmin/forensics' },
+    { label: 'Infrastructure', icon: MdSettings, path: '/sysadmin/settings' },
+    { label: 'Storage Hub', icon: FaHdd, path: '/sysadmin/storage' },
+    { label: 'System Alerts', icon: FaBell, path: '/sysadmin/alerts', badge: unreadCount },
+    { label: 'Profile', icon: FaUserCircle, path: '/sysadmin/profile' },
+  ]
+
+  // Level 80: Academic Operations & CMS
+  const academicNavItems = [
     { label: 'Dashboard', icon: MdSpaceDashboard, path: '/admin/dashboard' },
-    { label: 'Notifications', icon: FaBell, path: '/admin/notifications', badge: unreadCount },
-    { label: 'User Management', icon: FaUsers, path: '/admin/users' },
-    { label: 'Conforme Monitoring', icon: FaCheckSquare, path: '/admin/conforme' },
-    { label: 'Support Chat', icon: FaComments, path: '/admin/support' },
-    { label: 'Handbook Preview', icon: FaBookOpen, path: '/admin/handbook-preview' },
-    { label: 'Reports', icon: FaChartBar, path: '/admin/reports' },
     { label: 'CMS', icon: FaCogs, path: '/admin/cms' },
+    { label: 'Handbook Preview', icon: FaBookOpen, path: '/admin/handbook-preview' },
+    { label: 'Support Chat', icon: FaComments, path: '/admin/support' },
+    { label: 'Academic Reports', icon: FaChartBar, path: '/admin/reports' },
     { label: 'School Calendar', icon: FaCalendarAlt, path: '/admin/calendar' },
+    { label: 'Inquiry Alerts', icon: FaBell, path: '/admin/notifications', badge: unreadCount },
     { label: 'Profile', icon: FaUserCircle, path: '/admin/profile' },
   ]
+
+  const navItems = authoritativeRole === 'system_admin' ? systemNavItems : academicNavItems
 
   const handleSignOut = async () => {
     await signOut()
@@ -78,28 +114,29 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-slate-50 md:flex">
       {/* Desktop sidebar (collapsible) */}
       <aside
-        className={`hidden md:flex md:flex-col md:h-screen md:sticky md:top-0 md:border-r md:border-slate-200 bg-white transition-all duration-200 ease-in-out ${
-          collapsed ? 'md:w-20' : 'md:w-64'
-        }`}
+        className={`hidden md:flex md:flex-col md:h-screen md:sticky md:top-0 md:border-r md:border-slate-200 bg-white transition-all duration-200 ease-in-out ${collapsed ? 'md:w-20' : 'md:w-64'
+          }`}
       >
-        <div className="relative h-14 px-4 flex items-center border-b border-slate-200">
-          <div className="flex items-center space-x-2 overflow-hidden">
-            <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center overflow-hidden shrink-0">
-              <img src={logo} alt="DYCI logo" className="h-6 w-6 object-contain" />
+        <div className="relative h-20 px-6 flex items-center border-b border-slate-100">
+          <div className="flex items-center space-x-3 overflow-hidden">
+            <div className="h-10 w-10 rounded-2xl bg-blue-50 flex items-center justify-center overflow-hidden shrink-0 shadow-sm border border-blue-100">
+              <img src={logo} alt="DYCI logo" className="h-7 w-7 object-contain" />
             </div>
             {!collapsed && (
               <div className="flex flex-col">
-                <span className="text-[10px] font-semibold tracking-[0.25em] text-blue-900 uppercase">
+                <span className="text-[11px] font-extrabold tracking-[0.2em] text-dyci-blue uppercase">
                   DYCI CONNECT
                 </span>
-                <span className="text-[10px] text-slate-400">Admin console</span>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {consoleTitle}
+                </span>
               </div>
             )}
           </div>
           <button
             type="button"
             onClick={() => setCollapsed((prev) => !prev)}
-            className="absolute -right-3 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 text-[10px] shadow-sm"
+            className="absolute -right-3 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 text-[10px] shadow-sm active:scale-95 transition-all"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <FaChevronRight /> : <FaChevronLeft />}
@@ -112,21 +149,25 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             const Icon = item.icon
 
             const baseClasses =
-              'w-full flex items-center rounded-xl px-3 py-2 text-xs font-medium transition-colors'
+              'w-full flex items-center rounded-2xl px-3 py-2 text-xs font-medium transition-colors'
 
             return (
               <button
                 key={item.label}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`${baseClasses} ${
-                  isActive ? 'bg-blue-700 text-white' : 'text-slate-700 hover:bg-slate-100'
-                } ${collapsed ? 'justify-center' : 'space-x-3'} relative`}
+                className={`${baseClasses} ${isActive
+                  ? 'bg-dyci-blue text-white shadow-lg shadow-dyci-blue/20'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-dyci-blue'
+                  } ${collapsed ? 'justify-center' : 'space-x-3'} relative group rounded-full overflow-hidden`}
               >
-                <Icon className="h-3.5 w-3.5" />
-                {!collapsed && <span>{item.label}</span>}
+                <Icon className={`h-4 w-4 transition-transform ${!isActive && 'group-hover:scale-110'}`} />
+                {!collapsed && <span className="font-semibold tracking-tight">{item.label}</span>}
+                {isActive && !collapsed && (
+                  <div className="absolute right-3 h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                )}
                 {Number(item.badge) > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 min-w-4 flex items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white px-1">
+                  <span className={`absolute ${collapsed ? '-top-1 -right-1' : 'right-3'} h-4 min-w-4 flex items-center justify-center rounded-full bg-dyci-red text-[9px] font-bold text-white px-1 shadow-sm`}>
                     {Number(item.badge) > 99 ? '99+' : item.badge}
                   </span>
                 )}
@@ -141,15 +182,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               <p className="text-xs font-semibold text-slate-800">
                 {user.user_metadata?.full_name || 'Administrator'}
               </p>
+              <p className="text-[11px] text-dyci-blue font-bold uppercase tracking-tighter">
+                {userRoleTitle}
+              </p>
               <p className="text-[10px] text-slate-500">{user.email}</p>
             </div>
           )}
           <button
             type="button"
             onClick={handleSignOut}
-            className={`w-full inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 ${
-              collapsed ? 'justify-center' : 'space-x-2'
-            }`}
+            className={`w-full inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 ${collapsed ? 'justify-center' : 'space-x-2'
+              }`}
           >
             <FaSignOutAlt className="h-3 w-3" />
             {!collapsed && <span>Sign out</span>}
@@ -175,7 +218,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                   <span className="text-[10px] font-semibold tracking-[0.25em] text-blue-900 uppercase">
                     DYCI CONNECT
                   </span>
-                  <span className="text-[10px] text-slate-400">Admin console</span>
+                  <span className="text-[10px] text-slate-400">
+                    {authoritativeRole === 'system_admin' ? 'Institutional Control' : 'Academic Console'}
+                  </span>
                 </div>
               </Link>
             </div>
@@ -186,7 +231,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 const Icon = item.icon
 
                 const baseClasses =
-                  'w-full flex items-center rounded-xl px-3 py-2 text-xs font-medium transition-colors space-x-3'
+                  'w-full flex items-center rounded-2xl px-3 py-2 text-xs font-medium transition-colors space-x-3'
 
                 return (
                   <button
@@ -196,16 +241,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                       navigate(item.path)
                       setMobileOpen(false)
                     }}
-                    className={`${baseClasses} relative ${
-                      isActive
-                        ? 'bg-blue-700 text-white'
-                        : 'text-slate-700 hover:bg-slate-100'
-                    }`}
+                    className={`${baseClasses} relative ${isActive
+                      ? 'bg-dyci-blue text-white shadow-md'
+                      : 'text-slate-700 hover:bg-slate-100'
+                      }`}
                   >
                     <Icon className="h-3.5 w-3.5" />
                     <span>{item.label}</span>
                     {Number(item.badge) > 0 && (
-                      <span className="ml-auto h-4 min-w-4 flex items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white px-1">
+                      <span className="ml-auto h-4 min-w-4 flex items-center justify-center rounded-full bg-dyci-red text-[9px] font-semibold text-white px-1">
                         {Number(item.badge) > 99 ? '99+' : item.badge}
                       </span>
                     )}

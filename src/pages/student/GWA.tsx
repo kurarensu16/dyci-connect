@@ -26,20 +26,10 @@ const GWA: React.FC = () => {
     fetchGrades()
   }, [])
 
-  const fetchGrades = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('grades')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setGrades(data || [])
-      calculateGWA(data || [])
-    } catch (error: any) {
-      toast.error('Error loading grades')
-    }
+  const fetchGrades = () => {
+    const localGrades = JSON.parse(localStorage.getItem('dyci_grades') || '[]')
+    setGrades(localGrades)
+    calculateGWA(localGrades)
   }
 
   const calculateGWA = (gradeList: Grade[]) => {
@@ -65,18 +55,19 @@ const GWA: React.FC = () => {
 
     setLoading(true)
     try {
-      const { error } = await supabase
-        .from('grades')
-        .insert({
-          user_id: user?.id,
-          subject: newGrade.subject,
-          grade: parseFloat(newGrade.grade),
-          units: parseFloat(newGrade.units),
-        })
+      const newGradeObj = {
+        id: crypto.randomUUID(),
+        user_id: user?.id,
+        subject: newGrade.subject,
+        grade: parseFloat(newGrade.grade),
+        units: parseFloat(newGrade.units),
+        created_at: new Date().toISOString()
+      }
 
-      if (error) throw error
-
-      toast.success('Grade added successfully')
+      const updatedGrades = [newGradeObj, ...grades]
+      localStorage.setItem('dyci_grades', JSON.stringify(updatedGrades))
+      
+      toast.success('Grade added locally')
       setNewGrade({ subject: '', grade: '', units: '' })
       fetchGrades()
     } catch (error: any) {
@@ -86,24 +77,25 @@ const GWA: React.FC = () => {
     }
   }
 
-  const deleteGrade = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('grades')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-
-      toast.success('Grade deleted')
-      fetchGrades()
-    } catch (error: any) {
-      toast.error('Error deleting grade')
-    }
+  const deleteGrade = (id: string) => {
+    const updatedGrades = grades.filter((g) => g.id !== id)
+    localStorage.setItem('dyci_grades', JSON.stringify(updatedGrades))
+    toast.success('Grade deleted')
+    fetchGrades()
   }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* DEVELOPMENT NOTE */}
+      <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+        <div className="h-8 w-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+          <span className="text-amber-600 font-bold">!</span>
+        </div>
+        <div>
+          <p className="text-xs font-bold text-amber-900 uppercase tracking-tight">Development Note: Backend Sync Pending</p>
+          <p className="text-[10px] text-amber-700">This tool is currently using local storage. Supabase table sync is not yet implemented.</p>
+        </div>
+      </div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">GWA Calculator</h1>
         <p className="text-gray-600 mt-2">

@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import StatsWidget from '../../components/dashboard/widgets/StatsWidget'
 import ActivityChart from '../../components/dashboard/charts/ActivityChart'
+import type { ActivityPoint } from '../../components/dashboard/charts/ActivityChart'
 import TodoList from '../../components/dashboard/widgets/TodoList'
 import RecentFiles from '../../components/dashboard/widgets/RecentFiles'
+import HandbookQuicklinks from '../../components/dashboard/widgets/HandbookQuicklinks'
 import { supabase } from '../../lib/supabaseClient'
 import toast from 'react-hot-toast'
 import type { FileMetadata, Grade, Todo } from '../../types'
+import { VideoCarousel } from '../../components/video/VideoCarousel'
 
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth()
@@ -16,7 +19,7 @@ const StudentDashboard: React.FC = () => {
     gwa: 0,
     storageUsed: '0 MB',
   })
-  const [activityData, setActivityData] = useState<Array<{ name: string; users: number }>>([])
+  const [activityData, setActivityData] = useState<ActivityPoint[]>([])
   const [recentFiles, setRecentFiles] = useState<FileMetadata[]>([])
   const [todos, setTodos] = useState<Todo[]>([])
 
@@ -26,72 +29,134 @@ const StudentDashboard: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch todos
-      const { data: todosData } = await supabase
+      if (!user) return
+
+      // Calculate dates for activity (Last 7 Days)
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+      sevenDaysAgo.setHours(0, 0, 0, 0)
+
+      // Fetch todos from Supabase
+      const { data: todosData, error: todosError } = await supabase
         .from('todos')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .eq('is_archived', false)
         .order('created_at', { ascending: false })
-        .limit(5)
 
-      // Fetch recent files
-      const { data: filesData } = await supabase
+      if (todosError) throw todosError
+
+      // Fetch recent files (Latest 5 for the list)
+      const { data: latestFiles } = await supabase
         .from('files')
         .select('*')
         .eq('user_id', user?.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(5)
 
-      // Fetch GWA
-      const { data: grades } = await supabase
-        .from('grades')
-        .select('grade, units')
+      // Fetch all files from the last 7 days for activity chart
+      const { data: activityFiles } = await supabase
+        .from('files')
+        .select('created_at')
         .eq('user_id', user?.id)
+        .is('deleted_at', null)
+        .gte('created_at', sevenDaysAgo.toISOString())
 
-      const totalUnits =
-        (grades as Grade[] | null)?.reduce(
-          (sum, g) => sum + (g.units || 0),
-          0
-        ) || 0
-      const weightedSum =
-        (grades as Grade[] | null)?.reduce(
-          (sum, g) => sum + g.grade * (g.units || 0),
-          0
-        ) || 0
+      // Calculate GWA from local storage (keeping this for now as per plan focus)
+      const localGrades = JSON.parse(localStorage.getItem('dyci_grades') || '[]')
+      const totalUnits = localGrades.reduce((sum: number, g: Grade) => sum + (g.units || 0), 0) || 0
+      const weightedSum = localGrades.reduce((sum: number, g: Grade) => sum + g.grade * (g.units || 0), 0) || 0
       const gwa = totalUnits > 0 ? (weightedSum / totalUnits).toFixed(2) : '0'
 
-      // Calculate storage used
+      // Calculate storage used (active files only)
       const { data: allFiles } = await supabase
         .from('files')
         .select('size')
         .eq('user_id', user?.id)
+        .is('deleted_at', null)
 
-      const totalSize = allFiles?.reduce((sum: number, file: { size: number }) => sum + (file.size || 0), 0) || 0
+      const totalSize = allFiles?.reduce((sum: number, file: { size: number }) => sum + (Number(file.size) || 0), 0) || 0
       const storageUsed = `${(totalSize / (1024 * 1024)).toFixed(2)} MB`
 
+      // Count 'Pending' tasks as Backlog (0), Active (1), and Review (2)
+      const pendingTasksCount = todosData?.filter(t => t.status >= 0 && t.status <= 2).length || 0
+
+      // Get total file count (including archived)
+      const { count: totalFileCount } = await supabase
+        .from('files')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+
       setStats({
-        todoCount: todosData?.length || 0,
-        fileCount: filesData?.length || 0,
+        todoCount: pendingTasksCount,
+        fileCount: totalFileCount || 0,
         gwa: parseFloat(gwa),
         storageUsed,
       })
 
-      setTodos(todosData || [])
-      setRecentFiles(filesData || [])
+      // Show latest 5 todos and files
+      setTodos(todosData?.slice(0, 5) || [])
+      setRecentFiles(latestFiles || [])
 
-      // Generate activity data
-      setActivityData([
-        { name: 'Mon', users: 40 },
-        { name: 'Tue', users: 30 },
-        { name: 'Wed', users: 50 },
-        { name: 'Thu', users: 45 },
-        { name: 'Fri', users: 55 },
-        { name: 'Sat', users: 35 },
-        { name: 'Sun', users: 25 },
-      ])
+      // Fetch handbook views for activity
+      const { data: viewsData } = await supabase
+        .from('handbook_views')
+        .select('viewed_at')
+        .eq('user_id', user.id)
+        .gte('viewed_at', sevenDaysAgo.toISOString())
+
+      // Helper to group by day
+      const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const activityMap = new Map<string, { todos: number; files: number; views: number }>()
+
+      // Initialize last 7 days
+      const last7Days: string[] = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        const dateKey = d.toISOString().split('T')[0]
+        last7Days.push(dateKey)
+        activityMap.set(dateKey, { todos: 0, files: 0, views: 0 })
+      }
+
+      // Aggregate To-dos (Created/Updated)
+      todosData?.forEach(t => {
+        const cDate = new Date(t.created_at).toISOString().split('T')[0]
+        const uDate = new Date(t.updated_at).toISOString().split('T')[0]
+        if (activityMap.has(cDate)) activityMap.get(cDate)!.todos++
+        if (uDate !== cDate && activityMap.has(uDate)) activityMap.get(uDate)!.todos++
+      })
+
+      // Aggregate Files
+      activityFiles?.forEach(f => {
+        const fDate = new Date(f.created_at).toISOString().split('T')[0]
+        if (activityMap.has(fDate)) activityMap.get(fDate)!.files++
+      })
+
+      // Aggregate Handbook Views (Total visits)
+      viewsData?.forEach(v => {
+        const vDate = new Date(v.viewed_at).toISOString().split('T')[0]
+        if (activityMap.has(vDate)) {
+          activityMap.get(vDate)!.views++
+        }
+      })
+
+      setActivityData(last7Days.map(dateKey => {
+        const d = new Date(dateKey)
+        const breakdown = activityMap.get(dateKey) || { todos: 0, files: 0, views: 0 }
+        return {
+          name: dayLabels[d.getDay()],
+          ...breakdown,
+          total: breakdown.todos + breakdown.files + breakdown.views
+        }
+      }))
 
     } catch (error: any) {
       toast.error('Error loading dashboard data')
+      console.error(error)
     }
   }
 
@@ -111,40 +176,67 @@ const StudentDashboard: React.FC = () => {
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsWidget
-          title="Pending Tasks"
-          value={stats.todoCount}
-          icon="calendar"
-          color="text-blue-500"
-        />
-        <StatsWidget
-          title="Files Uploaded"
-          value={stats.fileCount}
-          icon="file"
-          color="text-green-500"
-        />
-        <StatsWidget
-          title="Current GWA"
-          value={stats.gwa}
-          icon="book"
-          color="text-purple-500"
-        />
-        <StatsWidget
-          title="Storage Used"
-          value={stats.storageUsed}
-          icon="users"
-          color="text-orange-500"
-        />
+          <StatsWidget
+            title="Pending Tasks"
+            value={stats.todoCount}
+            icon="calendar"
+            color="text-blue-500"
+          />
+          <StatsWidget
+            title="Files Uploaded"
+            value={stats.fileCount}
+            icon="file"
+            color="text-green-500"
+          />
+          <StatsWidget
+            title="Current GWA"
+            value={stats.gwa}
+            icon="book"
+            color="text-purple-500"
+          />
+          <StatsWidget
+            title="Storage Used"
+            value={stats.storageUsed}
+            icon="users"
+            color="text-orange-500"
+          />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-6">
+        {/* Layout Grid: 2/3 Main, 1/3 Sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* Main Content (Left) */}
+          <div className="lg:col-span-2 space-y-6">
+            <HandbookQuicklinks />
             <ActivityChart data={activityData} />
-            <RecentFiles files={recentFiles} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <RecentFiles files={recentFiles} />
+              <TodoList todos={todos} />
+            </div>
           </div>
-          <div>
-            <TodoList todos={todos} onUpdate={fetchDashboardData} />
-          </div>
+
+          {/* Right Sidebar */}
+          <aside className="space-y-6">
+            {/* Video Broadcast Network */}
+            <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-indigo-600 shadow-sm p-6 overflow-hidden">
+              <VideoCarousel
+                category="INSTITUTIONAL"
+                userRole="STUDENT"
+                title="Campus Broadcasts"
+                subtitle="Latest institutional announcements"
+                allowDelete={false}
+              />
+            </div>
+            <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-rose-500 shadow-sm p-6 overflow-hidden">
+              <VideoCarousel
+                category="TUTORIAL"
+                userRole="STUDENT"
+                title="Platform Tutorials"
+                subtitle="Guides for your digital campus"
+                allowDelete={false}
+              />
+            </div>
+          </aside>
         </div>
       </main>
     </>

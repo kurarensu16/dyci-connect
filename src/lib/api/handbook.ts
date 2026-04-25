@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient'
 
 export interface HandbookNode {
     id: string
+    db_id?: string      // Real Supabase UUID — set when loaded from DB
     parent_id: string | null
     title: string
     content: string | null
@@ -16,12 +17,26 @@ export interface HandbookNode {
 // Row shape returned from Supabase (no children yet)
 interface DbHandbookNode {
     id: string
+    handbook_id: string
     parent_id: string | null
     title: string
     content: string | null
     sort_order: number
-    depth: number
+    workflow_stage_id: string
     updated_at: string
+}
+
+// Write shape for upsert — handbook_id and workflow_stage_id are optional since
+// they may already exist in the DB or be handled separately
+interface UpsertHandbookNodeInput {
+    id: string
+    handbook_id?: string
+    parent_id: string | null
+    title: string
+    content: string | null
+    sort_order: number
+    workflow_stage_id?: string
+    depth?: number  // Used for tree logic, NOT stored in DB
 }
 
 // ── Tree builder ───────────────────────────────────────────────────────────
@@ -33,9 +48,9 @@ interface DbHandbookNode {
 export function buildTree(rows: DbHandbookNode[]): HandbookNode[] {
     const nodeMap = new Map<string, HandbookNode>()
 
-    // First pass: create all nodes
+    // First pass: create all nodes (initially at depth 0)
     for (const row of rows) {
-        nodeMap.set(row.id, { ...row, children: [] })
+        nodeMap.set(row.id, { ...row, db_id: row.id, depth: 0, children: [] })
     }
 
     const roots: HandbookNode[] = []
@@ -52,12 +67,15 @@ export function buildTree(rows: DbHandbookNode[]): HandbookNode[] {
         }
     }
 
-    // Sort each level by sort_order
-    const sortChildren = (nodes: HandbookNode[]) => {
+    // Sort each level and recursively calculate depth
+    const processLevel = (nodes: HandbookNode[], currentDepth: number) => {
         nodes.sort((a, b) => a.sort_order - b.sort_order)
-        nodes.forEach((n) => sortChildren(n.children))
+        nodes.forEach((n) => {
+            n.depth = currentDepth
+            processLevel(n.children, currentDepth + 1)
+        })
     }
-    sortChildren(roots)
+    processLevel(roots, 0)
 
     return roots
 }
@@ -67,13 +85,14 @@ export function buildTree(rows: DbHandbookNode[]): HandbookNode[] {
 /**
  * Fetch the entire handbook tree from Supabase.
  */
-export async function fetchHandbookTree(): Promise<{
+export async function fetchHandbookTree(handbookId: string): Promise<{
     data: HandbookNode[] | null
     error: string | null
 }> {
     const { data, error } = await supabase
-        .from('handbook_nodes')
-        .select('id, parent_id, title, content, sort_order, depth, updated_at')
+        .from('handbook_sections')
+        .select('id, handbook_id, parent_id, title, content, sort_order, workflow_stage_id, updated_at')
+        .eq('handbook_id', handbookId)
         .order('sort_order', { ascending: true })
 
     if (error) {
@@ -86,13 +105,16 @@ export async function fetchHandbookTree(): Promise<{
 
 /**
  * Upsert a single node (create or update).
+ * Note: `depth` is a UI-only concept and is NOT stored in the DB.
  */
 export async function upsertHandbookNode(
-    node: Omit<DbHandbookNode, 'updated_at'>
+    node: UpsertHandbookNodeInput
 ): Promise<{ error: string | null }> {
+    // Destructure to avoid passing UI-only fields to the DB
+    const { depth: _depth, ...dbPayload } = node
     const { error } = await supabase
-        .from('handbook_nodes')
-        .upsert(node, { onConflict: 'id' })
+        .from('handbook_sections')
+        .upsert(dbPayload, { onConflict: 'id' })
 
     if (error) {
         console.error('upsertHandbookNode error:', error)
@@ -107,7 +129,7 @@ export async function upsertHandbookNode(
  */
 export async function deleteHandbookNode(id: string): Promise<{ error: string | null }> {
     const { error } = await supabase
-        .from('handbook_nodes')
+        .from('handbook_sections')
         .delete()
         .eq('id', id)
 

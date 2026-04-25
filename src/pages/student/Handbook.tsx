@@ -5,6 +5,7 @@ import {
   FaChevronRight,
 } from 'react-icons/fa'
 import { fetchHandbookTree, type HandbookNode, buildTree } from '../../lib/api/handbook'
+import { fetchHandbooks } from '../../lib/api/handbookWorkflow'
 import { searchHandbook, findPathToNode, type HandbookSearchHit } from '../../lib/handbookSearch'
 import HandbookSearchToolbar from '../../components/handbook/HandbookSearchToolbar'
 import HandbookSearchResults from '../../components/handbook/HandbookSearchResults'
@@ -71,7 +72,7 @@ const Handbook: React.FC = () => {
           .from('handbook_views')
           .insert({
             user_id: user.id,
-            node_id: nodeId,
+            section_id: nodeId,
             duration_seconds: durationSeconds
           })
           .then(({ error }) => {
@@ -86,12 +87,28 @@ const Handbook: React.FC = () => {
     let cancelled = false
     const load = async () => {
       setLoading(true)
-      const { data, error } = await fetchHandbookTree()
+      // First fetch available handbooks to get a default handbook ID
+      const { data: handbooks, error: handbooksError } = await fetchHandbooks()
+      
+      if (handbooksError || !handbooks || handbooks.length === 0) {
+        // No handbooks available, use fallback
+        if (!cancelled) {
+          setTree(buildFallback())
+          if (handbooksError) setError('Could not connect to database - showing cached data.')
+          setLoading(false)
+        }
+        return
+      }
+
+      // Use the first (most recent) handbook
+      const handbookId = handbooks[0].id
+      const { data, error } = await fetchHandbookTree(handbookId)
+      
       if (!cancelled) {
         if (error || !data || data.length === 0) {
           // Fallback to static data
           setTree(buildFallback())
-          if (error) setError('Could not connect to database — showing cached data.')
+          if (error) setError('Could not connect to database - showing cached data.')
         } else {
           setTree(data)
         }
@@ -143,7 +160,7 @@ const Handbook: React.FC = () => {
   }
 
   // Breadcrumb path
-  const breadcrumbs = navStack.map((n) => n.id).join(' / ')
+  const breadcrumbs = navStack.map((n) => n.title).join(' / ')
 
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
@@ -177,7 +194,7 @@ const Handbook: React.FC = () => {
 
         {/* Error banner */}
         {error && !loading && (
-          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
             {error}
           </div>
         )}
@@ -211,10 +228,10 @@ const Handbook: React.FC = () => {
                 <button
                   key={node.id}
                   onClick={() => handleNodeClick(node)}
-                  className="group bg-white rounded-xl shadow-sm border border-slate-200 p-4 hover:shadow-md hover:border-blue-300 transition-all text-left flex items-start gap-4"
+                  className="group bg-white rounded-2xl shadow-sm border border-slate-200 p-4 hover:shadow-md hover:border-blue-300 transition-all text-left flex items-start gap-4"
                 >
                   <div className="h-10 w-10 shrink-0 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    <span className="font-bold text-sm">{node.id}</span>
+                    <FaBookOpen className="h-5 w-5" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">
@@ -233,7 +250,7 @@ const Handbook: React.FC = () => {
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="mb-6">
               <span className="text-[10px] font-bold tracking-wider text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-md">
-                {activeNode.id}
+                Section
               </span>
               <h2 className="text-2xl font-bold text-slate-900 mt-2">{activeNode.title}</h2>
             </div>
@@ -242,10 +259,9 @@ const Handbook: React.FC = () => {
                 <button
                   key={node.id}
                   onClick={() => handleNodeClick(node)}
-                  className="w-full bg-white rounded-xl border border-slate-200 p-4 text-left hover:border-blue-400 hover:shadow-md transition-all flex items-center justify-between group"
+                  className="w-full bg-white rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-400 hover:shadow-md transition-all flex items-center justify-between group"
                 >
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
-                    <span className="mr-2 opacity-60 text-sm font-mono">{node.id}</span>
                     {node.title}
                   </span>
                   <FaChevronRight className="text-slate-300 group-hover:text-blue-500 text-xs" />
@@ -259,9 +275,6 @@ const Handbook: React.FC = () => {
         {!loading && !isSearchActive && isReading && (
           <div className="animate-in zoom-in-95 duration-300 max-w-4xl mx-auto">
             <div className="bg-white rounded-t-2xl border-x border-t border-slate-200 p-6 pb-4">
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mb-2">
-                {activeNode.id}
-              </div>
               <h2 className="text-xl font-bold text-slate-900">{activeNode.title}</h2>
             </div>
             <div className="bg-white rounded-b-2xl border border-slate-200 p-6 pt-2 shadow-sm min-h-[300px]">
@@ -274,7 +287,7 @@ const Handbook: React.FC = () => {
             <div className="mt-6 flex items-center justify-between gap-4">
               <button
                 onClick={() => prevLeaf ? navigateToLeaf(prevLeaf) : handleBack()}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-medium text-sm transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-medium text-sm transition-colors"
               >
                 <FaChevronLeft className="text-xs" />
                 {prevLeaf ? prevLeaf.title : 'Back'}
@@ -282,7 +295,7 @@ const Handbook: React.FC = () => {
               {nextLeaf && (
                 <button
                   onClick={() => navigateToLeaf(nextLeaf)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 shadow-sm transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 shadow-sm transition-colors"
                 >
                   {nextLeaf.title}
                   <FaChevronRight className="text-xs" />

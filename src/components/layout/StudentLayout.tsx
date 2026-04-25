@@ -5,9 +5,10 @@ import { FaBookOpen, FaFileAlt, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaC
 import { FaScrewdriverWrench } from 'react-icons/fa6'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
-import logo from '../../assets/imgs/logo-connect.png'
+const logo = '/icons/icon-512x512.png'
 import { MdSpaceDashboard } from "react-icons/md";
 import StudentChatWidget from '../chat/StudentChatWidget'
+import { checkAndSendWelcomeNotification } from '../../utils/profileUtils'
 
 interface StudentLayoutProps {
   children: ReactNode
@@ -39,7 +40,11 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
         console.error('Error loading verification status', error)
         setIsVerified(null)
       } else {
-        setIsVerified(data?.verified === true)
+        const verified = data?.verified === true
+        setIsVerified(verified)
+        if (verified) {
+          checkAndSendWelcomeNotification(user.id)
+        }
       }
 
     }
@@ -77,14 +82,14 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
     disabled?: boolean
     badge?: number
   }> = [
-    { label: 'Dashboard', icon: MdSpaceDashboard, path: '/student/dashboard' },
-    { label: 'Notifications', icon: FaBell, path: '/student/notifications', badge: unreadCount },
-    { label: 'School Calendar', icon: FaCalendarAlt, path: '/student/calendar' },
-    { label: 'Handbook', icon: FaBookOpen, path: '/student/handbook' },
-    { label: 'Files', icon: FaFileAlt, path: '/student/files' },
-    { label: 'Tools', icon: FaScrewdriverWrench, path: '/student/tools' },
-    { label: 'Profile', icon: FaUserCircle, path: '/student/profile' },
-  ]
+      { label: 'Dashboard', icon: MdSpaceDashboard, path: '/student/dashboard' },
+      { label: 'Notifications', icon: FaBell, path: '/student/notifications', badge: unreadCount },
+      { label: 'School Calendar', icon: FaCalendarAlt, path: '/student/calendar' },
+      { label: 'Handbook', icon: FaBookOpen, path: '/student/handbook' },
+      { label: 'Files', icon: FaFileAlt, path: '/student/files' },
+      { label: 'Tools', icon: FaScrewdriverWrench, path: '/student/tools' },
+      { label: 'Profile', icon: FaUserCircle, path: '/student/profile' },
+    ]
 
   const isLocked = isSupabaseConfigured && isVerified === false
 
@@ -92,9 +97,8 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-slate-100 md:flex">
       {/* Sidebar (desktop) */}
       <aside
-        className={`hidden md:flex md:flex-col md:h-screen md:sticky md:top-0 md:z-30 md:border-r md:border-slate-200 bg-white transition-all duration-200 ease-in-out ${
-          collapsed ? 'md:w-20' : 'md:w-64'
-        }`}
+        className={`hidden md:flex md:flex-col md:h-screen md:sticky md:top-0 md:z-30 md:border-r md:border-slate-200 bg-white transition-all duration-200 ease-in-out ${collapsed ? 'md:w-20' : 'md:w-64'
+          }`}
       >
         <div className="relative h-14 px-4 flex items-center border-b border-slate-200">
           <div className="flex items-center space-x-2 overflow-hidden">
@@ -127,7 +131,7 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
             const itemLocked = isLocked && item.path !== '/student/dashboard'
 
             const baseClasses =
-              'w-full flex items-center rounded-xl px-3 py-2 text-xs font-medium transition-colors'
+              'w-full flex items-center rounded-2xl px-3 py-2 text-xs font-medium transition-colors'
 
             if (item.disabled || itemLocked) {
               return (
@@ -135,9 +139,8 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
                   key={item.label}
                   type="button"
                   disabled
-                  className={`${baseClasses} ${
-                    collapsed ? 'justify-center' : 'space-x-3'
-                  } text-slate-400 bg-slate-50 cursor-not-allowed`}
+                  className={`${baseClasses} ${collapsed ? 'justify-center' : 'space-x-3'
+                    } text-slate-400 bg-slate-50 cursor-not-allowed`}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   {!collapsed && (
@@ -156,11 +159,10 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
               <Link
                 key={item.label}
                 to={item.path}
-                className={`${baseClasses} ${
-                  isActive
+                className={`${baseClasses} ${isActive
                     ? 'bg-blue-600 text-white'
                     : 'text-slate-700 hover:bg-slate-100'
-                } ${collapsed ? 'justify-center' : 'space-x-3'} relative`}
+                  } ${collapsed ? 'justify-center' : 'space-x-3'} relative`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {!collapsed && <span>{item.label}</span>}
@@ -188,9 +190,8 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
           <button
             type="button"
             onClick={handleSignOut}
-            className={`w-full inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 ${
-              collapsed ? 'justify-center' : 'space-x-2'
-            }`}
+            className={`w-full inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 ${collapsed ? 'justify-center' : 'space-x-2'
+              }`}
           >
             <FaSignOutAlt className="h-3 w-3" />
             {!collapsed && <span>Sign out</span>}
@@ -227,7 +228,7 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
                 const Icon = item.icon
 
                 const baseClasses =
-                  'w-full flex items-center rounded-xl px-3 py-2 text-xs font-medium transition-colors'
+                  'w-full flex items-center rounded-2xl px-3 py-2 text-xs font-medium transition-colors'
 
                 if (item.disabled) {
                   return (
@@ -251,11 +252,10 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
                       navigate(item.path)
                       setMobileOpen(false)
                     }}
-                    className={`${baseClasses} space-x-3 relative ${
-                      isActive
+                    className={`${baseClasses} space-x-3 relative ${isActive
                         ? 'bg-blue-600 text-white'
                         : 'text-slate-700 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     <Icon className="h-3.5 w-3.5" />
                     <span>{item.label}</span>

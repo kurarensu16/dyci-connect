@@ -48,7 +48,7 @@ const ForgotPassword: React.FC = () => {
   if (sent) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-xl px-6 sm:px-8 py-8 text-center space-y-4">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-8 text-center space-y-4">
           <h1 className="text-lg font-semibold text-slate-900">Check your email</h1>
           <p className="text-sm text-slate-600">
             We sent a password reset link to <span className="font-medium text-slate-800">{email}</span>.
@@ -57,14 +57,14 @@ const ForgotPassword: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <Link
               to="/login"
-              className="inline-flex items-center justify-center rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#4338CA]"
+              className="inline-flex items-center justify-center rounded-2xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#4338CA]"
             >
               Back to login
             </Link>
             <button
               type="button"
               onClick={() => setSent(false)}
-              className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
               Use a different email
             </button>
@@ -76,7 +76,7 @@ const ForgotPassword: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -95,7 +95,7 @@ const ForgotPassword: React.FC = () => {
             <label htmlFor="email" className="block text-xs font-medium text-gray-700">
               Email address
             </label>
-            <div className="mt-1 flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+            <div className="mt-1 flex items-center rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
               <FaEnvelope className="h-4 w-4 text-gray-400 mr-3" />
               <input
                 id="email"
@@ -113,7 +113,7 @@ const ForgotPassword: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full inline-flex justify-center rounded-xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#4338CA] disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full inline-flex justify-center rounded-2xl bg-[#4F46E5] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#4338CA] disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? 'Sending…' : 'Send reset link'}
           </button>

@@ -20,13 +20,14 @@ import {
   FaHistory,
   FaExchangeAlt,
   FaPaperPlane,
+  FaCheckDouble,
 } from 'react-icons/fa'
 import toast from 'react-hot-toast'
-import { fetchSchoolSettings } from '../../lib/api/settings'
+import { generateKeywords as genKeywordsLogic } from '../../utils/chatLogic'
+import { supabase } from '../../lib/supabaseClient'
+import { fetchAcademicYears, type AcademicYear } from '../../lib/api/settings'
 import {
   fetchHandbookTree,
-  upsertHandbookNode,
-  deleteHandbookNode,
   buildTree,
   type HandbookNode,
 } from '../../lib/api/handbook'
@@ -35,6 +36,7 @@ import { isSupabaseConfigured } from '../../lib/supabaseClient'
 import {
   createHandbook,
   fetchHandbookApprovalMonitor,
+  fetchHandbookApprovals,
   fetchHandbooks,
   fetchSections,
   fetchSectionAssignments,
@@ -46,9 +48,8 @@ import {
   fetchSectionAuditTrail,
   fetchSectionDiff,
   deleteHandbook,
-  approverLabel,
-  levelLabel,
-  L2_POSITIONS,
+  fetchCollegeOffices,
+  type CollegeOffice,
   type HandbookApprovalMonitorRow,
   type HandbookSection,
   type ApproverPosition,
@@ -112,8 +113,8 @@ function wordDiff(oldText: string, newText: string): { type: 'same' | 'add' | 'd
 
 const ProgressBar: React.FC<{ currentLevel: number }> = ({ currentLevel }) => {
   const levels = [
-    { n: 1, label: 'Admin Draft' },
-    { n: 2, label: 'Department Approval' },
+    { n: 1, label: 'Academic Admin Draft' },
+    { n: 2, label: 'Departmental Review' },
   ]
   return (
     <div className="flex items-center gap-1">
@@ -157,6 +158,35 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({ nodeId, onConfirm, onCancel
   </div>
 )
 
+interface KeywordModalProps {
+  value: string;
+  onChange: (v: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+const KeywordModal: React.FC<KeywordModalProps> = ({ value, onChange, onConfirm, onCancel }) => (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+    <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-6 space-y-4 animate-in fade-in zoom-in duration-200">
+      <div className="space-y-1">
+        <h3 className="font-semibold text-slate-900 text-sm italic">Add Manual Keywords</h3>
+        <p className="text-xs text-slate-500">Enter one or more keywords (separated by commas).</p>
+      </div>
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && onConfirm()}
+        placeholder="e.g. tuition fees"
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all mr-1"
+      />
+      <div className="flex justify-end gap-2 pt-2">
+        <button onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+        <button onClick={onConfirm} disabled={!value.trim()} className="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-50 transition-colors">Add Keyword</button>
+      </div>
+    </div>
+  </div>
+)
+
 // ── Tree node ─────────────────────────────────────────────────────────────
 
 interface TreeNodeProps { node: HandbookNode; selectedId: string | null; onSelect: (id: string) => void; onAddChild: (parentId: string, parentDepth: number) => void; onDelete: (id: string) => void; depth?: number }
@@ -195,13 +225,13 @@ type CmsView = 'list' | 'editor' | 'monitor' | 'assignment'
 const Cms: React.FC = () => {
   const [view, setView] = useState<CmsView>('list')
   const [tree, setTree] = useState<HandbookNode[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [workflowSaving, setWorkflowSaving] = useState(false)
   const [newHandbookTitle, setNewHandbookTitle] = useState('')
-  const [newSchoolYear, setNewSchoolYear] = useState('')
+  const [newAcademicYearId, setNewAcademicYearId] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [publishAt, setPublishAt] = useState('')
   const [scheduleHandbookTarget, setScheduleHandbookTarget] = useState<Handbook | null>(null)
@@ -211,8 +241,17 @@ const Cms: React.FC = () => {
   const [cardMenuOpenId, setCardMenuOpenId] = useState<string | null>(null)
   const [approvalMonitor, setApprovalMonitor] = useState<HandbookApprovalMonitorRow[]>([])
   const [approvalMonitorLoading, setApprovalMonitorLoading] = useState(false)
+  const [handbookApprovals, setHandbookApprovals] = useState<Record<string, { approved: boolean; approver_position: string; approved_at: string | null }>>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [pendingDeleteHandbook, setPendingDeleteHandbook] = useState<Handbook | null>(null)
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
+  const [collegeOffices, setCollegeOffices] = useState<CollegeOffice[]>([])
+
+  useEffect(() => {
+    fetchCollegeOffices().then(res => {
+      if (res.data) setCollegeOffices(res.data)
+    })
+  }, [])
 
   // Pagination state
   const [hbPage, setHbPage] = useState(1)
@@ -230,14 +269,23 @@ const Cms: React.FC = () => {
   const [showDiff, setShowDiff] = useState(false)
   const [diffData, setDiffData] = useState<{ legacy_content: string | null; content: string; change_reason: string | null } | null>(null)
   const [workflowSections, setWorkflowSections] = useState<HandbookSection[]>([])
+  const [currentKeywords, setCurrentKeywords] = useState<string[]>([])
+  const [generatingKeywords, setGeneratingKeywords] = useState(false)
+  const [showKeywordModal, setShowKeywordModal] = useState(false)
+  const [keywordInput, setKeywordInput] = useState('')
 
   useEffect(() => {
     if (showCreateForm) {
-      const loadSettings = async () => {
-        const { data } = await fetchSchoolSettings()
-        if (data) setNewSchoolYear(data.current_academic_year)
+      const loadOptions = async () => {
+        const { data: years } = await fetchAcademicYears()
+        if (years) {
+          setAcademicYears(years)
+          const current = years.find(y => y.is_current)
+          if (current) setNewAcademicYearId(current.id)
+          else if (years.length > 0) setNewAcademicYearId(years[0].id)
+        }
       }
-      loadSettings()
+      loadOptions()
     }
   }, [showCreateForm])
 
@@ -264,17 +312,23 @@ const Cms: React.FC = () => {
   // ── Data loading ────────────────────────────────────────────────────────
 
   const loadTree = useCallback(async () => {
+    if (!activeHandbookId) return
     setLoading(true)
-    const { data, error } = await fetchHandbookTree()
-    if (error || !data || data.length === 0) { setTree(buildFallback()); if (error) toast.error('Could not load from database — showing cached data.') }
+    const { data, error } = await fetchHandbookTree(activeHandbookId)
+    if (error || !data || data.length === 0) {
+      setTree(buildFallback());
+      if (error && error !== 'The resource was not found') toast.error('Could not load from database — showing cached data.')
+    }
     else setTree(data)
     setLoading(false)
-  }, [])
+  }, [activeHandbookId])
 
   useEffect(() => { loadTree() }, [loadTree])
 
   const loadWorkflowHandbooks = useCallback(async () => {
+    setLoading(true)
     const { data, error } = await fetchHandbooks()
+    setLoading(false)
     if (error) { toast.error(`Failed to load handbooks: ${error}`); return }
     setWorkflowHandbooks(data ?? [])
   }, [])
@@ -283,10 +337,24 @@ const Cms: React.FC = () => {
     const id = handbookId || activeHandbookId
     if (!id) { setApprovalMonitor([]); return }
     setApprovalMonitorLoading(true)
-    const { data, error } = await fetchHandbookApprovalMonitor(id)
+    const [{ data, error }, { data: hbApprovals }] = await Promise.all([
+      fetchHandbookApprovalMonitor(id),
+      fetchHandbookApprovals(id)
+    ])
     setApprovalMonitorLoading(false)
     if (error) { toast.error(`Monitor: ${error}`); return }
     setApprovalMonitor(data ?? [])
+
+    // Process handbook L3 approvals
+    const approvalsMap: Record<string, { approved: boolean; approver_position: string; approved_at: string | null }> = {}
+      ; (hbApprovals || []).forEach((a: any) => {
+        approvalsMap[a.approver_position] = {
+          approved: a.decision === 'approved',
+          approver_position: a.approver_position,
+          approved_at: a.approved_at
+        }
+      })
+    setHandbookApprovals(approvalsMap)
   }, [activeHandbookId])
 
   const loadWorkflowSections = useCallback(async (handbookId?: string) => {
@@ -312,17 +380,46 @@ const Cms: React.FC = () => {
     setSectionAssignments(assignRes.data ?? [])
     setAuditTrail(auditRes.data ?? [])
     setDiffData(diffRes.data ?? null)
+
+    // Load keywords for this section
+    const { data: kwData } = await supabase
+      .from('handbook_keywords')
+      .select('keyword')
+      .eq('section_id', sec.id)
+
+    if (kwData) {
+      setCurrentKeywords(kwData.map(k => k.keyword))
+    } else {
+      setCurrentKeywords([])
+    }
   }, [activeHandbookId, workflowSections])
 
   // When selectedId changes in editor mode, derive the section index
   useEffect(() => {
     if (view !== 'editor' || !selectedId) { setSectionMeta(null); return }
+
+    // Handle dot-notation IDs (e.g., "1.11") - parse section index from ID
     const parts = selectedId.split('.')
-    if (parts.length < 2) { setSectionMeta(null); return }
-    const idx = parseInt(parts[1], 10) - 1
-    if (isNaN(idx) || idx < 0) { setSectionMeta(null); return }
-    loadSectionWorkflowData(idx)
-  }, [selectedId, view, loadSectionWorkflowData])
+    if (parts.length >= 2) {
+      const idx = parseInt(parts[1], 10) - 1
+      if (!isNaN(idx) && idx >= 0) {
+        loadSectionWorkflowData(idx)
+        return
+      }
+    }
+
+    // Handle UUID-based IDs - find section by matching db_id in workflowSections
+    if (workflowSections.length > 0) {
+      const idx = workflowSections.findIndex(s => s.id === selectedId)
+      if (idx >= 0) {
+        loadSectionWorkflowData(idx)
+        return
+      }
+    }
+
+    // If no matching section found, clear metadata
+    setSectionMeta(null)
+  }, [selectedId, view, workflowSections, loadSectionWorkflowData])
 
   // ── Tree edit helpers ───────────────────────────────────────────────────
 
@@ -332,39 +429,47 @@ const Cms: React.FC = () => {
   const removeNodeFromTree = (nodes: HandbookNode[], id: string): HandbookNode[] =>
     nodes.filter((n) => n.id !== id).map((n) => ({ ...n, children: removeNodeFromTree(n.children, id) }))
 
-  const ensureAncestorsExist = async (childId: string, currentTree: HandbookNode[]) => {
-    const parts = childId.split('.')
-    for (let i = 1; i < parts.length; i++) {
-      const ancestorId = parts.slice(0, i).join('.')
-      const ancestor = findNode(currentTree, ancestorId)
-      if (ancestor) await upsertHandbookNode({ id: ancestor.id, parent_id: ancestor.parent_id, title: ancestor.title, content: ancestor.content, sort_order: ancestor.sort_order, depth: ancestor.depth })
-    }
-  }
 
   // ── Actions ─────────────────────────────────────────────────────────────
 
   const syncTreeToSections = async (currentTree: HandbookNode[], handbookId: string) => {
     if (!handbookId) return
-    const contentNodes: HandbookNode[] = []
-    const walk = (nodes: HandbookNode[]) => { nodes.forEach((n) => { if (n.depth > 0) contentNodes.push(n); if (n.children.length > 0) walk(n.children) }) }
+    // Collect ALL nodes (chapters at depth=0 are also stored as top-level sections)
+    const allNodes: HandbookNode[] = []
+    const walk = (nodes: HandbookNode[]) => {
+      nodes.forEach((n) => {
+        allNodes.push(n)
+        if (n.children.length > 0) walk(n.children)
+      })
+    }
     walk(currentTree)
-    if (contentNodes.length === 0) return
-    await replaceHandbookSections(handbookId, contentNodes.map((n, idx) => ({ title: n.title, content: n.content ?? '', sort_order: idx + 1 })))
+    if (allNodes.length === 0) return
+    await replaceHandbookSections(handbookId, allNodes.map((n, idx) => ({
+      title: n.title,
+      content: n.content ?? '',
+      sort_order: idx + 1,
+      parent_id: n.parent_id,
+    })))
   }
 
   const handleAddRoot = async () => {
+    if (!activeHandbookId) { toast.error('Please select a handbook first.'); return }
     const newId = `${tree.length + 1}`
     const node: HandbookNode = { id: newId, parent_id: null, title: `CHAPTER ${newId}`, content: null, sort_order: tree.length + 1, depth: 0, updated_at: '', children: [] }
     const newTree = [...tree, node]
     setTree(newTree); setSelectedId(newId)
     if (isSupabaseConfigured) {
-      const { error } = await upsertHandbookNode({ id: newId, parent_id: null, title: node.title, content: null, sort_order: node.sort_order, depth: 0 })
+      setSaving(true)
       await syncTreeToSections(newTree, activeHandbookId)
-      if (error) toast.error('Save failed: ' + error); else toast.success('Chapter created')
+      await loadTree() // Reload so node gets its real db_id UUID
+      await loadWorkflowSections() // Reload workflow sections
+      setSaving(false)
+      toast.success('Chapter created')
     }
   }
 
   const handleAddChild = async (parentId: string, parentDepth: number) => {
+    if (!activeHandbookId) { toast.error('Please select a handbook first.'); return }
     const parent = findNode(tree, parentId); if (!parent) return
     const childCount = parent.children.length + 1
     const newId = `${parentId}.${childCount}`
@@ -372,22 +477,62 @@ const Cms: React.FC = () => {
     const newTree = updateNodeInTree(tree, parentId, { children: [...(findNode(tree, parentId)?.children ?? []), node] })
     setTree(newTree); setSelectedId(newId)
     if (isSupabaseConfigured) {
-      await ensureAncestorsExist(newId, newTree)
-      const { error } = await upsertHandbookNode({ id: newId, parent_id: parentId, title: node.title, content: node.content, sort_order: childCount, depth: parentDepth + 1 })
+      setSaving(true)
       await syncTreeToSections(newTree, activeHandbookId)
-      if (error) toast.error('Save failed: ' + error); else toast.success('Section added')
+      // Reload tree to get the new UUID from database
+      const { data: refreshedTree } = await fetchHandbookTree(activeHandbookId)
+      if (refreshedTree && refreshedTree.length > 0) {
+        setTree(refreshedTree)
+        // Find the newly created section by its parent_id and sort_order
+        const findNewSection = (nodes: HandbookNode[]): HandbookNode | null => {
+          for (const n of nodes) {
+            if (n.parent_id === parentId && n.sort_order === childCount) {
+              return n
+            }
+            const found = findNewSection(n.children)
+            if (found) return found
+          }
+          return null
+        }
+        const newSection = findNewSection(refreshedTree)
+        if (newSection) {
+          setSelectedId(newSection.id)
+          // Reload workflow sections and load data for this section
+          const { data: sections } = await fetchSections(activeHandbookId)
+          setWorkflowSections(sections ?? [])
+          // Find index and load workflow data
+          const idx = (sections ?? []).findIndex(s => s.id === newSection.db_id || s.id === newSection.id)
+          if (idx >= 0) {
+            await loadSectionWorkflowData(idx)
+          }
+        }
+      }
+      setSaving(false)
+      toast.success('Section added')
     }
   }
 
   const confirmDelete = async () => {
     if (!pendingDelete) return
     const id = pendingDelete; setPendingDelete(null)
+    const nodeToDelete = findNode(tree, id)
     const newTree = removeNodeFromTree(tree, id)
     setTree(newTree); if (selectedId === id) setSelectedId(null)
     if (isSupabaseConfigured) {
-      const { error } = await deleteHandbookNode(id)
-      await syncTreeToSections(newTree, activeHandbookId)
-      if (error) toast.error('Delete failed: ' + error); else toast.success('Deleted')
+      // Collect all db_ids to delete (node + all descendants)
+      const collectDbIds = (nodes: HandbookNode[]): string[] =>
+        nodes.flatMap(n => [...(n.db_id ? [n.db_id] : []), ...collectDbIds(n.children)])
+      // Use db_id if set; fall back to id (which is a UUID after loadTree)
+      const selfId = nodeToDelete?.db_id ?? nodeToDelete?.id
+      const idsToDelete: string[] = [
+        ...(selfId ? [selfId] : []),
+        ...(nodeToDelete ? collectDbIds(nodeToDelete.children) : []),
+      ]
+      if (idsToDelete.length > 0) {
+        const { error } = await supabase.from('handbook_sections').delete().in('id', idsToDelete)
+        if (error) { toast.error('Delete failed: ' + error.message); return }
+      }
+      toast.success('Deleted')
     }
   }
 
@@ -398,36 +543,114 @@ const Cms: React.FC = () => {
   const handleSave = async () => {
     if (!selectedNode || !isSupabaseConfigured) { toast(isSupabaseConfigured ? 'No node selected' : 'Supabase not configured.', { icon: '⚠️' }); return }
     setSaving(true)
-    const { error } = await upsertHandbookNode({ id: selectedNode.id, parent_id: selectedNode.parent_id, title: selectedNode.title, content: selectedNode.content, sort_order: selectedNode.sort_order, depth: selectedNode.depth })
+
+    // Sync current tree state to the DB (handles title + content updates)
     await syncTreeToSections(tree, activeHandbookId)
+
+    // Save keywords if it's a content section (depth > 0) and has a DB record
+    if (selectedNode.depth > 0 && sectionMeta) {
+      await supabase.from('handbook_keywords').delete().eq('section_id', sectionMeta.id)
+      if (currentKeywords.length > 0) {
+        await supabase.from('handbook_keywords').insert(
+          currentKeywords.map(k => ({ keyword: k, section_id: sectionMeta.id }))
+        )
+      }
+    }
+
     setSaving(false)
-    if (error) toast.error('Save failed: ' + error); else toast.success('Saved ✓')
+    toast.success('Saved ✓')
+  }
+
+  const handleGenerateKeywords = async () => {
+    if (!selectedNode?.content || !sectionMeta) return
+    setGeneratingKeywords(true)
+    try {
+      const bodyText = stripHtml(selectedNode.content)
+      const suggestions = await genKeywordsLogic(selectedNode.title, bodyText)
+
+      if (suggestions.length === 0) {
+        toast('AI returned no clear keywords. Try adding more detail to the section.', { icon: 'ℹ️' })
+        return
+      }
+
+      // Merge with existing, but keep unique
+      const merged = Array.from(new Set([...currentKeywords, ...suggestions]))
+      setCurrentKeywords(merged)
+      toast.success(`Generated ${suggestions.length} keywords`)
+    } catch (err: any) {
+      console.error('Keyword generation error:', err)
+      const msg = err.message || 'Failed to generate keywords'
+      toast.error(msg)
+    } finally {
+      setGeneratingKeywords(false)
+    }
+  }
+
+  const handleAddManualKeyword = () => {
+    setKeywordInput('')
+    setShowKeywordModal(true)
+  }
+
+  const confirmAddManualKeyword = () => {
+    if (keywordInput.trim()) {
+      const parts = keywordInput.split(',').map(k => k.trim().toLowerCase()).filter(k => k.length > 0)
+      const newKeywords = parts.filter(k => !currentKeywords.includes(k))
+
+      if (newKeywords.length > 0) {
+        setCurrentKeywords([...currentKeywords, ...newKeywords])
+        toast.success(`Added ${newKeywords.length} keywords`)
+      }
+      setShowKeywordModal(false)
+      setKeywordInput('')
+    }
+  }
+
+  const handleRemoveKeyword = (k: string) => {
+    setCurrentKeywords(currentKeywords.filter((kw: string) => kw !== k))
   }
 
   const handleCreateHandbook = async () => {
-    if (!newHandbookTitle.trim() || !newSchoolYear.trim()) { toast.error('Title and school year required.'); return }
+    if (!newHandbookTitle.trim() || !newAcademicYearId.trim()) { toast.error('Title and academic year required.'); return }
     setWorkflowSaving(true)
-    const { error } = await createHandbook(newHandbookTitle.trim(), newSchoolYear.trim())
+    const { error } = await createHandbook(newHandbookTitle.trim(), newAcademicYearId.trim())
     setWorkflowSaving(false)
     if (error) { toast.error(error); return }
-    toast.success('Handbook created.'); setNewHandbookTitle(''); setNewSchoolYear(''); setShowCreateForm(false)
+    toast.success('Handbook created.'); setNewHandbookTitle(''); setNewAcademicYearId(''); setShowCreateForm(false)
     await loadWorkflowHandbooks()
   }
 
   const openEditorForHandbook = async (handbook: Handbook) => {
-    const { data, error } = await fetchSections(handbook.id)
-    if (error) { toast.error(`Failed to load: ${error}`); return }
-    const sections = data ?? []
-    setWorkflowSections(sections)
-    const rootId = '1'
-    const childNodes: HandbookNode[] = sections.map((s, idx) => ({
-      id: `${rootId}.${idx + 1}`, parent_id: rootId, title: s.title || `Section ${idx + 1}`,
-      content: s.content ?? '', sort_order: idx + 1, depth: 1, updated_at: s.updated_at ?? '', children: [],
-    }))
-    const rootNode: HandbookNode = { id: rootId, parent_id: null, title: handbook.title, content: null, sort_order: 1, depth: 0, updated_at: handbook.updated_at ?? '', children: childNodes }
-    setTree([rootNode]); setSelectedId(childNodes.length > 0 ? childNodes[0].id : rootId)
-    setActiveHandbookId(handbook.id); setEditingHandbookLabel(`${handbook.title} (${handbook.school_year})`)
-    setCardMenuOpenId(null); setView('editor')
+    // Use fetchHandbookTree to get proper hierarchical structure with parent-child relationships
+    const { data: treeData, error: treeError } = await fetchHandbookTree(handbook.id)
+    if (treeError) { toast.error(`Failed to load tree: ${treeError}`); return }
+
+    // Also fetch workflow sections for metadata
+    const { data: sections, error: secError } = await fetchSections(handbook.id)
+    if (secError) { toast.error(`Failed to load sections: ${secError}`); return }
+
+    setWorkflowSections(sections ?? [])
+
+    if (treeData && treeData.length > 0) {
+      setTree(treeData)
+      // Select first child of first chapter, or first chapter if no children
+      const firstChapter = treeData[0]
+      const firstSection = firstChapter?.children?.[0]?.id || firstChapter?.id
+      setSelectedId(firstSection || null)
+    } else {
+      // Fallback: create empty handbook structure
+      const rootId = '1'
+      const rootNode: HandbookNode = {
+        id: rootId, parent_id: null, title: handbook.title, content: null,
+        sort_order: 1, depth: 0, updated_at: handbook.updated_at ?? '', children: []
+      }
+      setTree([rootNode])
+      setSelectedId(rootId)
+    }
+
+    setActiveHandbookId(handbook.id)
+    setEditingHandbookLabel(`${handbook.title} (${handbook.academic_years?.year_name || 'Unknown Year'})`)
+    setCardMenuOpenId(null)
+    setView('editor')
   }
 
   const handleAssignmentToggle = async (pos: ApproverPosition) => {
@@ -446,7 +669,7 @@ const Cms: React.FC = () => {
     const { error } = await submitSectionToL2(sectionMeta.id)
     setWorkflowSaving(false)
     if (error) { toast.error(error); return }
-    toast.success('Section assigned to L2.')
+    toast.success('Section submitted for Departmental Review.')
     await loadWorkflowSections()
   }
 
@@ -456,7 +679,7 @@ const Cms: React.FC = () => {
     const { error } = await submitSectionToL2(sectionId)
     setWorkflowSaving(false)
     if (error) { toast.error(error); return }
-    toast.success('Section submitted to L2.')
+    toast.success('Section submitted for Departmental Review.')
     await loadApprovalMonitor(activeHandbookId)
   }
 
@@ -476,13 +699,13 @@ const Cms: React.FC = () => {
     await loadWorkflowHandbooks()
   }
   const openMonitor = async (handbook: Handbook) => {
-    setActiveHandbookId(handbook.id); setEditingHandbookLabel(`${handbook.title} (${handbook.school_year})`)
+    setActiveHandbookId(handbook.id); setEditingHandbookLabel(`${handbook.title} (${handbook.academic_years?.year_name || 'Unknown Year'})`)
     setCardMenuOpenId(null); setView('monitor'); setMonitorPage(1)
     await loadApprovalMonitor(handbook.id)
   }
 
   const openAssignmentForHandbook = async (handbook: Handbook) => {
-    setActiveHandbookId(handbook.id); setEditingHandbookLabel(`${handbook.title} (${handbook.school_year})`)
+    setActiveHandbookId(handbook.id); setEditingHandbookLabel(`${handbook.title} (${handbook.academic_years?.year_name || 'Unknown Year'})`)
     setCardMenuOpenId(null); setView('assignment'); setAssignmentPage(1)
     await loadApprovalMonitor(handbook.id)
   }
@@ -519,16 +742,24 @@ const Cms: React.FC = () => {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
+        {showKeywordModal && (
+          <KeywordModal
+            value={keywordInput}
+            onChange={setKeywordInput}
+            onConfirm={confirmAddManualKeyword}
+            onCancel={() => setShowKeywordModal(false)}
+          />
+        )}
         {pendingDeleteHandbook && (
           <ConfirmModal
-            nodeId={`Handbook: ${pendingDeleteHandbook.title} (${pendingDeleteHandbook.school_year})`}
+            nodeId={`Handbook: ${pendingDeleteHandbook.title} (${pendingDeleteHandbook.academic_years?.year_name || 'Unknown Year'})`}
             onConfirm={handleDeleteHandbook}
             onCancel={() => setPendingDeleteHandbook(null)}
           />
         )}
         <header className="bg-blue-800 text-white shadow-sm">
           <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-            <div><h1 className="text-xl font-semibold">Handbook CMS</h1><p className="mt-1 text-xs text-blue-100">2-Level Approval Workflow</p></div>
+            <div><h1 className="text-xl font-semibold">Handbook CMS</h1><p className="mt-1 text-xs text-blue-100">Institutional Approval Workflow</p></div>
             <button type="button" onClick={() => setShowCreateForm(true)} className="flex items-center gap-2 bg-white hover:bg-slate-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-semibold"><FaPlus className="text-xs" /> New handbook</button>
           </div>
         </header>
@@ -545,31 +776,38 @@ const Cms: React.FC = () => {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {currentHandbooks.map((h) => (
-              <div key={h.id} className="relative rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col">
-                <div className="flex items-start justify-between">
-                  <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold text-slate-900 truncate">{h.title}</h3><p className="text-xs text-slate-500 mt-1">{h.school_year}</p></div>
-                  <button type="button" onClick={() => setCardMenuOpenId(cardMenuOpenId === h.id ? null : h.id)} className="shrink-0 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"><FaEllipsisV className="h-3.5 w-3.5" /></button>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColors[h.status] ?? 'bg-slate-100 text-slate-600'}`}>{h.status}</span>
-                  {h.publish_at && <span className="inline-flex items-center gap-1 text-[10px] text-slate-500"><FaCalendarAlt className="h-2.5 w-2.5" /> {new Date(h.publish_at).toLocaleDateString()}</span>}
-                </div>
-                <p className="mt-2 text-[10px] text-slate-400">Updated {new Date(h.updated_at).toLocaleString()}</p>
-
-                {cardMenuOpenId === h.id && (
-                  <div className="absolute right-3 top-12 z-10 w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-1">
-                    <button type="button" onClick={() => openEditorForHandbook(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Edit contents</button>
-                    <button type="button" onClick={() => openAssignmentForHandbook(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Assign Departments</button>
-                    <button type="button" onClick={() => { setScheduleHandbookTarget(h); setCardMenuOpenId(null) }} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Schedule publish date</button>
-                    <button type="button" onClick={() => handlePublishNow(h.id)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Publish now</button>
-                    <button type="button" onClick={() => openMonitor(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">View approval status</button>
-                    <div className="border-t border-slate-100 my-1" />
-                    <button type="button" onClick={() => { setPendingDeleteHandbook(h); setCardMenuOpenId(null) }} className="w-full text-left px-3 py-2 text-xs text-rose-600 hover:bg-rose-50">Delete handbook</button>
+            {currentHandbooks.map((h) => {
+              const sideColor = h.status === 'published' ? 'border-l-emerald-500' :
+                h.status === 'pending_approval' ? 'border-l-amber-500' :
+                  h.status === 'pending_final_review' ? 'border-l-violet-600' :
+                    h.status === 'rejected' ? 'border-l-rose-500' :
+                      'border-l-slate-300';
+              return (
+                <div key={h.id} className={`relative rounded-2xl border-y border-r border-y-slate-200 border-r-slate-200 border-l-[6px] ${sideColor} bg-white shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col`}>
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold text-slate-900 truncate">{h.title}</h3><p className="text-xs text-slate-500 mt-1">{h.academic_years?.year_name || 'Unknown Year'}</p></div>
+                    <button type="button" onClick={() => setCardMenuOpenId(cardMenuOpenId === h.id ? null : h.id)} className="shrink-0 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"><FaEllipsisV className="h-3.5 w-3.5" /></button>
                   </div>
-                )}
-              </div>
-            ))}
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColors[h.status] ?? 'bg-slate-100 text-slate-600'}`}>{h.status}</span>
+                    {h.publish_at && <span className="inline-flex items-center gap-1 text-[10px] text-slate-500"><FaCalendarAlt className="h-2.5 w-2.5" /> {new Date(h.publish_at).toLocaleDateString()}</span>}
+                  </div>
+                  <p className="mt-2 text-[10px] text-slate-400">Updated {new Date(h.updated_at).toLocaleString()}</p>
+
+                  {cardMenuOpenId === h.id && (
+                    <div className="absolute right-3 top-12 z-10 w-52 rounded-2xl border border-slate-200 bg-white shadow-lg py-1">
+                      <button type="button" onClick={() => openEditorForHandbook(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Edit contents</button>
+                      <button type="button" onClick={() => openAssignmentForHandbook(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Assign Departments</button>
+                      <button type="button" onClick={() => { setScheduleHandbookTarget(h); setCardMenuOpenId(null) }} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Schedule publish date</button>
+                      <button type="button" onClick={() => handlePublishNow(h.id)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">Publish now</button>
+                      <button type="button" onClick={() => openMonitor(h)} className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50">View approval status</button>
+                      <div className="border-t border-slate-100 my-1" />
+                      <button type="button" onClick={() => { setPendingDeleteHandbook(h); setCardMenuOpenId(null) }} className="w-full text-left px-3 py-2 text-xs text-rose-600 hover:bg-rose-50">Delete handbook</button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           {totalHbPages > 0 && (
@@ -588,11 +826,22 @@ const Cms: React.FC = () => {
               <input value={newHandbookTitle} onChange={(e) => setNewHandbookTitle(e.target.value)} placeholder="Title" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-semibold text-slate-500">Academic Year</span>
-                <input value={newSchoolYear} disabled placeholder="Fetching..." className="w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-500 px-3 py-2 text-sm cursor-not-allowed" />
+                <select
+                  value={newAcademicYearId}
+                  onChange={(e) => setNewAcademicYearId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                >
+                  <option value="" disabled>Select Year</option>
+                  {academicYears.map(y => (
+                    <option key={y.id} value={y.id}>
+                      {y.year_name} {y.is_current ? '(Current)' : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setShowCreateForm(false)} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button type="button" onClick={handleCreateHandbook} disabled={workflowSaving || !newHandbookTitle.trim() || !newSchoolYear.trim()} className="px-4 py-2 rounded-lg bg-blue-700 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed">{workflowSaving ? 'Creating…' : 'Create'}</button>
+                <button type="button" onClick={handleCreateHandbook} disabled={workflowSaving || !newHandbookTitle.trim() || !newAcademicYearId.trim()} className="px-4 py-2 rounded-lg bg-blue-700 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed">{workflowSaving ? 'Creating…' : 'Create'}</button>
               </div>
             </div>
           </div>
@@ -602,7 +851,7 @@ const Cms: React.FC = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-6 space-y-4">
               <h2 className="text-sm font-semibold text-slate-900">Schedule publish</h2>
-              <p className="text-xs text-slate-500">{scheduleHandbookTarget.title} ({scheduleHandbookTarget.school_year})</p>
+              <p className="text-xs text-slate-500">{scheduleHandbookTarget.title} ({scheduleHandbookTarget.academic_years?.year_name || 'Unknown Year'})</p>
               <input type="datetime-local" value={publishAt} onChange={(e) => setPublishAt(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => { setScheduleHandbookTarget(null); setPublishAt('') }} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
@@ -625,20 +874,20 @@ const Cms: React.FC = () => {
         <header className="bg-blue-800 text-white shadow-sm">
           <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-3">
             <button type="button" onClick={() => setView('list')} className="p-2 rounded-lg hover:bg-blue-700"><FaArrowLeft className="h-3 w-3" /></button>
-            <div><h1 className="text-xl font-semibold">Bulk L2 Assignment</h1><p className="mt-1 text-xs text-blue-100">{editingHandbookLabel}</p></div>
+            <div><h1 className="text-xl font-semibold">Bulk Departmental Assignment</h1><p className="mt-1 text-xs text-blue-100">{editingHandbookLabel}</p></div>
           </div>
         </header>
         <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-6 space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4 shadow-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-4 shadow-sm">
             <p className="text-sm text-slate-600 font-medium mb-1">Select departments responsible for approving each section.</p>
-            <p className="text-[11px] text-slate-500">Changes are saved automatically when you toggle a department. Only sections in Draft or L2 Review can have their assignments updated.</p>
+            <p className="text-[11px] text-slate-500">Changes are saved automatically when you toggle a department. Only sections in Draft or Departmental Review can have their assignments updated.</p>
           </div>
           {approvalMonitorLoading && <div className="flex items-center justify-center py-16 text-slate-400"><FaSpinner className="animate-spin mr-2" /> Loading sections...</div>}
           {!approvalMonitorLoading && approvalMonitor.length === 0 && <p className="text-sm text-slate-500 py-10 text-center">No sections found for this handbook.</p>}
 
           <div className="grid grid-cols-1 gap-4">
             {currentAssignmentRows.map((row) => (
-              <div key={row.section_id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
+              <div key={row.section_id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="w-full sm:w-1/3 pr-4">
                   <h3 className="text-sm font-semibold text-slate-900 line-clamp-2">{row.sort_order}. {row.section_title || `Section ${row.sort_order}`}</h3>
                   <div className="mt-1.5 flex items-center gap-2">
@@ -649,7 +898,8 @@ const Cms: React.FC = () => {
                 </div>
                 <div className="w-full sm:w-2/3 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-5">
                   <div className="flex flex-wrap gap-2">
-                    {L2_POSITIONS.map(pos => {
+                    {collegeOffices.filter(o => o.level === 2).map(office => {
+                      const pos = office.slug as ApproverPosition
                       const isAssigned = row.required_positions.includes(pos)
                       const disabled = row.current_level > 1
                       return (
@@ -661,7 +911,7 @@ const Cms: React.FC = () => {
                             disabled={disabled}
                             onChange={() => !disabled && handleBulkAssignmentToggle(row.section_id, pos, row.required_positions)}
                           />
-                          {approverLabel(pos)}
+                          {office.name}
                         </label>
                       )
                     })}
@@ -674,7 +924,7 @@ const Cms: React.FC = () => {
                         disabled={workflowSaving || row.required_positions.length === 0}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                       >
-                        {workflowSaving ? <FaSpinner className="animate-spin text-[10px]" /> : <FaPaperPlane className="text-[10px]" />} Submit to L2
+                        {workflowSaving ? <FaSpinner className="animate-spin text-[10px]" /> : <FaPaperPlane className="text-[10px]" />} Submit for Review
                       </button>
                     </div>
                   )}
@@ -709,23 +959,51 @@ const Cms: React.FC = () => {
           </div>
         </header>
         <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-6 space-y-3">
+          {/* Executive Approval Banner for Academic Admin */}
+          {Object.values(handbookApprovals).some(a => a.approved) && (
+            <div className="mb-6 bg-emerald-100 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-emerald-200 flex items-center justify-center">
+                  <FaCheckDouble className="h-5 w-5 text-emerald-700" />
+                </div>
+                <div>
+                  <p className="font-semibold text-emerald-800">Handbook Approved by Executive</p>
+                  <p className="text-sm text-emerald-600">You can now publish this handbook</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {approvalMonitorLoading && <p className="text-sm text-slate-500">Loading...</p>}
           {!approvalMonitorLoading && approvalMonitor.length === 0 && <p className="text-sm text-slate-500">No sections yet.</p>}
           {currentMonitorRows.map((row) => (
-            <div key={row.section_id} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+            <div key={row.section_id} className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-900">{row.sort_order}. {row.section_title}</p>
                 <div className="flex items-center gap-2">
                   <ProgressBar currentLevel={row.current_level} />
                   <span className={`text-[10px] rounded-full px-2 py-0.5 font-semibold ${statusColors[row.section_status] ?? 'bg-slate-100 text-slate-600'}`}>{row.section_status}</span>
+                  {row.required_positions.every(p => row.approvals.some(a => a.position === p && a.decision === 'approved')) && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold">
+                      <FaCheckDouble className="text-[8px]" /> Ready for Executive Review
+                    </span>
+                  )}
                 </div>
               </div>
-              <p className="text-xs text-slate-500">Assigned: {row.required_positions.length > 0 ? row.required_positions.map(approverLabel).join(', ') : '—'}</p>
+              <p className="text-xs text-slate-500 italic">Assigned: {row.required_positions.length > 0 ? row.required_positions.map(p => collegeOffices.find(o => o.slug === p)?.name || p).join(', ') : '—'}</p>
+              {row.keywords.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Keywords:</span>
+                  {row.keywords.map((kw, i) => (
+                    <span key={i} className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{kw}</span>
+                  ))}
+                </div>
+              )}
               {row.approvals.length === 0 ? <p className="text-xs text-slate-400">No decisions yet.</p> : (
                 <div className="space-y-1">{row.approvals.map((a, idx) => (
                   <div key={`${a.approver_user_id}-${a.position}-${idx}`} className="text-xs text-slate-600">
                     <span className={`inline-block rounded px-1.5 py-0.5 mr-1 text-[10px] font-semibold ${a.decision === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{a.decision}</span>
-                    {levelLabel(a.level)} — {approverLabel(a.position)} — {a.approver_name}
+                    {collegeOffices.find(o => o.slug === a.position)?.name || a.position} — {a.approver_name}
                     {a.decided_at ? ` — ${new Date(a.decided_at).toLocaleString()}` : ''}
                     {a.comment ? ` — "${a.comment}"` : ''}
                   </div>
@@ -749,6 +1027,14 @@ const Cms: React.FC = () => {
   // ── EDITOR VIEW ─────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      {showKeywordModal && (
+        <KeywordModal
+          value={keywordInput}
+          onChange={setKeywordInput}
+          onConfirm={confirmAddManualKeyword}
+          onCancel={() => setShowKeywordModal(false)}
+        />
+      )}
       {pendingDelete && <ConfirmModal nodeId={pendingDelete} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />}
       <header className="bg-blue-800 text-white shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
@@ -767,7 +1053,7 @@ const Cms: React.FC = () => {
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-4 grid grid-cols-12 gap-4" style={{ height: 'calc(100vh - 65px)' }}>
         {/* Sidebar */}
-        <aside className="col-span-12 md:col-span-3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+        <aside className="col-span-12 md:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           <div className="p-3 border-b border-slate-100 bg-slate-50 flex flex-col gap-2">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Structure</span>
             <input type="text" placeholder="Search sections..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
@@ -782,7 +1068,7 @@ const Cms: React.FC = () => {
         {/* Editor + Workflow panel */}
         <section className="col-span-12 md:col-span-9 flex flex-col gap-3 overflow-y-auto">
           {!selectedNode && (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
               <FaBook className="h-10 w-10 mb-3 opacity-20" /><p>Select a node to edit</p>
             </div>
           )}
@@ -791,14 +1077,14 @@ const Cms: React.FC = () => {
             <>
               {/* Progress bar for sections */}
               {sectionMeta && (
-                <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center justify-between gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200 p-3 flex items-center justify-between gap-3">
                   <ProgressBar currentLevel={sectionMeta.current_level} />
                   <span className={`text-[10px] rounded-full px-2 py-0.5 font-semibold ${statusColors[sectionMeta.status] ?? 'bg-slate-100 text-slate-600'}`}>{sectionMeta.status}</span>
                 </div>
               )}
 
               {/* Rich text editor */}
-              <div className="flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-3 bg-slate-50 shrink-0">
                   <span className="text-sm font-semibold text-slate-700">{selectedNode.depth === 0 ? 'Chapter Editor' : 'Section Editor'}</span>
                   <span className="text-slate-300">|</span>
@@ -821,17 +1107,67 @@ const Cms: React.FC = () => {
 
               {/* Workflow panel (only for depth>0 sections) */}
               {sectionMeta && selectedNode.depth > 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-5">
+                  {/* Keyword management container */}
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-tight">Support Chat Keywords</h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Keywords that trigger this section in support chat</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleGenerateKeywords}
+                          disabled={generatingKeywords}
+                          className="px-2.5 py-1.5 rounded-lg bg-white border border-blue-200 text-[10px] font-bold text-blue-700 hover:bg-blue-50 flex items-center gap-1.5 shadow-sm transition-all"
+                        >
+                          {generatingKeywords ? <FaSpinner className="animate-spin" /> : <FaPlus className="text-[9px]" />}
+                          AI Generate
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAddManualKeyword}
+                          className="px-2.5 py-1.5 rounded-lg bg-blue-700 text-[10px] font-bold text-white hover:bg-blue-800 flex items-center gap-1.5 shadow-sm transition-all"
+                        >
+                          <FaPlus className="text-[9px]" />
+                          Add Manual
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2 rounded-lg bg-white/50 border border-slate-100">
+                      {currentKeywords.length === 0 && (
+                        <p className="text-[10px] text-slate-400 italic self-center px-1">No keywords defined yet. Click "AI Generate" or add manually.</p>
+                      )}
+                      {currentKeywords.map((k) => (
+                        <div key={k} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-white border border-slate-200 text-[11px] text-slate-700 group hover:border-blue-300 transition-colors shadow-sm">
+                          <span>{k}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveKeyword(k)}
+                            className="text-slate-300 hover:text-rose-500 transition-colors"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Department assignment */}
                   <div>
-                    <h4 className="text-xs font-semibold text-slate-700 mb-2">Assign to L2 Departments</h4>
+                    <h4 className="text-xs font-semibold text-slate-700 mb-2">Assign to Departments</h4>
                     <div className="flex flex-wrap gap-2">
-                      {L2_POSITIONS.map((pos) => (
-                        <label key={pos} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer transition-colors ${sectionAssignments.includes(pos) ? 'border-blue-400 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
-                          <input type="checkbox" className="sr-only" checked={sectionAssignments.includes(pos)} onChange={() => handleAssignmentToggle(pos)} disabled={sectionMeta.current_level > 1} />
-                          {approverLabel(pos)}
-                        </label>
-                      ))}
+                      {collegeOffices.filter(o => o.level === 2).map((office) => {
+                        const pos = office.slug as ApproverPosition
+                        return (
+                          <label key={pos} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer transition-colors ${sectionAssignments.includes(pos) ? 'border-blue-400 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
+                            <input type="checkbox" className="sr-only" checked={sectionAssignments.includes(pos)} onChange={() => handleAssignmentToggle(pos)} disabled={sectionMeta.current_level > 1} />
+                            {office.name}
+                          </label>
+                        )
+                      })}
                     </div>
                   </div>
 
@@ -839,7 +1175,7 @@ const Cms: React.FC = () => {
                   <div className="flex items-center gap-2 flex-wrap">
                     {sectionMeta.current_level === 1 && (
                       <button type="button" onClick={handleSubmitSingleToL2} disabled={workflowSaving || sectionAssignments.length === 0} className="px-3 py-1.5 rounded-lg bg-blue-700 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60">
-                        {workflowSaving ? 'Submitting…' : 'Assign to L2'}
+                        {workflowSaving ? 'Submitting…' : 'Submit for Review'}
                       </button>
                     )}
                     {sectionMeta.legacy_content && (
@@ -850,7 +1186,7 @@ const Cms: React.FC = () => {
                   {/* Change reason (from L2) */}
                   {sectionMeta.change_reason && (
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <h5 className="text-[10px] font-semibold text-slate-500 uppercase mb-1">Change Reason (from L2)</h5>
+                      <h5 className="text-[10px] font-semibold text-slate-500 uppercase mb-1">Change Reason (from Department)</h5>
                       <p className="text-xs text-slate-700">{sectionMeta.change_reason}</p>
                     </div>
                   )}
@@ -878,7 +1214,7 @@ const Cms: React.FC = () => {
                             <div className="flex flex-col gap-1">
                               <div className="flex items-baseline gap-2">
                                 <span className="text-xs font-semibold text-slate-900">{e.approver_name}</span>
-                                <span className="text-[10px] text-slate-500">{levelLabel(e.level)} • {approverLabel(e.position)}</span>
+                                <span className="text-[10px] text-slate-500">{collegeOffices.find(o => o.slug === e.position)?.name || e.position}</span>
                               </div>
                               {e.decided_at && <span className="text-[10px] text-slate-400">{new Date(e.decided_at).toLocaleString()}</span>}
                               <div className="mt-1">

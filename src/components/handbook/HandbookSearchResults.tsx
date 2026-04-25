@@ -1,5 +1,5 @@
 import React from 'react'
-import { FaChevronRight } from 'react-icons/fa'
+import { FaChevronRight, FaBookOpen } from 'react-icons/fa'
 import type { HandbookSearchHit } from '../../lib/handbookSearch'
 
 type Props = {
@@ -39,10 +39,10 @@ const HandbookSearchResults: React.FC<Props> = ({ hits, query, onSelect }) => {
               <button
                 type="button"
                 onClick={() => onSelect(hit)}
-                className="w-full text-left rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-400 hover:shadow-md transition-all flex items-start gap-3 group"
+                className="w-full text-left rounded-2xl border border-slate-200 bg-white p-4 hover:border-blue-400 hover:shadow-md transition-all flex items-start gap-3 group"
               >
-                <div className="h-9 min-w-9 shrink-0 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-mono text-xs font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  {node.id}
+                <div className="h-9 min-w-9 shrink-0 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <FaBookOpen className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">

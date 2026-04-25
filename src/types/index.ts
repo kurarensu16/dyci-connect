@@ -1,12 +1,52 @@
+export type UserRole = 'student' | 'staff' | 'academic_admin' | 'system_admin';
+
 export interface User {
   id: string;
   email: string;
   user_metadata: {
-    role: 'student' | 'staff' | 'admin';
+    role: UserRole;
     full_name?: string;
     student_id?: string;
     department?: string;
+    approver_position?: string;
+    level?: number;
   };
+}
+
+export interface Profile {
+  id: string;
+  email: string;
+  first_name: string;
+  middle_name?: string;
+  last_name: string;
+  nickname?: string;
+  student_employee_id?: string;
+  role: UserRole;
+  avatar_url?: string;
+  verified: boolean;
+  conforme_accepted_year?: string;
+  last_login?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Enrollment {
+  id: string;
+  profile_id: string;
+  academic_year_id: string;
+  department_id: string;
+  program_id: string;
+  year_level_id: number;
+  section_id?: string;
+  status: 'active' | 'dropped' | 'loa' | 'graduated' | 'expelled';
+  is_archived: boolean;
+  enrolled_at: string;
+}
+
+export interface MigrationState {
+  current_phase: 'BASELINE' | 'SYNCING' | 'SYNC_COMPLETE' | 'CANARY_5_PCT' | 'CANARY_25_PCT' | 'SST_ENFORCED';
+  auth_version: number;
+  updated_at: string;
 }
 
 export interface FileMetadata {
@@ -16,7 +56,10 @@ export interface FileMetadata {
   size: number;
   type: string;
   path: string;
+  is_archived: boolean;
+  deleted_at: string | null;
   uploaded_at: string;
+  created_at: string;
 }
 
 export interface Grade {
@@ -25,7 +68,10 @@ export interface Grade {
   subject: string;
   grade: number;
   units: number;
+  is_archived: boolean;
+  deleted_at: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Todo {
@@ -34,9 +80,13 @@ export interface Todo {
   title: string;
   description?: string;
   due_date: string;
-  priority: 'low' | 'medium' | 'high';
-  completed: boolean;
+  priority: 'low' | 'standard' | 'high';
+  status: number;
+  progress: number;
+  is_archived: boolean;
+  deleted_at: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface HandbookSection {

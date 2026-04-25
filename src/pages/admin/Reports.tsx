@@ -1,11 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { FaDownload } from 'react-icons/fa'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { fetchPublishedHandbook } from '../../lib/api/handbookWorkflow'
 
 interface ViewRecord {
-  node_id: string
+  section_id: string
   user_id: string
   viewed_at: string
   duration_seconds: number
@@ -14,7 +12,7 @@ interface ViewRecord {
 interface NodeRecord {
   id: string
   title: string
-  depth: number
+  parent_id: string | null
 }
 
 interface ProfileRecord {
@@ -31,6 +29,7 @@ const Reports: React.FC = () => {
   const [profiles, setProfiles] = useState<ProfileRecord[]>([])
   const [views, setViews] = useState<ViewRecord[]>([])
   const [nodes, setNodes] = useState<NodeRecord[]>([])
+  const [dbDepts, setDbDepts] = useState<string[]>([])
   const [metricsPage, setMetricsPage] = useState(1)
   const [metricsSearch, setMetricsSearch] = useState('')
   const [metricsTypeFilter, setMetricsTypeFilter] = useState<'all' | 'chapter' | 'section'>('all')
@@ -48,19 +47,73 @@ const Reports: React.FC = () => {
 
       setLoading(true)
 
-      const [profilesRes, viewsRes, nodesRes] = await Promise.all([
-        supabase.from('profiles').select('id, email, verified, first_name, last_name, department'),
-        supabase.from('handbook_views').select('node_id, user_id, viewed_at, duration_seconds'),
-        supabase.from('handbook_nodes').select('id, title, depth')
+      // Get published handbook first
+      const { data: publishedHandbook, error: handbookError } = await fetchPublishedHandbook()
+
+      if (handbookError || !publishedHandbook) {
+        // No published handbook - show empty state
+        if (!cancelled) {
+          setProfiles([])
+          setViews([])
+          setNodes([])
+          setLoading(false)
+        }
+        return
+      }
+
+      // Fetch data only for published handbook + all departments for legend
+      const [profilesRes, nodesRes, deptsRes] = await Promise.all([
+        supabase.from('profiles').select(`
+          id, email, verified, first_name, last_name,
+          student:student_profiles(departments(name)),
+          staff:staff_profiles(departments(name))
+        `),
+        supabase.from('handbook_sections').select('id, title, parent_id').eq('handbook_id', publishedHandbook.id),
+        supabase.from('departments').select('name').order('name')
       ])
+
+      const sectionIds = (nodesRes.data || []).map((n: any) => n.id)
+      const viewsRes = sectionIds.length > 0
+        ? await supabase.from('handbook_views').select('section_id, user_id, viewed_at, duration_seconds').in('section_id', sectionIds)
+        : { data: [], error: null }
 
       if (profilesRes.error) console.error('Reports: profiles query failed', profilesRes.error)
       if (viewsRes.error) console.error('Reports: views query failed', viewsRes.error)
       if (nodesRes.error) console.error('Reports: nodes query failed', nodesRes.error)
+      if (deptsRes.error) console.error('Reports: depts query failed', deptsRes.error)
 
       if (!cancelled) {
-        setProfiles(profilesRes.data || [])
-        setViews(viewsRes.data || [])
+        // Map departments for legend
+        const uniqueDeptNames = (deptsRes.data || []).map((d: any) => d.name).filter(Boolean);
+        setDbDepts(uniqueDeptNames);
+
+        const mappedProfiles: ProfileRecord[] = (profilesRes.data || []).map((p: any) => {
+          // Supabase returns aliased joins as single objects or arrays of one object
+          const sp = Array.isArray(p.student) ? p.student[0] : p.student;
+          const sfp = Array.isArray(p.staff) ? p.staff[0] : p.staff;
+
+          const getDeptNameFromJoin = (data: any) => {
+            if (!data) return null;
+            const d = data.departments;
+            if (!d) return null;
+            if (Array.isArray(d)) return d[0]?.name;
+            return d.name;
+          };
+
+          const dept = getDeptNameFromJoin(sp) || getDeptNameFromJoin(sfp) || 'Unknown';
+
+          return {
+            id: p.id,
+            email: p.email,
+            verified: p.verified,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            department: dept
+          };
+        })
+
+        setProfiles(mappedProfiles)
+        setViews((viewsRes.data as any) || [])
         setNodes(nodesRes.data || [])
         setLoading(false)
       }
@@ -79,8 +132,8 @@ const Reports: React.FC = () => {
     return s.size
   }, [views])
 
-  const chaptersCount = nodes.filter(n => n.depth === 0).length
-  const sectionsCount = nodes.filter(n => n.depth >= 1).length
+  const chaptersCount = nodes.filter(n => n.parent_id === null).length
+  const sectionsCount = nodes.filter(n => n.parent_id !== null).length
 
   // Calculate detailed section metrics
   const sectionMetrics = useMemo(() => {
@@ -93,10 +146,10 @@ const Reports: React.FC = () => {
 
     // Populate with views
     views.forEach(v => {
-      if (!map.has(v.node_id)) {
-        map.set(v.node_id, { views: 0, uniqueUsers: new Set(), totalSeconds: 0 })
+      if (!map.has(v.section_id)) {
+        map.set(v.section_id, { views: 0, uniqueUsers: new Set(), totalSeconds: 0 })
       }
-      const entry = map.get(v.node_id)!
+      const entry = map.get(v.section_id)!
       entry.views += 1
       entry.uniqueUsers.add(v.user_id)
       entry.totalSeconds += v.duration_seconds || 0
@@ -107,8 +160,8 @@ const Reports: React.FC = () => {
       const nodeInfo = nodes.find(n => n.id === id)
       return {
         id,
-        title: nodeInfo ? nodeInfo.title : `Section ${id}`,
-        depth: nodeInfo?.depth ?? -1,
+        title: nodeInfo ? nodeInfo.title : (data.views > 0 ? `Legacy/Other Section (${id.slice(0, 8)})` : `Section ${id}`),
+        depth: nodeInfo ? (nodeInfo.parent_id === null ? 0 : 1) : -1,
         views: data.views,
         uniqueUsersCount: data.uniqueUsers.size,
         totalSeconds: data.totalSeconds
@@ -167,7 +220,14 @@ const Reports: React.FC = () => {
   const getDeptColor = (dept: string) => {
     if (COLLEGE_COLORS[dept]) return COLLEGE_COLORS[dept]
     const match = Object.keys(COLLEGE_COLORS).find(k => dept.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(dept.toLowerCase()))
-    return match ? COLLEGE_COLORS[match] : FALLBACK_COLOR
+    if (match) return COLLEGE_COLORS[match]
+
+    // Cycle through palette for unknown depts
+    const extraColors = [
+      '#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4'
+    ]
+    const index = Math.abs(dept.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % extraColors.length
+    return extraColors[index]
   }
 
   // Top 5 users by number of accesses
@@ -219,7 +279,7 @@ const Reports: React.FC = () => {
   const filteredMetrics = useMemo(() => {
     let list = sectionMetrics
     if (metricsTypeFilter === 'chapter') list = list.filter(s => s.depth === 0)
-    else if (metricsTypeFilter === 'section') list = list.filter(s => s.depth >= 1)
+    else if (metricsTypeFilter === 'section') list = list.filter(s => s.depth > 0)
     if (metricsSearch.trim()) {
       const q = metricsSearch.trim().toLowerCase()
       list = list.filter(s => s.id.toLowerCase().includes(q) || s.title.toLowerCase().includes(q))
@@ -250,108 +310,21 @@ const Reports: React.FC = () => {
     safePage * METRICS_PER_PAGE
   )
 
-  const exportCsv = () => {
-    const headers = ['Node ID', 'Section Title', 'Total Views', 'Time Spent', 'Unique Readers', 'Read Rate (%)']
-    const rows = sectionMetrics.map(sec => {
-      const readRate = activeUsers > 0 ? Math.round((sec.uniqueUsersCount / activeUsers) * 100) : 0
-      return [
-        sec.id,
-        `"${sec.title.replace(/"/g, '""')}"`,
-        sec.views,
-        fmtDuration(sec.totalSeconds),
-        sec.uniqueUsersCount,
-        readRate
-      ]
-    })
 
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.setAttribute('download', `dyci_handbook_metrics_${new Date().toISOString().split('T')[0]}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  const exportPdf = () => {
-    const doc = new jsPDF()
-
-    // Header
-    doc.setFontSize(18)
-    doc.text('DYCI Connect - Handbook Analytics', 14, 22)
-
-    doc.setFontSize(11)
-    doc.setTextColor(100)
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30)
-
-    doc.setTextColor(0)
-
-    // Overall Stats
-    doc.text(`Active Users: ${activeUsers.toLocaleString()}`, 14, 40)
-    doc.text(`Handbook Views: ${totalViews.toLocaleString()}`, 14, 46)
-    doc.text(`Unique Readers: ${uniqueReaders.toLocaleString()}`, 14, 52)
-    doc.text(`Chapters: ${chaptersCount.toLocaleString()}`, 14, 58)
-    doc.text(`Sections: ${sectionsCount.toLocaleString()}`, 14, 64)
-
-    // Detailed Table
-    const tableColumn = ['Node ID', 'Section Title', 'Total Views', 'Time Spent', 'Unique Readers', 'Read Rate']
-    const tableRows = sectionMetrics.map(sec => {
-      const readRate = activeUsers > 0 ? Math.round((sec.uniqueUsersCount / activeUsers) * 100) : 0
-      return [
-        sec.id,
-        sec.title,
-        sec.views.toString(),
-        fmtDuration(sec.totalSeconds),
-        sec.uniqueUsersCount.toString(),
-        `${readRate}%`
-      ]
-    })
-
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 71,
-      styles: { fontSize: 10, cellPadding: 3 },
-      headStyles: { fillColor: [30, 64, 175] }, // blue-800
-    })
-
-    doc.save(`dyci_handbook_metrics_${new Date().toISOString().split('T')[0]}.pdf`)
-  }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-xl font-semibold">Activity Analytics</p>
-            <p className="mt-1 text-[11px] text-blue-100">
-              Dashboard with system usage metrics and insights
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={exportCsv}
-              className="inline-flex items-center rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 border border-emerald-100"
-            >
-              <FaDownload className="mr-2 h-3 w-3" />
-              Export CSV
-            </button>
-            <button
-              type="button"
-              onClick={exportPdf}
-              className="inline-flex items-center rounded-xl bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 shadow-sm border border-slate-200"
-            >
-              <FaDownload className="mr-2 h-3 w-3" />
-              Export PDF
-            </button>
-          </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
+      {/* Standard Legacy Header */}
+      <header className="legacy-header">
+        <div className="max-w-6xl mx-auto px-10">
+          <h1 className="legacy-header-title">Governance Reports</h1>
+          <p className="legacy-header-subtitle">
+            Export academic audit trails and institutional analytics.
+          </p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+      <main className="max-w-6xl mx-auto px-10 py-10 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-slate-400">
             <svg className="animate-spin h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24">
@@ -364,35 +337,35 @@ const Reports: React.FC = () => {
           <>
             {/* Top metric cards */}
             <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
+              <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-dyci-blue px-4 py-3 shadow-sm">
                 <p className="text-[11px] text-slate-500">Active Users</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-900">{activeUsers.toLocaleString()}</p>
                 <p className="mt-1 text-[11px] text-slate-400">
                   Verified student and staff profiles
                 </p>
               </div>
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
+              <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-blue-500 px-4 py-3 shadow-sm">
                 <p className="text-[11px] text-slate-500">Handbook Views</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-900">{totalViews.toLocaleString()}</p>
                 <p className="mt-1 text-[11px] text-slate-400">
                   Total times sections were opened
                 </p>
               </div>
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
+              <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-emerald-500 px-4 py-3 shadow-sm">
                 <p className="text-[11px] text-slate-500">Unique Readers</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-900">{uniqueReaders.toLocaleString()}</p>
                 <p className="mt-1 text-[11px] text-slate-400">
                   Users who read at least one section
                 </p>
               </div>
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
+              <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-indigo-600 px-4 py-3 shadow-sm">
                 <p className="text-[11px] text-slate-500">Chapters</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-900">{chaptersCount.toLocaleString()}</p>
                 <p className="mt-1 text-[11px] text-slate-400">
                   Top-level handbook chapters
                 </p>
               </div>
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
+              <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-purple-600 px-4 py-3 shadow-sm">
                 <p className="text-[11px] text-slate-500">Sections</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-900">{sectionsCount.toLocaleString()}</p>
                 <p className="mt-1 text-[11px] text-slate-400">
@@ -401,17 +374,21 @@ const Reports: React.FC = () => {
               </div>
             </section>
 
-            {/* College color legend */}
-            {(topBrowsers.length > 0 || topUsers.length > 0) && (
+            {/* College color legend - now DYNAMIC from database */}
+            {dbDepts.length > 0 && (
               <section className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Department Legend</p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                  {Object.entries(COLLEGE_COLORS).map(([dept, color]) => (
+                  {dbDepts.map((dept) => (
                     <div key={dept} className="flex items-center gap-1.5 text-[10px] text-slate-600">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getDeptColor(dept) }} />
                       <span>{dept}</span>
                     </div>
                   ))}
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: FALLBACK_COLOR }} />
+                    <span>Unknown/Other</span>
+                  </div>
                 </div>
               </section>
             )}
@@ -430,7 +407,7 @@ const Reports: React.FC = () => {
                     return (
                       <div key={sec.id} className="relative">
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="font-medium text-slate-700 truncate pr-4">{sec.id} - {sec.title}</span>
+                          <span className="font-medium text-slate-700 truncate pr-4">{sec.title}</span>
                           <span className="text-slate-500 shrink-0">{sec.views} views</span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-2">
@@ -466,9 +443,12 @@ const Reports: React.FC = () => {
                             <span className="font-medium text-slate-800 leading-tight">
                               {idx + 1}. {u.fullName}
                             </span>
-                            <span className="text-[10px] text-slate-400 leading-tight mt-0.5">
-                              {u.department}
-                            </span>
+                            <div className="flex items-center mt-1">
+                              <span className="w-2 h-2 rounded-full shrink-0 mr-1.5" style={{ backgroundColor: color }} />
+                              <span className="text-[10px] text-slate-400 leading-tight">
+                                {u.department}
+                              </span>
+                            </div>
                           </div>
                           <span className="font-semibold text-slate-700 shrink-0 ml-2">
                             {u.count.toLocaleString()} views
@@ -507,9 +487,12 @@ const Reports: React.FC = () => {
                             <span className="font-medium text-slate-800 leading-tight">
                               {idx + 1}. {u.fullName}
                             </span>
-                            <span className="text-[10px] text-slate-400 leading-tight mt-0.5">
-                              {u.department}
-                            </span>
+                            <div className="flex items-center mt-1">
+                              <span className="w-2 h-2 rounded-full shrink-0 mr-1.5" style={{ backgroundColor: color }} />
+                              <span className="text-[10px] text-slate-400 leading-tight">
+                                {u.department}
+                              </span>
+                            </div>
                           </div>
                           <span className="font-semibold text-slate-700 shrink-0 ml-2">
                             {fmtDuration(u.duration)}
@@ -550,7 +533,7 @@ const Reports: React.FC = () => {
                   </select>
                   <input
                     type="text"
-                    placeholder="Search by ID or title…"
+                    placeholder="Search by title…"
                     value={metricsSearch}
                     onChange={e => { setMetricsSearch(e.target.value); setMetricsPage(1) }}
                     className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-700 placeholder:text-slate-400 w-48 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -561,7 +544,6 @@ const Reports: React.FC = () => {
                 <table className="min-w-full border-t border-slate-100">
                   <thead>
                     <tr className="text-left text-[10px] text-slate-500 uppercase tracking-wider">
-                      <th className="py-2 pr-4 font-semibold">Node ID</th>
                       <th className="py-2 pr-4 font-semibold">Section Title</th>
                       {([
                         ['views', 'Total Views'],
@@ -594,8 +576,7 @@ const Reports: React.FC = () => {
 
                       return (
                         <tr key={sec.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-3 pr-4 font-medium text-slate-900">{sec.id}</td>
-                          <td className="py-3 pr-4">{sec.title}</td>
+                          <td className="py-3 pr-4 font-medium text-slate-900">{sec.title}</td>
                           <td className="py-3 pr-4 text-right">{sec.views.toLocaleString()}</td>
                           <td className="py-3 pr-4 text-right">{fmtDuration(sec.totalSeconds)}</td>
                           <td className="py-3 pr-4 text-right">{sec.uniqueUsersCount.toLocaleString()}</td>
@@ -608,7 +589,7 @@ const Reports: React.FC = () => {
                       );
                     }) : (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-400">
+                        <td colSpan={5} className="py-8 text-center text-slate-400">
                           No handbook node data available.
                         </td>
                       </tr>
@@ -654,11 +635,10 @@ const Reports: React.FC = () => {
                             key={p}
                             type="button"
                             onClick={() => setMetricsPage(p)}
-                            className={`min-w-[24px] px-1.5 py-1 rounded text-[10px] font-medium transition-colors ${
-                              metricsPage === p
-                                ? 'bg-blue-700 text-white'
-                                : 'text-slate-600 hover:bg-slate-100'
-                            }`}
+                            className={`min-w-[24px] px-1.5 py-1 rounded text-[10px] font-medium transition-colors ${metricsPage === p
+                              ? 'bg-blue-700 text-white'
+                              : 'text-slate-600 hover:bg-slate-100'
+                              }`}
                           >
                             {p}
                           </button>
