@@ -17,10 +17,18 @@ const Conforme: React.FC = () => {
 
   useEffect(() => {
     const loadAcademicYear = async () => {
-      const { data: yearId } = await supabase.rpc('get_current_academic_year_id')
+      console.log('Conforme: Loading current academic year...');
+      const { data: yearId, error: rpcError } = await supabase.rpc('get_current_academic_year_id')
+      
+      if (rpcError) console.error('Conforme: RPC Error:', rpcError);
+      console.log('Conforme: Current Year ID from RPC:', yearId);
+
       if (!yearId) {
         const { data: settings } = await fetchSchoolSettings()
-        if (settings) setAcademicYearId(settings.current_academic_year_id)
+        if (settings) {
+          console.log('Conforme: Fallback Year ID from Settings:', settings.current_academic_year_id);
+          setAcademicYearId(settings.current_academic_year_id)
+        }
       } else {
         setAcademicYearId(yearId)
       }
@@ -37,20 +45,29 @@ const Conforme: React.FC = () => {
   }, [])
 
   const handleAgree = async () => {
+    console.log('Conforme: handleAgree triggered');
+    console.log('Conforme: User ID:', user?.id);
+    console.log('Conforme: Academic Year ID:', academicYearId);
+    console.log('Conforme: Role:', authoritativeRole);
+
     if (!user?.id || !academicYearId) {
+      console.warn('Conforme: Missing User ID or Academic Year ID. Redirecting to login.');
       navigate('/login')
       return
     }
 
     setSaving(true)
+    console.log('Conforme: Attempting to save acceptance...');
     const { error } = await acceptConforme(user.id, academicYearId, authoritativeRole || 'student')
     setSaving(false)
 
     if (error) {
+      console.error('Conforme: Save Error:', error);
       toast.error('Failed to save acceptance. Please try again.')
       return
     }
 
+    console.log('Conforme: Save successful! Redirecting...');
     const role = authoritativeRole?.toLowerCase() || 'student'
     if (role === 'academic_admin') navigate('/admin/dashboard')
     else if (role === 'staff' || role === 'faculty') navigate('/staff/dashboard')
