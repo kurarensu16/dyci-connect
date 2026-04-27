@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FaSearch,
   FaChevronLeft,
@@ -56,7 +56,7 @@ const getEventType = (action: string, tableName: string, _oldData?: any, _newDat
   if (studentTables.includes(tableName)) return 'Student';
   if (publicationTables.includes(tableName)) return 'Publication';
   if (chatTables.includes(tableName)) return 'Chat';
-  if (action === 'DELETE') return 'Mutation';
+  if (action === 'DELETE') return 'Change';
   return 'Data';
 };
 
@@ -179,7 +179,7 @@ const getActionLabel = (action: string, tableName: string, oldData?: any, newDat
 };
 
 // ─── Component ───────────────────────────────────────────────────────
-type EventClass = 'ALL' | 'Security' | 'Governance' | 'Publication' | 'Storage' | 'Academic' | 'Student' | 'Chat' | 'Mutation' | 'Data';
+type EventClass = 'ALL' | 'Security' | 'Governance' | 'Publication' | 'Storage' | 'Academic' | 'Student' | 'Chat' | 'Mutation' | 'Change' | 'Data';
 
 const SysAdminForensics: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -193,6 +193,27 @@ const SysAdminForensics: React.FC = () => {
   const [filterEventClass, setFilterEventClass] = useState<EventClass>('ALL');
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  // Client-side filtering for joined data (Actor name/email) that server-side .or() can't reach easily
+  const filteredLogs = useMemo(() => {
+    if (!search.trim()) return logs;
+    const s = search.toLowerCase().trim();
+    return logs.filter(log => {
+      const actorName = log.actor ? `${log.actor.first_name} ${log.actor.last_name}`.toLowerCase() : 'system';
+      const actorEmail = log.actor?.email?.toLowerCase() || '';
+      const actorRole = (log.actor_role || '').toLowerCase();
+      const actionLabel = getActionLabel(log.action, log.table_name, log.old_data, log.new_data).toLowerCase();
+      const tableName = log.table_name.toLowerCase();
+      const recordId = (log.record_id || '').toLowerCase();
+
+      return actorName.includes(s) || 
+             actorEmail.includes(s) || 
+             actorRole.includes(s) || 
+             actionLabel.includes(s) || 
+             tableName.includes(s) || 
+             recordId.includes(s);
+    });
+  }, [logs, search]);
 
   // ─── Data Loading ──────────────────────────────────────────────────
   useEffect(() => {
@@ -263,9 +284,13 @@ const SysAdminForensics: React.FC = () => {
         }
       }
 
-      // Search across table_name and record data
+      // Search across multiple columns (Actor Name, Email, Role, Table, ID)
       if (search.trim()) {
-        query = query.or(`table_name.ilike.%${search.trim()}%,old_data->>id.eq.${search.trim()},new_data->>id.eq.${search.trim()}`);
+        const s = search.trim();
+        const roleQuery = s.replace(/\s+/g, '_'); // helps match "system admin" to "system_admin"
+        
+        // Target table_name, actor_role, and extract IDs from jsonb for safe text-based ID search
+        query = query.or(`table_name.ilike.%${s}%,actor_role.ilike.%${roleQuery}%,old_data->>id.eq.${s},new_data->>id.eq.${s}`);
       }
 
       // Sort by newest first
@@ -316,42 +341,41 @@ const SysAdminForensics: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
-      {/* Standard Legacy Header Bar */}
-      <header className="legacy-header">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          <h1 className="legacy-header-title">Forensic Vault</h1>
-          <p className="legacy-header-subtitle">Institutional System Admin Identity Provisioning & Governance</p>
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Audit Trails</h1>
+          <p className="unified-header-subtitle">Review institutional records and system-wide changes.</p>
         </div>
       </header>
 
-      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8 space-y-6">
+      <main className="unified-main">
         {/* Stats Summary */}
         <section className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="rounded-2xl border-l-[6px] border-l-slate-200 border-y border-r border-y-slate-100 border-r-slate-100 bg-white p-4 sm:p-5 shadow-sm">
-            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Total Events</p>
+            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Total Activities</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{totalCount.toLocaleString()}</p>
-            <p className="mt-1 text-[10px] text-slate-400">Immutable audit records</p>
+            <p className="mt-1 text-[10px] text-slate-400">Detailed activity records</p>
           </div>
           <div className="rounded-2xl border-l-[6px] border-l-emerald-500 border-y border-r border-y-slate-100 border-r-slate-100 bg-white p-4 sm:p-5 shadow-sm">
             <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Created</p>
             <p className="mt-1 text-2xl font-bold text-emerald-700">
               {actionCounts.INSERT.toLocaleString()}
             </p>
-            <p className="mt-1 text-[10px] text-emerald-500">INSERT operations</p>
+            <p className="mt-1 text-[10px] text-emerald-500">Record creations</p>
           </div>
           <div className="rounded-2xl border-l-[6px] border-l-amber-500 border-y border-r border-y-slate-100 border-r-slate-100 bg-white p-4 sm:p-5 shadow-sm">
             <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">Modified</p>
             <p className="mt-1 text-2xl font-bold text-amber-700">
               {actionCounts.UPDATE.toLocaleString()}
             </p>
-            <p className="mt-1 text-[10px] text-amber-500">UPDATE operations</p>
+            <p className="mt-1 text-[10px] text-amber-500">Record modifications</p>
           </div>
           <div className="rounded-2xl border-l-[6px] border-l-rose-500 border-y border-r border-y-slate-100 border-r-slate-100 bg-white p-4 sm:p-5 shadow-sm">
             <p className="text-[10px] font-semibold text-rose-600 uppercase tracking-wide">Deleted</p>
             <p className="mt-1 text-2xl font-bold text-rose-700">
               {actionCounts.DELETE.toLocaleString()}
             </p>
-            <p className="mt-1 text-[10px] text-rose-500">DELETE operations</p>
+            <p className="mt-1 text-[10px] text-rose-500">Record removals</p>
           </div>
         </section>
 
@@ -363,7 +387,7 @@ const SysAdminForensics: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search table name or record ID..."
+              placeholder="Search actions or record IDs..."
               className="w-full bg-white border border-slate-200 rounded-2xl py-2.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
             />
           </div>
@@ -382,15 +406,14 @@ const SysAdminForensics: React.FC = () => {
                   : 'bg-white text-slate-600 hover:bg-slate-50'
                   }`}
               >
-                {action === 'ALL' ? 'All Events' : action}
+                {action === 'ALL' ? 'All Activities' : action === 'INSERT' ? 'Creations' : action === 'UPDATE' ? 'Modifications' : 'Removals'}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Event Class Filter */}
         <div className="flex flex-wrap gap-2">
-          {(['ALL', 'Security', 'Governance', 'Publication', 'Storage', 'Academic', 'Student', 'Chat', 'Mutation', 'Data'] as EventClass[]).map((cls) => (
+          {(['ALL', 'Security', 'Governance', 'Publication', 'Storage', 'Academic', 'Student', 'Chat', 'Change', 'Data'] as EventClass[]).map((cls) => (
             <button
               key={cls}
               onClick={() => {
@@ -402,7 +425,7 @@ const SysAdminForensics: React.FC = () => {
                 : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 }`}
             >
-              {cls === 'ALL' ? 'All Classes' : cls}
+              {cls === 'ALL' ? 'All Types' : cls}
             </button>
           ))}
         </div>
@@ -412,7 +435,7 @@ const SysAdminForensics: React.FC = () => {
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-center">
             <p className="text-rose-700 font-medium">Access Denied or Error</p>
             <p className="text-rose-500 text-sm mt-1">{error}</p>
-            <p className="text-rose-400 text-xs mt-2">Forensic Vault requires System Admin access</p>
+            <p className="text-rose-400 text-xs mt-2">Activity Logs require System Admin access</p>
           </div>
         )}
 
@@ -423,9 +446,9 @@ const SysAdminForensics: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-50 bg-slate-50/50">
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Timestamp</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Event ID</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Event Class</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Operation</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">ID</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Category</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Action</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Actor</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Role</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Target</th>
@@ -438,14 +461,14 @@ const SysAdminForensics: React.FC = () => {
                       Loading audit logs...
                     </td>
                   </tr>
-                ) : logs.length === 0 ? (
+                ) : filteredLogs.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-6 py-10 text-center text-slate-400">
                       {search ? `No audit logs matching "${search}"` : 'No audit logs found in the system.'}
                     </td>
                   </tr>
                 ) : (
-                  logs.map((log) => {
+                  filteredLogs.map((log) => {
                     const eventType = getEventType(log.action, log.table_name, log.old_data, log.new_data);
                     const actorName = log.actor
                       ? `${log.actor.first_name || ''} ${log.actor.last_name || ''}`.trim() || log.actor.email || 'System'
@@ -545,8 +568,8 @@ const SysAdminForensics: React.FC = () => {
           )}
 
           <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Forensic Node: SYSTEM-ADMIN-ALPHA-CORE</p>
-            <span className="text-[9px] text-gray-300 font-bold uppercase tracking-widest italic">Immutable Activity Log</span>
+            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">SYSTEM STATUS: SECURE</p>
+            <span className="text-[9px] text-gray-300 font-bold uppercase tracking-widest italic">Encrypted Activity Log</span>
           </div>
         </section>
       </main>
@@ -554,7 +577,7 @@ const SysAdminForensics: React.FC = () => {
       {/* Legacy Footer */}
       <footer className="max-w-6xl mx-auto px-6 py-12 opacity-40">
         <div className="text-center text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400 border-t border-slate-200 pt-8">
-          CORE_GOVERNANCE_SYSTEM :: VERSION_7.0 :: DYCI CONSTITUTIONAL OVERRIDE
+          ACTIVITY LOGS :: VERSION 7.0 :: DYCI CONNECT
         </div>
       </footer>
     </div>

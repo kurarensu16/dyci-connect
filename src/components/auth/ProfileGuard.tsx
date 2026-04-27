@@ -37,7 +37,8 @@ const ProfileGuard: React.FC<ProfileGuardProps> = ({ children, allowedRoles }) =
           .from('profiles')
           .select(`
             id, role, verified, first_name, last_name,
-            student:student_profiles(enrolled_academic_year_id)
+            student:student_profiles(enrolled_academic_year_id),
+            staff:staff_profiles(enrolled_academic_year_id)
           `)
           .eq('id', user.id)
           .maybeSingle(),
@@ -83,12 +84,15 @@ const ProfileGuard: React.FC<ProfileGuardProps> = ({ children, allowedRoles }) =
   // Simplified strict role checking
   const isRoleAllowed = allowedRoles.includes(role);
 
-  const enrolledYear =
-    profile.student?.[0]?.enrolled_academic_year_id ||
-    profile.student?.enrolled_academic_year_id
+  const isStudent = role === 'student';
+  const isStaff = ['staff', 'faculty', 'academic_admin'].includes(role);
+
+  const enrolledYear = isStudent
+    ? (profile.student?.[0]?.enrolled_academic_year_id || profile.student?.enrolled_academic_year_id)
+    : (profile as any).staff?.[0]?.enrolled_academic_year_id || (profile as any).staff?.enrolled_academic_year_id;
 
   if (
-    role === 'student' &&
+    (isStudent || isStaff) &&
     currentAcademicYearId &&
     enrolledYear !== currentAcademicYearId
   ) {

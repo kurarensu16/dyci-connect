@@ -9,24 +9,23 @@ const BroadcastNetwork: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
-            {/* Standard Legacy Header Bar */}
-            <header className="legacy-header">
-                <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 flex items-center justify-between">
+            <header className="unified-header">
+                <div className="unified-header-content flex items-center justify-between">
                     <div>
-                        <h1 className="legacy-header-title">Broadcast Network</h1>
-                        <p className="legacy-header-subtitle">Institutional Video Delivery & R2 Transmissions</p>
+                        <h1 className="unified-header-title">Broadcast Network</h1>
+                        <p className="unified-header-subtitle">Institutional Video Delivery & R2 Transmissions</p>
                     </div>
                     <button
                         onClick={() => setVideoModalOpen(true)}
-                        className="px-5 py-2.5 bg-dyci-blue hover:opacity-90 text-white text-[10px] font-bold uppercase tracking-widest rounded-2xl shadow-sm transition-all flex items-center space-x-2"
+                        className="bg-white hover:bg-slate-100 text-dyci-blue text-[10px] font-bold px-4 py-2 rounded-full transition-all shadow-sm active:scale-95 flex items-center uppercase tracking-widest shrink-0 ml-4"
                     >
-                        <FaVideo className="text-sm" />
+                        <FaVideo className="mr-2" />
                         <span>Transmit Payload</span>
                     </button>
                 </div>
             </header>
 
-            <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8 space-y-6">
+            <main className="unified-main">
 
                 {/* Tier 1: Platform Tutorials (CMS Training) */}
                 <section className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-rose-500 shadow-sm p-6 overflow-hidden">

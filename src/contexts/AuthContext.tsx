@@ -51,7 +51,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Check and send welcome notification for verified users
       checkAndSendWelcomeNotification(userId);
 
+      /* 
       // Check for auth_version mismatch against JWT
+      // DISABLED: Causing 429 Rate Limit loops due to missing app_metadata sync in SQL
       const session = (await supabase.auth.getSession()).data.session;
       const jwtVersion = session?.user?.app_metadata?.auth_version || 1;
       const currentVersion = versionRes.data || 1;
@@ -69,8 +71,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setTimeout(() => { isRefreshing.current = false; }, 10000); // 10s cooldown
         }
       }
+      */
     } catch (err) {
       console.error('Error fetching authoritative auth data:', err);
+      // Fallback to prevent app hang if RPC fails
+      setAuthoritativeRole('student');
     }
   };
 

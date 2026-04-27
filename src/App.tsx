@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { useAuth } from './contexts/AuthContext'
 import { Toaster } from 'react-hot-toast'
@@ -48,6 +48,7 @@ import AdminNotifications from './pages/student/Notifications'
 // SysAdmin (L90) Pages
 import SysAdminDashboard from './pages/sysadmin/Dashboard'
 import SysAdminUsers from './pages/sysadmin/Users'
+import SysAdminOrganization from './pages/sysadmin/Organization'
 import SysAdminForensics from './pages/sysadmin/Forensics'
 import SysAdminSettings from './pages/sysadmin/Settings'
 import SysAdminStorage from './pages/sysadmin/Storage'
@@ -71,10 +72,12 @@ import StudentProfile from './pages/student/Profile'
 // Onboarding Guard - Checks for password reset and student onboarding
 const OnboardingGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, authoritativeRole, loading: authLoading } = useAuth();
+  const { pathname: path } = useLocation();
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [checked, setChecked] = useState(false);
   const [needsConforme, setNeedsConforme] = useState(false);
   const [needsProfile, setNeedsProfile] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     const checkOnboarding = async () => {
@@ -82,6 +85,12 @@ const OnboardingGuard: React.FC<{ children: React.ReactNode }> = ({ children }) 
       if (authLoading || (user && authoritativeRole === null)) {
         return;
       }
+
+      // Reset states before re-checking to prevent stale redirect loops
+      setChecked(false);
+      setNeedsConforme(false);
+      setNeedsProfile(false);
+      setShowPasswordReset(false);
 
       if (!user) {
         setChecked(true);
@@ -107,17 +116,33 @@ const OnboardingGuard: React.FC<{ children: React.ReactNode }> = ({ children }) 
           return;
         }
 
-        // Priority 2: Student Onboarding Sequence (Conforme -> Profile)
-        if (authoritativeRole === 'student') {
-          const { data: subProfile } = await supabase
-            .from('student_profiles')
+        // Priority 2: Institutional Onboarding Sequence (Conforme -> Profile)
+        const isStudent = authoritativeRole === 'student';
+        const isStaff = ['staff', 'faculty', 'academic_admin'].includes(authoritativeRole || '');
+
+        if (isStudent || isStaff) {
+          const table = isStudent ? 'student_profiles' : 'staff_profiles';
+          const { data: subProfile, error: subError } = await supabase
+            .from(table)
             .select('enrolled_academic_year_id')
             .eq('profile_id', user.id)
             .maybeSingle();
 
+          if (subError) {
+            console.error('OnboardingGuard: Failed to verify sub-profile status', subError);
+            return; // Exit to avoid redirect loop on DB error
+          }
+
           // Check if conforme matches CURRENT academic year (Year Flip Enforcement)
-          const { data: currentYearId } = await supabase.rpc('get_current_academic_year_id');
-          const conformeSigned = subProfile?.enrolled_academic_year_id === currentYearId;
+          const { data: currentYearId, error: ayError } = await supabase.rpc('get_current_academic_year_id');
+          
+          if (ayError) {
+            console.error('OnboardingGuard: Failed to fetch current academic year', ayError);
+            return;
+          }
+
+          const enrolledYear = subProfile?.enrolled_academic_year_id;
+          const conformeSigned = enrolledYear === currentYearId;
 
           if (!conformeSigned) {
             setNeedsConforme(true);
@@ -133,10 +158,9 @@ const OnboardingGuard: React.FC<{ children: React.ReactNode }> = ({ children }) 
     };
 
     checkOnboarding();
-  }, [user, authoritativeRole, authLoading]);
+  }, [user, authoritativeRole, authLoading, path, refreshTrigger]);
 
   // Public/Auth routes that should NEVER be blocked by the guard
-  const path = window.location.pathname;
   const isWhitelisted = [
     '/login',
     '/forgot-password',
@@ -169,7 +193,8 @@ const OnboardingGuard: React.FC<{ children: React.ReactNode }> = ({ children }) 
         userId={user.id}
         onComplete={() => {
           setShowPasswordReset(false);
-          setChecked(false); // Trigger re-check for Gate 2
+          setChecked(false); 
+          setRefreshTrigger(prev => prev + 1); // FORCE RE-CHECK
         }}
       />
     );
@@ -178,17 +203,17 @@ const OnboardingGuard: React.FC<{ children: React.ReactNode }> = ({ children }) 
   // GATE 2: Conforme (Redirect or Direct Render)
   if (needsConforme) {
     if (path !== '/conforme') {
-      window.location.href = '/conforme';
-      return null;
+      return <Navigate to="/conforme" replace />;
     }
     return <>{children}</>;
   }
 
-  // GATE 3: Profile Audit (Redirect)
+  // GATE 3: Profile Audit (Direct Role Redirect)
   if (needsProfile) {
     if (!path.startsWith('/complete-profile')) {
-      window.location.href = '/complete-profile';
-      return null;
+      const isStudent = authoritativeRole === 'student';
+      const target = isStudent ? '/complete-profile/student/account' : '/complete-profile/staff/account';
+      return <Navigate to={target} replace />;
     }
     return <>{children}</>;
   }
@@ -336,7 +361,7 @@ const AppContent: React.FC = () => {
                 <Route
                   path="/staff/dashboard"
                   element={
-                    <PrivateRoute allowedRoles={['staff']}>
+                    <PrivateRoute allowedRoles={['staff', 'faculty']}>
                       <StaffLayout>
                         <StaffDashboard />
                       </StaffLayout>
@@ -346,7 +371,7 @@ const AppContent: React.FC = () => {
                 <Route
                   path="/staff/notifications"
                   element={
-                    <PrivateRoute allowedRoles={['staff']}>
+                    <PrivateRoute allowedRoles={['staff', 'faculty']}>
                       <StaffLayout>
                         <StaffNotifications />
                       </StaffLayout>
@@ -356,7 +381,7 @@ const AppContent: React.FC = () => {
                 <Route
                   path="/staff/calendar"
                   element={
-                    <PrivateRoute allowedRoles={['staff']}>
+                    <PrivateRoute allowedRoles={['staff', 'faculty']}>
                       <StaffLayout>
                         <StaffCalendar />
                       </StaffLayout>
@@ -366,7 +391,7 @@ const AppContent: React.FC = () => {
                 <Route
                   path="/staff/handbook"
                   element={
-                    <PrivateRoute allowedRoles={['staff']}>
+                    <PrivateRoute allowedRoles={['staff', 'faculty']}>
                       <StaffLayout>
                         <StaffHandbook />
                       </StaffLayout>
@@ -376,7 +401,7 @@ const AppContent: React.FC = () => {
                 <Route
                   path="/staff/handbook-approvals"
                   element={
-                    <PrivateRoute allowedRoles={['staff']}>
+                    <PrivateRoute allowedRoles={['staff', 'faculty', 'academic_admin']}>
                       <StaffLayout>
                         <HandbookApprovals />
                       </StaffLayout>
@@ -386,7 +411,7 @@ const AppContent: React.FC = () => {
                 <Route
                   path="/staff/profile"
                   element={
-                    <PrivateRoute allowedRoles={['staff']}>
+                    <PrivateRoute allowedRoles={['staff', 'faculty']}>
                       <StaffLayout>
                         <StudentProfile />
                       </StaffLayout>
@@ -398,7 +423,7 @@ const AppContent: React.FC = () => {
                 <Route
                   path="/admin/dashboard"
                   element={
-                    <PrivateRoute allowedRoles={['academic_admin']}>
+                    <PrivateRoute allowedRoles={['academic_admin', 'staff', 'faculty']}>
                       <AdminLayout>
                         <AdminDashboard />
                       </AdminLayout>
@@ -493,6 +518,16 @@ const AppContent: React.FC = () => {
                     <PrivateRoute allowedRoles={['system_admin']}>
                       <AdminLayout>
                         <SysAdminUsers />
+                      </AdminLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/sysadmin/organization"
+                  element={
+                    <PrivateRoute allowedRoles={['system_admin']}>
+                      <AdminLayout>
+                        <SysAdminOrganization />
                       </AdminLayout>
                     </PrivateRoute>
                   }

@@ -85,26 +85,27 @@ const GWA: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* DEVELOPMENT NOTE */}
-      <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
-        <div className="h-8 w-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
-          <span className="text-amber-600 font-bold">!</span>
+    <div className="min-h-screen bg-slate-50">
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">GWA Calculator</h1>
+          <p className="unified-header-subtitle">
+            Calculate your Grade Weighted Average for personal reference.
+          </p>
         </div>
-        <div>
-          <p className="text-xs font-bold text-amber-900 uppercase tracking-tight">Development Note: Backend Sync Pending</p>
-          <p className="text-[10px] text-amber-700">This tool is currently using local storage. Supabase table sync is not yet implemented.</p>
+      </header>
+
+      <main className="unified-main">
+        {/* DEVELOPMENT NOTE */}
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+          <div className="h-8 w-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+            <span className="text-amber-600 font-bold">!</span>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-amber-900 uppercase tracking-tight">Development Note: Backend Sync Pending</p>
+            <p className="text-[10px] text-amber-700">This tool is currently using local storage. Supabase table sync is not yet implemented.</p>
+          </div>
         </div>
-      </div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">GWA Calculator</h1>
-        <p className="text-gray-600 mt-2">
-          Calculate your Grade Weighted Average for personal reference.
-          <span className="text-sm text-red-500 ml-2">
-            Note: This is not an official academic record.
-          </span>
-        </p>
-      </div>
 
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <div className="flex items-center justify-between mb-6">

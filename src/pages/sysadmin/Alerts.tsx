@@ -135,15 +135,14 @@ const SysAdminAlerts: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight pb-20">
-      {/* Simplified Header */}
-      <header className="legacy-header">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          <h1 className="legacy-header-title">Security & Alerts</h1>
-          <p className="legacy-header-subtitle">Institutional Infrastructure Monitoring</p>
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Security & Alerts</h1>
+          <p className="unified-header-subtitle">Institutional Infrastructure Monitoring</p>
         </div>
       </header>
 
-      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-10">
+      <main className="unified-main">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
           {/* Left Column: Ledger & Pulse */}

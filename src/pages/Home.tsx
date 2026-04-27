@@ -1,9 +1,21 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 const logo = '/icons/icon-512x512.png'
 
 const Home: React.FC = () => {
+  const { user, authoritativeRole } = useAuth()
   const navigate = useNavigate()
+
+  React.useEffect(() => {
+    if (user && authoritativeRole) {
+      const role = authoritativeRole.toLowerCase()
+      if (role === 'sysadmin') navigate('/sysadmin/dashboard')
+      else if (role === 'academic_admin') navigate('/admin/dashboard')
+      else if (role === 'staff' || role === 'faculty') navigate('/staff/dashboard')
+      else if (role === 'student') navigate('/student/dashboard')
+    }
+  }, [user, authoritativeRole, navigate])
 
   const handleSignIn = () => {
     navigate('/login')
@@ -25,11 +37,10 @@ const Home: React.FC = () => {
             </div>
 
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-900 max-w-2xl">
-              Welcome to your DYCI student Handbook
+              Welcome to DYCI Connect
             </h1>
             <p className="mt-4 text-sm sm:text-base text-blue-900 max-w-xl">
-              Sign in to access your student handbook, academic files, GWA tools, and
-              important announcements in one secure place.
+              Access your digital handbook, academic records, and institutional announcements in one secure platform.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row gap-3">

@@ -19,7 +19,7 @@ const ActivityChart: React.FC<ActivityChartProps> = ({ data }) => {
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-5">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-gray-900">Weekly Activity</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Academic Overview</h2>
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
           Last 7 Days
         </span>
@@ -71,7 +71,7 @@ const ActivityChart: React.FC<ActivityChartProps> = ({ data }) => {
       </div>
 
       <p className="mt-4 text-[10px] text-slate-400 font-medium italic">
-        Activity reflects your academic engagement metrics based on system interactions.
+        Engagement overview based on your recent platform activity.
       </p>
     </div>
   )

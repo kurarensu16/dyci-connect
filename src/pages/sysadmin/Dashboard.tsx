@@ -30,7 +30,7 @@ const SysAdminDashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     setIsSyncing(true);
     try {
-      const [healthRes, alertsRes, logsRes, storageRes, physicalStorageRes] = await Promise.all([
+      const [healthRes, alertsRes, logsRes, storageRes, physicalStorageRes, videoStatsRes] = await Promise.all([
         getSystemHealth(),
         getSystemAlerts(false),
         supabase
@@ -39,7 +39,8 @@ const SysAdminDashboard: React.FC = () => {
           .order('created_at', { ascending: false })
           .limit(5),
         supabase.from('files').select('size, object_key, deleted_at, is_archived'),
-        supabase.rpc('get_physical_storage_size')
+        supabase.rpc('get_physical_storage_size'),
+        supabase.from('platform_videos').select('video_size, thumbnail_size')
       ]);
 
       if (healthRes.data) setHealth(healthRes.data);
@@ -48,10 +49,19 @@ const SysAdminDashboard: React.FC = () => {
 
       if (storageRes.data) {
         const allFiles = storageRes.data;
-        const total = allFiles.reduce((acc, f) => acc + (f.size || 0), 0);
-        const r2 = allFiles.filter(f => f.object_key && f.object_key.startsWith('students/')).reduce((acc, f) => acc + (f.size || 0), 0);
+        
+        // Calculate Video Network (R2) size
+        let vNetBytes = 0;
+        let vNetCount = 0;
+        if (videoStatsRes.data) {
+          vNetCount = videoStatsRes.data.length;
+          vNetBytes = videoStatsRes.data.reduce((acc, v: any) => acc + (v.video_size || 0) + (v.thumbnail_size || 0), 0);
+        }
 
-        let sb = total - r2;
+        const r2Files = allFiles.filter(f => f.object_key && f.object_key.startsWith('students/')).reduce((acc, f) => acc + (f.size || 0), 0);
+        const r2 = r2Files + vNetBytes;
+
+        let sb = allFiles.filter(f => !f.object_key || !f.object_key.startsWith('students/')).reduce((acc, f) => acc + (f.size || 0), 0);
         if (physicalStorageRes.data && typeof physicalStorageRes.data === 'number') {
           sb = physicalStorageRes.data;
         }
@@ -60,7 +70,7 @@ const SysAdminDashboard: React.FC = () => {
           total: r2 + sb,
           r2,
           supabase: sb,
-          count: allFiles.length
+          count: allFiles.length + vNetCount
         });
       }
     } catch (err) {
@@ -81,30 +91,30 @@ const SysAdminDashboard: React.FC = () => {
 
   const systemMetrics = [
     {
-      label: 'Supabase Engine',
+      label: 'Database Core',
       value: health?.db_replica_lag_ms !== undefined ? (health.db_replica_lag_ms < 100 ? 'Optimal' : 'Degraded') : 'Stable',
       detail: `${health?.db_replica_lag_ms || 42}ms Latency`,
       icon: FaDatabase,
       color: health?.db_replica_lag_ms !== undefined && health.db_replica_lag_ms < 100 ? 'border-l-dyci-blue' : 'border-l-rose-500'
     },
     {
-      label: 'Identity Node',
+      label: 'Security Status',
       value: activeAlerts === 0 ? 'Secure' : `${activeAlerts} Issues`,
-      detail: activeAlerts === 0 ? 'System Admin Enforcement' : 'Security Patrol Active',
+      detail: activeAlerts === 0 ? 'System Access Enforced' : 'Security Scan Active',
       icon: FaShieldAlt,
       color: activeAlerts === 0 ? 'border-l-purple-600' : 'border-l-amber-500'
     },
     {
       label: 'System Load',
       value: `${health?.cpu_load_percent || 1.24}%`,
-      detail: 'Supabase Compute',
+      detail: 'Institutional Compute',
       icon: FaMicrochip,
       color: 'border-l-indigo-600'
     },
     {
-      label: 'Memory Pool',
+      label: 'Total Storage',
       value: formatBytes(storageStats.total),
-      detail: `${storageStats.count} Objects Indexed`,
+      detail: `${storageStats.count} Files Indexed`,
       icon: FaMemory,
       color: 'border-l-amber-500'
     },
@@ -112,17 +122,16 @@ const SysAdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
-      {/* Standard Legacy Header Bar */}
-      <header className="legacy-header">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          <h1 className="legacy-header-title">Control Center</h1>
-          <p className="legacy-header-subtitle">
-            Institutional Infrastructure & Hardware Governance Overview
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">System Overview</h1>
+          <p className="unified-header-subtitle">
+            Monitor institutional infrastructure and security health.
           </p>
         </div>
       </header>
 
-      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <main className="unified-main animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Tier 1: StatsWidgets */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {systemMetrics.map((m, idx) => (
@@ -155,10 +164,10 @@ const SysAdminDashboard: React.FC = () => {
             <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-dyci-blue shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/20">
                 <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  Storage Governance Matrix
+                  Storage Insights
                 </h2>
                 <span className="text-[10px] text-dyci-blue bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 font-bold uppercase tracking-widest">
-                  Total Objects: {storageStats.count}
+                  Total Files: {storageStats.count}
                 </span>
               </div>
 
@@ -166,19 +175,18 @@ const SysAdminDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                   <div className="text-center md:text-left">
                     <div className="flex items-baseline justify-center md:justify-start">
-                      <p className="text-5xl font-bold text-slate-900 leading-none">
-                        {loading ? '---' : ((storageStats.total / (11 * 1024 * 1024 * 1024)) * 100).toFixed(2)}
+                      <p className="text-4xl font-bold text-slate-900 leading-none">
+                        {loading ? '---' : formatBytes(storageStats.total)}
                       </p>
-                      <p className="text-lg font-bold text-slate-400 ml-1">%</p>
                     </div>
-                    <p className="text-xs text-slate-500 mt-2">Saturation across all institutional nodes (11GB Quota).</p>
+                    <p className="text-xs text-slate-500 mt-2">Combined storage across the platform ecosystem.</p>
 
                     <div className="mt-8 flex flex-wrap gap-3 justify-center md:justify-start">
                       <button
                         onClick={() => navigate('/sysadmin/storage')}
                         className="px-6 py-2.5 bg-dyci-blue text-white text-xs font-bold rounded-2xl shadow-lg shadow-dyci-blue/20 hover:opacity-90 transition-all active:scale-95 uppercase tracking-widest"
                       >
-                        Scale Storage
+                        Manage Storage
                       </button>
                     </div>
                   </div>
@@ -207,12 +215,12 @@ const SysAdminDashboard: React.FC = () => {
             {/* Health & Network Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-emerald-500 shadow-sm p-6">
-                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6">Infrastructure Nodes</h3>
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6">System Services</h3>
                 <div className="space-y-2">
                   {[
-                    { label: 'Security Gateway (SSL)', status: (health?.ssl_enabled ?? true) ? 'Secure' : 'Unsecured', detail: (health?.ssl_enabled ?? true) ? 'Active' : 'Warning' },
-                    { label: 'DB Cluster A', status: 'Active', detail: `${health?.db_replica_lag_ms || 42}ms` },
-                    { label: 'RLS Enforcement', status: (health?.rls_enforced ?? true) ? 'Strict' : 'Warning', detail: (health?.rls_enforced ?? true) ? 'Active' : 'Offline' }
+                    { label: 'SSL Security', status: (health?.ssl_enabled ?? true) ? 'Secure' : 'Unsecured', detail: (health?.ssl_enabled ?? true) ? 'Active' : 'Warning' },
+                    { label: 'Primary Database', status: 'Active', detail: `${health?.db_replica_lag_ms || 42}ms` },
+                    { label: 'Data Protection', status: (health?.rls_enforced ?? true) ? 'Strict' : 'Warning', detail: (health?.rls_enforced ?? true) ? 'Active' : 'Offline' }
                   ].map((x, i) => (
                     <div key={i} className="flex items-center justify-between p-3 rounded-2xl border border-slate-50 bg-slate-50/50">
                       <div>
@@ -231,9 +239,9 @@ const SysAdminDashboard: React.FC = () => {
                 <div className="h-14 w-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mb-6 shadow-inner">
                   <FaNetworkWired className="text-2xl text-dyci-blue" />
                 </div>
-                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Network Sync</h3>
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Real-time Sync</h3>
                 <p className="text-[11px] text-slate-500 mt-2 px-2">
-                  Maintain heartbeat with institutional hardware nodes.
+                  Maintain sync with institutional services.
                 </p>
                 <button
                   onClick={fetchDashboardData}
@@ -241,7 +249,7 @@ const SysAdminDashboard: React.FC = () => {
                   className="mt-5 w-full py-2.5 bg-dyci-blue hover:opacity-90 text-white text-[10px] font-bold uppercase tracking-widest rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2"
                 >
                   <FaSync className={`${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? 'Syncing...' : 'Sync Pulse'}
+                  {isSyncing ? 'Refreshing...' : 'Refresh Now'}
                 </button>
               </div>
             </div>
@@ -250,14 +258,14 @@ const SysAdminDashboard: React.FC = () => {
             <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-rose-500 shadow-sm p-6 overflow-hidden">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Global Broadcast Network</h3>
-                  <p className="text-[11px] text-slate-500 mt-1">Manage institutional and training video pipelines.</p>
+                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Global Video Library</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">Manage institutional and training video content.</p>
                 </div>
                 <button
                   onClick={() => navigate('/sysadmin/broadcast')}
                   className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-colors"
                 >
-                  Enter Broadcast Center
+                  Manage Videos
                 </button>
               </div>
             </div>
@@ -268,7 +276,7 @@ const SysAdminDashboard: React.FC = () => {
             <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-violet-600 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-slate-900 italic">
-                  Forensic Activity
+                  Recent Activity
                 </h2>
                 <div className={`h-2 w-2 rounded-full ${isSyncing ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
               </div>
@@ -311,8 +319,8 @@ const SysAdminDashboard: React.FC = () => {
       {/* Legacy Footer */}
       <footer className="max-w-6xl mx-auto px-6 py-10 opacity-40">
         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400 border-t border-slate-200 pt-6">
-          <span>DYCI Institutional Plane v7.0</span>
-          <span>System Admin Access Authorized</span>
+          <span>DYCI CONNECT v7.0</span>
+          <span>System Admin Access</span>
         </div>
       </footer>
     </div >

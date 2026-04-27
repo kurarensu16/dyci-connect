@@ -141,7 +141,7 @@ const StudentProfile: React.FC = () => {
           supabase.from('departments').select('id, name').order('name'),
           supabase
             .from('programs')
-            .select('id, name, short_code, department_id')
+            .select('id, name, department_id')
             .order('name'),
           supabase
             .from('year_levels')
@@ -571,17 +571,16 @@ const StudentProfile: React.FC = () => {
 
   return (
     <>
-      {/* Standard Legacy Header */}
-      <header className="legacy-header">
-        <div className="max-w-4xl mx-auto px-10">
-          <h1 className="legacy-header-title">My Profile</h1>
-          <p className="legacy-header-subtitle">
-            This is your DYCI Connect digital ID and account information.
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">My Profile</h1>
+          <p className="unified-header-subtitle">
+            Manage your account settings and institutional profile.
           </p>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-10 py-8 space-y-6">
+      <main className="unified-main">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div />
           <div className="flex items-center gap-2">

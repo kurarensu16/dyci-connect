@@ -130,6 +130,10 @@ export async function acceptConforme(
   role: string = 'student'
 ): Promise<{ error: string | null }> {
   try {
+    if (!academicYearId) {
+      console.error('acceptConforme: No academic year ID provided')
+      return { error: 'Academic year selection is missing' }
+    }
     const isStudent = role === 'student'
     const table = isStudent ? 'student_profiles' : 'staff_profiles'
 

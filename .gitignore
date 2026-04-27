@@ -43,4 +43,5 @@ scratch/
 
 # IDE and Tooling
 .eslintcache
+tsconfig.tsbuildinfo
 coverage/

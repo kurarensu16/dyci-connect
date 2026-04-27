@@ -110,7 +110,7 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
                 <span className="text-[10px] font-semibold tracking-[0.25em] text-blue-900 uppercase">
                   DYCI CONNECT
                 </span>
-                <span className="text-[10px] text-slate-400">Student portal</span>
+                <span className="text-[10px] text-slate-400">Student Dashboard</span>
               </div>
             )}
           </div>
@@ -217,7 +217,7 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
                   <span className="text-[10px] font-semibold tracking-[0.25em] text-blue-900 uppercase">
                     DYCI CONNECT
                   </span>
-                  <span className="text-[10px] text-slate-400">Student portal</span>
+                  <span className="text-[10px] text-slate-400">Student Console</span>
                 </div>
               </div>
             </div>
@@ -298,15 +298,14 @@ const StudentLayout: React.FC<StudentLayoutProps> = ({ children }) => {
           >
             <FaBars className="h-4 w-4" />
           </button>
-          <span className="text-xs font-semibold text-slate-700">Student menu</span>
+          <span className="text-xs font-semibold text-slate-700">Main Menu</span>
         </div>
 
         {isLocked && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-[11px] text-amber-800">
-            <p className="font-medium">Your account is pending verification.</p>
+            <p className="font-medium">Account Verification Pending</p>
             <p className="mt-1">
-              You can view your dashboard, but other features are locked until an
-              administrator verifies your account.
+              Some features are limited while your account is being verified by an administrator.
             </p>
           </div>
         )}

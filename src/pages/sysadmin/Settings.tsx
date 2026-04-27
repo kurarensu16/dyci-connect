@@ -326,14 +326,14 @@ const SysAdminSettings: React.FC = () => {
   // Helper to get node health data
   const getNodeHealth = () => {
     if (!healthMetrics) return [
-      { label: 'CPU Cluster A', value: '42%', status: 'Stable' },
-      { label: 'DB Read Replica', value: '18%', status: 'Optimal' },
-      { label: 'Security Gateway', value: '89%', status: 'High Load' },
+      { label: 'Processor Load', value: '42%', status: 'Stable' },
+      { label: 'Database Sync', value: '18%', status: 'Optimal' },
+      { label: 'Secure Access', value: '89%', status: 'High Load' },
     ];
 
     return [
       {
-        label: 'CPU Cluster A',
+        label: 'Processor Load',
         value: `${healthMetrics.cpu_load_percent}%`,
         status: healthMetrics.cpu_load_percent > 80 ? 'High Load' :
           healthMetrics.cpu_load_percent > 50 ? 'Moderate' : 'Stable'
@@ -366,15 +366,15 @@ const SysAdminSettings: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
       {/* Standard Legacy Header Bar */}
-      <header className="legacy-header">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 flex items-center justify-between">
+      <header className="unified-header">
+        <div className="unified-header-content flex items-center justify-between">
           <div>
-            <h1 className="legacy-header-title">Infrastructure Settings</h1>
-            <p className="legacy-header-subtitle">Hardware Control & Security Management (System Admin)</p>
+            <h1 className="unified-header-title">System Control</h1>
+            <p className="unified-header-subtitle">Institutional security and platform governance</p>
           </div>
 
-          <div className="flex items-center space-x-3 bg-blue-900/30 border border-white/10 px-4 py-1.5 rounded-2xl">
-            <span className="text-[9px] font-bold text-blue-100 tracking-widest uppercase">Maintenance Mode</span>
+          <div className="flex items-center space-x-3 bg-blue-900/30 border border-white/10 px-3 py-1.5 rounded-full">
+            <span className="text-[9px] font-bold text-blue-100 tracking-widest uppercase">Maintenance</span>
             <button
               onClick={toggleMaintenanceMode}
               disabled={loading}
@@ -386,13 +386,13 @@ const SysAdminSettings: React.FC = () => {
         </div>
       </header>
 
-      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8 space-y-6">
+      <main className="unified-main">
         {/* Top Row: 3 columns - responsive */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
           <section className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 lg:p-6 shadow-sm">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 lg:mb-6 flex items-center">
               <FaMicrochip className="mr-2 text-[#1434A4]" />
-              Institutional Node Health
+              System Status
             </h3>
             <div className="space-y-5">
               {getNodeHealth().map((x, i) => (
@@ -417,12 +417,12 @@ const SysAdminSettings: React.FC = () => {
           <section className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 lg:p-6 shadow-sm">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 lg:mb-6 flex items-center">
               <FaNetworkWired className="mr-2 text-[#1434A4]" />
-              Network Protocols
+              Security Protocols
             </h3>
             <div className="space-y-2">
               {getNetworkProtocols().map((x, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-gray-50 border border-slate-100 rounded-2xl">
-                  <span className="text-[9px] font-bold text-gray-600 tracking-widest">{x.label}</span>
+                  <span className="text-[9px] font-bold text-gray-600 tracking-widest">{x.label.replace('SSL ENCRYPTION', 'Data Encryption').replace('HWID AUTHENTICATION', 'Identity Verification').replace('RLS ENFORCEMENT', 'Privacy Guard').replace('IP WHITELISTING', 'Access Control')}</span>
                   {x.active ? (
                     <FaCheckCircle className="text-emerald-500 text-xs" />
                   ) : (
@@ -441,17 +441,17 @@ const SysAdminSettings: React.FC = () => {
           <section className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 lg:p-6 shadow-sm">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 lg:mb-6 flex items-center">
               <FaShieldAlt className="mr-2 text-[#1434A4]" />
-              Security Monitoring
+              Security Status
             </h3>
             <div className="space-y-2">
               <div className="flex items-center justify-between p-3 bg-gray-50 border border-slate-100 rounded-2xl">
-                <span className="text-[9px] font-bold text-gray-600 tracking-widest">Brute Force Protection</span>
+                <span className="text-[9px] font-bold text-gray-600 tracking-widest">Login Protection</span>
                 <span className={`text-[9px] font-bold ${securityConfig?.brute_force_protection ? 'text-emerald-600' : 'text-gray-400'}`}>
                   {securityConfig?.brute_force_protection ? 'Active' : 'Disabled'}
                 </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-gray-50 border border-slate-100 rounded-2xl">
-                <span className="text-[9px] font-bold text-gray-600 tracking-widest">Audit Logging</span>
+                <span className="text-[9px] font-bold text-gray-600 tracking-widest">Activity Logging</span>
                 <span className={`text-[9px] font-bold ${securityConfig?.audit_logging_enabled ? 'text-emerald-600' : 'text-gray-400'}`}>
                   {securityConfig?.audit_logging_enabled ? 'Enabled' : 'Disabled'}
                 </span>
@@ -483,7 +483,7 @@ const SysAdminSettings: React.FC = () => {
           <section className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 lg:p-6 shadow-sm">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 lg:mb-6 flex items-center">
               <FaServer className="mr-2 text-[#1434A4]" />
-              Supabase Infrastructure
+              Database Status
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-4">
               <div className="p-3 lg:p-4 bg-slate-50 border border-slate-100 rounded-2xl">
@@ -526,17 +526,17 @@ const SysAdminSettings: React.FC = () => {
           <section className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-5 lg:p-6 shadow-sm">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 lg:mb-6 flex items-center">
               <FaShieldAlt className="mr-2 text-rose-600" />
-              Institutional Lockdown
+              Emergency Lockdown
             </h3>
             <div className="space-y-4">
               <div className={`p-5 border rounded-2xl overflow-hidden relative transition-all ${authOverride?.is_active ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
                 <h4 className={`text-[11px] font-bold uppercase tracking-tight ${authOverride?.is_active ? 'text-emerald-900' : 'text-rose-900'}`}>
-                  Master Auth Override
+                  Authentication Override
                 </h4>
                 <p className={`text-[9px] mt-2 font-medium leading-relaxed ${authOverride?.is_active ? 'text-emerald-700/70' : 'text-rose-700/70'}`}>
                   {authOverride?.is_active
                     ? `Active since ${authOverride.initiated_at ? new Date(authOverride.initiated_at).toLocaleTimeString() : 'unknown'}`
-                    : 'Suspend all non-System Admin authentication sessions system-wide.'}
+                    : 'Suspend all non-admin authentication sessions system-wide.'}
                 </p>
                 <button
                   onClick={toggleAuthOverride}
@@ -594,7 +594,7 @@ const SysAdminSettings: React.FC = () => {
       {/* Legacy Footer */}
       <footer className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-8 lg:py-12 opacity-40">
         <div className="text-center text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400 border-t border-slate-200 pt-8">
-          CORE_HARDWARE_INTERFACE :: VERSION_7.0 :: DYCI CONNECT
+          SYSTEM SETTINGS :: VERSION 7.0 :: DYCI CONNECT
         </div>
       </footer>
     </div>

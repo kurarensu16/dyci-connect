@@ -17,6 +17,7 @@ import {
   FaHdd,
   FaHistory,
   FaVideo,
+  FaSitemap,
 } from 'react-icons/fa'
 import { MdSpaceDashboard, MdSettings } from "react-icons/md";
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
@@ -37,11 +38,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
 
-  // Determine institutional titles
+  // Determine console titles
   const userRoleTitle = formatRole(authoritativeRole || '', {
     position: user?.user_metadata?.approver_position || user?.user_metadata?.department
   })
-  const consoleTitle = authoritativeRole === 'system_admin' ? 'Institutional Control' : 'Academic Console'
+  const consoleTitle = authoritativeRole === 'system_admin' ? 'System Admin Portal' : 'Academic Admin Portal'
 
   React.useEffect(() => {
     const loadVerification = async () => {
@@ -79,28 +80,29 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     return () => clearInterval(interval)
   }, [user?.id])
 
-  // Level 90: Institutional & Infrastructure Control
+  // Level 90: System & Settings Control
   const systemNavItems = [
-    { label: 'Control Center', icon: MdSpaceDashboard, path: '/sysadmin/dashboard' },
-    { label: 'Video Network', icon: FaVideo, path: '/sysadmin/broadcast' },
-    { label: 'Identity Manager', icon: FaUsers, path: '/sysadmin/users' },
-    { label: 'Forensic Logs', icon: FaHistory, path: '/sysadmin/forensics' },
-    { label: 'Infrastructure', icon: MdSettings, path: '/sysadmin/settings' },
-    { label: 'Storage Hub', icon: FaHdd, path: '/sysadmin/storage' },
-    { label: 'System Alerts', icon: FaBell, path: '/sysadmin/alerts', badge: unreadCount },
-    { label: 'Profile', icon: FaUserCircle, path: '/sysadmin/profile' },
+    { label: 'Dashboard', icon: MdSpaceDashboard, path: '/sysadmin/dashboard' },
+    { label: 'Video Library', icon: FaVideo, path: '/sysadmin/broadcast' },
+    { label: 'User Management', icon: FaUsers, path: '/sysadmin/users' },
+    { label: 'Organization', icon: FaSitemap, path: '/sysadmin/organization' },
+    { label: 'Activity Logs', icon: FaHistory, path: '/sysadmin/forensics' },
+    { label: 'System Settings', icon: MdSettings, path: '/sysadmin/settings' },
+    { label: 'Storage', icon: FaHdd, path: '/sysadmin/storage' },
+    { label: 'Security Alerts', icon: FaBell, path: '/sysadmin/alerts', badge: unreadCount },
+    { label: 'My Profile', icon: FaUserCircle, path: '/sysadmin/profile' },
   ]
 
-  // Level 80: Academic Operations & CMS
+  // Level 80: Academic Operations & Handbook
   const academicNavItems = [
-    { label: 'Dashboard', icon: MdSpaceDashboard, path: '/admin/dashboard' },
-    { label: 'CMS', icon: FaCogs, path: '/admin/cms' },
-    { label: 'Handbook Preview', icon: FaBookOpen, path: '/admin/handbook-preview' },
-    { label: 'Support Chat', icon: FaComments, path: '/admin/support' },
-    { label: 'Academic Reports', icon: FaChartBar, path: '/admin/reports' },
+    { label: 'Overview', icon: MdSpaceDashboard, path: '/admin/dashboard' },
+    { label: 'Handbook Manager', icon: FaCogs, path: '/admin/cms' },
+    { label: 'Preview Handbook', icon: FaBookOpen, path: '/admin/handbook-preview' },
+    { label: 'Support Messages', icon: FaComments, path: '/admin/support' },
+    { label: 'Activity Reports', icon: FaChartBar, path: '/admin/reports' },
     { label: 'School Calendar', icon: FaCalendarAlt, path: '/admin/calendar' },
-    { label: 'Inquiry Alerts', icon: FaBell, path: '/admin/notifications', badge: unreadCount },
-    { label: 'Profile', icon: FaUserCircle, path: '/admin/profile' },
+    { label: 'Notifications', icon: FaBell, path: '/admin/notifications', badge: unreadCount },
+    { label: 'My Profile', icon: FaUserCircle, path: '/admin/profile' },
   ]
 
   const navItems = authoritativeRole === 'system_admin' ? systemNavItems : academicNavItems
@@ -287,7 +289,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           >
             <FaBars className="h-4 w-4" />
           </button>
-          <span className="text-xs font-semibold text-slate-700">Admin console</span>
+          <span className="text-xs font-semibold text-slate-700">Main Menu</span>
         </div>
 
         <div className="min-h-screen">{children}</div>

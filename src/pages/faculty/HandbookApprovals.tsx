@@ -422,14 +422,14 @@ const HandbookApprovals: React.FC = () => {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        <header className="bg-blue-800 text-white shadow-sm">
-          <div className="max-w-6xl mx-auto px-6 py-3">
-            <h1 className="text-xl font-semibold">Approval Monitor</h1>
-            <p className="mt-1 text-xs text-blue-100">Oversee department approval progress across all handbooks</p>
-          </div>
-        </header>
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Approval Monitor</h1>
+          <p className="unified-header-subtitle">Oversee department approval progress across all handbooks</p>
+        </div>
+      </header>
 
-        <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-6">
+      <main className="unified-main">
           {/* Handbook Status Banner */}
           {handbookFullyApproved && (
             <div className="mb-6 bg-emerald-100 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
@@ -672,17 +672,17 @@ const HandbookApprovals: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
         {/* Header */}
-        <header className="bg-blue-800 text-white shadow-sm">
-          <div className="max-w-6xl mx-auto px-6 py-3">
-            <h1 className="text-xl font-semibold">Handbook Approvals</h1>
-            <p className="mt-1 text-xs text-blue-100">
-              {userLevel === 2 ? 'Edit and approve sections assigned to your department.' :
-                'Review handbook sections.'}
-            </p>
-          </div>
-        </header>
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Handbook Approvals</h1>
+          <p className="unified-header-subtitle">
+            {userLevel === 2 ? 'Edit and approve sections assigned to your department.' :
+              'Review handbook sections.'}
+          </p>
+        </div>
+      </header>
 
-        <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-6 space-y-4">
+      <main className="unified-main">
 
           {/* Executive Approval Banner for Academic Admin */}
           {userLevel === 1 && Object.values(handbookApprovals).some(a => a.approved) && (
@@ -776,26 +776,26 @@ const HandbookApprovals: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+      <header className="unified-header">
+        <div className="unified-header-content flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => { setView('list'); setEditingSectionId(null) }} className="p-2 rounded-lg hover:bg-blue-700 transition-colors">
+            <button type="button" onClick={() => { setView('list'); setEditingSectionId(null) }} className="p-2 rounded-full hover:bg-white/10 transition-colors text-white">
               <FaArrowLeft className="h-3 w-3" />
             </button>
             <div>
-              <h1 className="text-xl font-semibold">{activeHandbook?.title}</h1>
-              <p className="mt-1 text-xs text-blue-100">{activeHandbook?.academic_years?.year_name}</p>
+              <h1 className="unified-header-title">{activeHandbook?.title}</h1>
+              <p className="unified-header-subtitle">{activeHandbook?.academic_years?.year_name}</p>
             </div>
           </div>
           {userLevel === 2 && handbookSections.length > 0 && (
-            <button type="button" onClick={handleBulkApprove} disabled={bulkSaving} className="shrink-0 flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60">
+            <button type="button" onClick={handleBulkApprove} disabled={bulkSaving} className="shrink-0 flex items-center gap-2 bg-white text-dyci-blue hover:bg-slate-100 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm active:scale-95 disabled:opacity-60">
               {bulkSaving ? <FaSpinner className="animate-spin text-xs" /> : <FaCheckDouble className="text-xs" />} {bulkSaving ? 'Approving All…' : `Bulk Approve All (${handbookSections.length})`}
             </button>
           )}
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-6 space-y-4">
+      <main className="unified-main">
         {position && (
           <div className="flex items-center justify-between mb-4">
             <div className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-100">

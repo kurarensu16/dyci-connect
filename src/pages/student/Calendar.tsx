@@ -160,17 +160,16 @@ const StudentCalendar: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Dark blue header bar, like admin dashboard */}
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">Academic Calendar</h1>
-          <p className="mt-1 text-xs text-blue-100">
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Academic Calendar</h1>
+          <p className="unified-header-subtitle">
             View academic milestones and events.
           </p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6">
+      <main className="unified-main">
         {isLocked ? (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-12 text-center max-w-2xl mx-auto my-12 animate-in fade-in slide-in-from-bottom-4">
              <div className="h-20 w-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">

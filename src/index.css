@@ -28,6 +28,27 @@
     @apply text-sm text-blue-100 font-medium mt-1 leading-relaxed max-w-2xl;
   }
 
+  /* UNIFIED HEADER SYSTEM (Compact) */
+  .unified-header {
+    @apply bg-dyci-blue text-white shadow-sm;
+  }
+  
+  .unified-header-content {
+    @apply max-w-6xl mx-auto px-6 py-3 sm:py-4;
+  }
+  
+  .unified-header-title {
+    @apply text-xl font-bold tracking-tight;
+  }
+  
+  .unified-header-subtitle {
+    @apply text-xs text-blue-100 font-medium mt-1 opacity-80;
+  }
+
+  .unified-main {
+    @apply max-w-6xl mx-auto px-4 py-6 space-y-6;
+  }
+
   .legacy-card {
     @apply bg-white border border-slate-100 rounded-2xl shadow-sm transition-all hover:shadow-md;
   }

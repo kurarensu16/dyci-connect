@@ -21,7 +21,7 @@ const formatBytes = (bytes: number): string => {
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 };
 
 const timeAgo = (dateStr: string): string => {
@@ -150,7 +150,6 @@ const SysAdminStorage: React.FC = () => {
       const deletedFiles = allFiles.filter((f: any) => f.deleted_at);
 
       setTotalFiles(activeFiles.length + vNetCount);
-      setTotalBytes(activeFiles.reduce((s: number, f: any) => s + (f.size || 0), 0) + vNetBytes);
       setArchivedCount(archivedFiles.length);
       setArchivedBytes(archivedFiles.reduce((s: number, f: any) => s + (f.size || 0), 0));
       setDeletedCount(deletedFiles.length);
@@ -359,28 +358,27 @@ const SysAdminStorage: React.FC = () => {
   // ─── Render ────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
-      {/* Legacy Header */}
-      <header className="legacy-header">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          <h1 className="legacy-header-title">Storage Hub</h1>
-          <p className="legacy-header-subtitle">
-            Institutional file storage overview and monitoring.
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Data Storage</h1>
+          <p className="unified-header-subtitle">
+            Institutional file repository and infrastructure capacity.
           </p>
         </div>
       </header>
 
-      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8 space-y-6">
+      <main className="unified-main">
         {/* ── Section 1: Statistics Cards ──────────────────────────── */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-2xl border-l-[6px] border-l-blue-600 border-y border-r border-y-slate-100 border-r-slate-100 bg-white p-4 sm:p-5 shadow-sm">
             <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-              Total Active
+              Active Files
             </p>
             <p className="mt-1 text-2xl font-bold text-slate-900">
               {totalFiles.toLocaleString()}
             </p>
             <p className="mt-1 text-[10px] text-slate-400">
-              Active records in the system
+              Institutional records in the system
             </p>
           </div>
 
@@ -392,7 +390,7 @@ const SysAdminStorage: React.FC = () => {
               {formatBytes(totalBytes)}
             </p>
             <p className="mt-1 text-[10px] text-slate-400">
-              Combined Cloudflare (10GB) & Supabase (1GB)
+              Total usage across all storage providers
             </p>
           </div>
 
@@ -431,25 +429,35 @@ const SysAdminStorage: React.FC = () => {
         <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <span className="text-[10px] font-medium text-slate-500">
-              {formatBytes(totalBytes)} used
+              {formatBytes(totalBytes)} utilized
+            </span>
+            <span className="text-[10px] font-medium text-slate-400">
+              of {formatBytes(INSTITUTIONAL_LIMIT + SUPABASE_LIMIT)} total capacity
             </span>
           </div>
 
-          {/* Segmented bar */}
-          <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
-            {r2Percent > 0 && (
-              <div
-                className="h-full bg-orange-500 transition-all duration-500"
-                style={{ width: `${(r2Bytes / INSTITUTIONAL_LIMIT) * 100}%`, minWidth: r2Bytes > 0 ? '4px' : '0' }}
-              />
-            )}
-            {sbPercent > 0 && (
-              <div
-                className="h-full bg-emerald-500 transition-all duration-500 shadow-inner"
-                style={{ width: `${(supabaseBytes / SUPABASE_LIMIT) * 100}%`, minWidth: supabaseBytes > 0 ? '4px' : '0' }}
-              />
-            )}
-          </div>
+          {/* Segmented bar — both segments relative to combined capacity (11 GB) */}
+          {(() => {
+            const totalCap = INSTITUTIONAL_LIMIT + SUPABASE_LIMIT;
+            const r2Pct = Math.max((r2Bytes / totalCap) * 100, r2Bytes > 0 ? 0.3 : 0);
+            const sbPct = Math.max((supabaseBytes / totalCap) * 100, supabaseBytes > 0 ? 0.3 : 0);
+            return (
+              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                {r2Bytes > 0 && (
+                  <div
+                    className="h-full bg-orange-500 transition-all duration-500"
+                    style={{ width: `${r2Pct}%`, minWidth: '4px' }}
+                  />
+                )}
+                {supabaseBytes > 0 && (
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-500"
+                    style={{ width: `${sbPct}%`, minWidth: '4px' }}
+                  />
+                )}
+              </div>
+            );
+          })()}
 
           <div className="flex flex-wrap gap-5 mt-3 text-[10px] text-slate-500">
             <div className="flex items-center gap-1.5">
@@ -469,7 +477,7 @@ const SysAdminStorage: React.FC = () => {
           <div className="px-5 pt-5 pb-3 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold text-slate-800">
-                File Browser
+                File Directory
               </h2>
               <span className="text-[10px] text-slate-400">
                 {totalCount.toLocaleString()} records
@@ -736,10 +744,10 @@ const SysAdminStorage: React.FC = () => {
       </main>
 
       {/* Legacy Footer */}
-      <footer className="max-w-4xl mx-auto px-10 py-10 opacity-40">
+      <footer className="max-w-6xl mx-auto px-10 py-10 opacity-40">
         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400 border-t border-slate-200 pt-6">
-          <span>Storage Hub</span>
-          <span>DYCI Connect</span>
+          <span>Storage Management</span>
+          <span>DYCI CONNECT v7.0</span>
         </div>
       </footer>
     </div>

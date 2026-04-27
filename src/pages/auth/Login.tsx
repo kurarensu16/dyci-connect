@@ -52,11 +52,11 @@ const Login: React.FC = () => {
         }
       }
 
-      if (role === 'system_admin') {
+      if (role === 'system_admin' || role === 'sysadmin') {
         navigate('/sysadmin/dashboard')
       } else if (role === 'academic_admin') {
         navigate('/admin/dashboard')
-      } else if (role === 'staff') {
+      } else if (role === 'staff' || role === 'faculty') {
         navigate('/staff/dashboard')
       } else if (role === 'student') {
         navigate('/student/dashboard')
@@ -192,7 +192,7 @@ const Login: React.FC = () => {
             </h1>
             <div className="h-1 w-12 bg-blue-400/50 mx-auto rounded-full mb-6"></div>
             <p className="text-sm font-medium text-blue-100 tracking-wide max-w-xs mx-auto leading-relaxed">
-              The institutional gateway to your digital student handbook and academic ecosystem.
+              The institutional gateway to your digital student handbook and academic resources.
             </p>
           </div>
         </div>

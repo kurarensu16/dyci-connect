@@ -123,11 +123,10 @@ const HandbookPreview: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight pb-10">
-      {/* Standard Legacy Header */}
-      <header className="legacy-header">
-        <div className="max-w-6xl mx-auto px-10">
-          <h1 className="legacy-header-title">Student Handbook</h1>
-          <p className="legacy-header-subtitle">
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Student Handbook</h1>
+          <p className="unified-header-subtitle">
             Institutional Academics Governance: Admin Preview Mode
           </p>
         </div>
@@ -141,7 +140,7 @@ const HandbookPreview: React.FC = () => {
         breadcrumbText={navStack.length > 0 ? breadcrumbs : null}
       />
 
-      <main className="max-w-6xl mx-auto px-10 py-6">
+      <main className="unified-main">
         {loading && (
           <div className="flex items-center justify-center py-20 text-slate-400">
             <svg className="animate-spin h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24">

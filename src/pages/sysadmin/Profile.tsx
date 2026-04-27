@@ -193,17 +193,16 @@ const SysAdminProfile: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
-      {/* Standard Legacy Header */}
-      <header className="legacy-header">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-          <h1 className="legacy-header-title">My Profile</h1>
-          <p className="legacy-header-subtitle">
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">My Profile</h1>
+          <p className="unified-header-subtitle">
             This is your DYCI Connect digital ID and account information.
           </p>
         </div>
       </header>
 
-      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <main className="unified-main animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex justify-end space-x-3 mb-6">
           <span className="px-3 py-1 bg-red-50 text-dyci-red border border-red-100 rounded-lg text-[10px] font-bold uppercase tracking-widest">
             Admin
@@ -529,8 +528,7 @@ const SysAdminProfile: React.FC = () => {
         )}
       </main>
 
-      {/* Legacy Footer */}
-      <footer className="max-w-4xl mx-auto px-6 py-10 opacity-40">
+      <footer className="max-w-6xl mx-auto px-6 py-10 opacity-40">
         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400 border-t border-slate-200 pt-6">
           <span>Identity Node: System Admin Core</span>
           <span>DYCI CONSTITUTIONAL COVENANT</span>

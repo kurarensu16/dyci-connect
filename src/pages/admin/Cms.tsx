@@ -757,14 +757,24 @@ const Cms: React.FC = () => {
             onCancel={() => setPendingDeleteHandbook(null)}
           />
         )}
-        <header className="bg-blue-800 text-white shadow-sm">
-          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-            <div><h1 className="text-xl font-semibold">Handbook CMS</h1><p className="mt-1 text-xs text-blue-100">Institutional Approval Workflow</p></div>
-            <button type="button" onClick={() => setShowCreateForm(true)} className="flex items-center gap-2 bg-white hover:bg-slate-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-semibold"><FaPlus className="text-xs" /> New handbook</button>
+        <header className="unified-header">
+          <div className="unified-header-content flex items-center justify-between">
+            <div>
+              <h1 className="unified-header-title">Policy Management</h1>
+              <p className="unified-header-subtitle">Review and update institutional documents</p>
+            </div>
+            <button 
+              type="button" 
+              onClick={() => setShowCreateForm(true)} 
+              className="px-4 py-2 bg-white text-dyci-blue rounded-full text-xs font-bold uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2"
+            >
+              <FaPlus className="text-[10px]" /> 
+              <span>New handbook</span>
+            </button>
           </div>
         </header>
 
-        <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-6">
+        <main className="unified-main">
           {loading && <div className="flex items-center justify-center py-16 text-slate-400"><FaSpinner className="animate-spin mr-2" /> Loading…</div>}
           {!loading && workflowHandbooks.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white">
@@ -871,13 +881,23 @@ const Cms: React.FC = () => {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        <header className="bg-blue-800 text-white shadow-sm">
-          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-3">
-            <button type="button" onClick={() => setView('list')} className="p-2 rounded-lg hover:bg-blue-700"><FaArrowLeft className="h-3 w-3" /></button>
-            <div><h1 className="text-xl font-semibold">Bulk Departmental Assignment</h1><p className="mt-1 text-xs text-blue-100">{editingHandbookLabel}</p></div>
+        <header className="unified-header">
+          <div className="unified-header-content flex items-center gap-4">
+            <button 
+              type="button" 
+              onClick={() => setView('list')} 
+              className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            >
+              <FaArrowLeft className="h-3 w-3" />
+            </button>
+            <div>
+              <h1 className="unified-header-title">Departmental Review Setup</h1>
+              <p className="unified-header-subtitle">{editingHandbookLabel}</p>
+            </div>
           </div>
         </header>
-        <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-6 space-y-4">
+
+        <main className="unified-main">
           <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-4 shadow-sm">
             <p className="text-sm text-slate-600 font-medium mb-1">Select departments responsible for approving each section.</p>
             <p className="text-[11px] text-slate-500">Changes are saved automatically when you toggle a department. Only sections in Draft or Departmental Review can have their assignments updated.</p>
@@ -952,13 +972,23 @@ const Cms: React.FC = () => {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        <header className="bg-blue-800 text-white shadow-sm">
-          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-3">
-            <button type="button" onClick={() => setView('list')} className="p-2 rounded-lg hover:bg-blue-700"><FaArrowLeft className="h-3 w-3" /></button>
-            <div><h1 className="text-xl font-semibold">Approval Monitor</h1><p className="mt-1 text-xs text-blue-100">{editingHandbookLabel}</p></div>
+        <header className="unified-header">
+          <div className="unified-header-content flex items-center gap-4">
+            <button 
+              type="button" 
+              onClick={() => setView('list')} 
+              className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            >
+              <FaArrowLeft className="h-3 w-3" />
+            </button>
+            <div>
+              <h1 className="unified-header-title">Review Tracking</h1>
+              <p className="unified-header-subtitle">{editingHandbookLabel}</p>
+            </div>
           </div>
         </header>
-        <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-6 space-y-3">
+
+        <main className="unified-main">
           {/* Executive Approval Banner for Academic Admin */}
           {Object.values(handbookApprovals).some(a => a.approved) && (
             <div className="mb-6 bg-emerald-100 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
@@ -1036,22 +1066,42 @@ const Cms: React.FC = () => {
         />
       )}
       {pendingDelete && <ConfirmModal nodeId={pendingDelete} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />}
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => { setView('list'); loadWorkflowHandbooks() }} className="p-2 rounded-lg hover:bg-blue-700"><FaArrowLeft className="h-3 w-3" /></button>
-            <div><h1 className="text-xl font-semibold">Handbook CMS</h1><p className="mt-1 text-xs text-blue-100">{editingHandbookLabel || 'Edit sections'}</p></div>
+      <header className="unified-header">
+        <div className="unified-header-content flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button 
+              type="button" 
+              onClick={() => { setView('list'); loadWorkflowHandbooks() }} 
+              className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            >
+              <FaArrowLeft className="h-3 w-3" />
+            </button>
+            <div>
+              <h1 className="unified-header-title">Policy Editor</h1>
+              <p className="unified-header-subtitle">{editingHandbookLabel || 'Edit handbook content'}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={handleAddRoot} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600 border border-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium"><FaPlus className="text-xs" /> Add Chapter</button>
-            <button onClick={handleSave} disabled={saving || !selectedNode} className="flex items-center gap-2 bg-white hover:bg-slate-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
-              {saving ? <FaSpinner className="text-xs animate-spin" /> : <FaSave className="text-xs" />} {saving ? 'Saving…' : 'Save Node'}
+            <button 
+              onClick={handleAddRoot} 
+              className="px-4 py-2 bg-white/10 text-white border border-white/20 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white/20 transition-all"
+            >
+              <FaPlus className="text-[10px] inline mr-2" /> 
+              Add Chapter
+            </button>
+            <button 
+              onClick={handleSave} 
+              disabled={saving || !selectedNode} 
+              className="px-4 py-2 bg-white text-dyci-blue rounded-full text-xs font-bold uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {saving ? <FaSpinner className="text-[10px] animate-spin" /> : <FaSave className="text-[10px]" />} 
+              <span>{saving ? 'Saving…' : 'Save Node'}</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-4 grid grid-cols-12 gap-4" style={{ height: 'calc(100vh - 65px)' }}>
+      <main className="unified-main grid grid-cols-12 gap-4 h-[calc(100vh-140px)]">
         {/* Sidebar */}
         <aside className="col-span-12 md:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           <div className="p-3 border-b border-slate-100 bg-slate-50 flex flex-col gap-2">

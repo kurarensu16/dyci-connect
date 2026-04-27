@@ -108,17 +108,16 @@ const Notifications: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Dark blue header bar */}
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">Notifications</h1>
-          <p className="mt-1 text-xs text-blue-100">
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Notifications</h1>
+          <p className="unified-header-subtitle">
             View and manage your notifications
           </p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-6 space-y-4">
+      <main className="unified-main">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-slate-500">

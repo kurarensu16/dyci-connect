@@ -11,19 +11,18 @@ const FacultyDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <h1 className="text-xl font-semibold">
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">
             Welcome back, {user?.user_metadata?.full_name || 'Staff'}!
           </h1>
-          <p className="mt-1 text-xs text-blue-100">
+          <p className="unified-header-subtitle">
             Manage approvals, events, and department activities from your dashboard.
           </p>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="unified-main">
         {/* Layout Grid: 2/3 Main, 1/3 Sidebar */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 

@@ -488,41 +488,41 @@ const SysAdminUsers: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
       {/* Institutional Header */}
-      <header className="legacy-header">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 flex items-center justify-between">
+      <header className="unified-header">
+        <div className="unified-header-content flex items-center justify-between">
           <div>
-            <h1 className="legacy-header-title">Identity Registry</h1>
-            <p className="legacy-header-subtitle">Institutional System Admin Identity Provisioning & Governance</p>
+            <h1 className="unified-header-title">User Accounts</h1>
+            <p className="unified-header-subtitle">Manage and provision system users and roles.</p>
           </div>
 
           <button
             onClick={() => setShowProvisionModal(true)}
-            className="bg-white hover:bg-slate-100 text-dyci-blue text-xs font-bold px-4 sm:px-6 py-2.5 sm:py-3 rounded-full transition-all shadow-md active:scale-95 flex items-center uppercase tracking-widest"
+            className="bg-white hover:bg-slate-100 text-dyci-blue text-[10px] font-bold px-4 py-2 rounded-full transition-all shadow-sm active:scale-95 flex items-center uppercase tracking-widest shrink-0 ml-4"
           >
             <FaUserPlus className="mr-2" />
-            <span className="hidden sm:inline">Provision Identity</span>
-            <span className="sm:hidden">Provision</span>
+            <span className="hidden sm:inline">Add New User</span>
+            <span className="sm:hidden">Add User</span>
           </button>
         </div>
       </header>
 
-      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8 space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <main className="unified-main animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Telemetry */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
           <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-slate-200 p-4 sm:p-5 lg:p-6 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Registry</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Users</p>
             <p className="text-2xl font-bold text-slate-800 mt-2">{users.length}</p>
           </div>
           <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-emerald-500 p-4 sm:p-5 lg:p-6 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Pulse</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Now</p>
             <p className="text-2xl font-bold text-emerald-600 mt-2">{users.filter(u => u.verified).length}</p>
           </div>
           <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-dyci-blue p-4 sm:p-5 lg:p-6 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Administrator Nodes</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Admins</p>
             <p className="text-2xl font-bold text-dyci-blue mt-2">{users.filter(u => u.level >= 80).length}</p>
           </div>
           <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-amber-500 p-4 sm:p-5 lg:p-6 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pending Sync</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unverified Users</p>
             <p className="text-2xl font-bold text-amber-500 mt-2">{users.filter(u => !u.verified).length}</p>
           </div>
         </section>
@@ -550,7 +550,7 @@ const SysAdminUsers: React.FC = () => {
               className="flex-1 md:flex-none flex items-center justify-center space-x-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl font-bold text-gray-600 hover:bg-slate-50 transition-colors shadow-sm active:bg-slate-100"
             >
               <FaClock className={`text-[10px] ${loading ? 'animate-spin' : ''}`} />
-              <span className="uppercase tracking-widest">Refresh Registry</span>
+              <span className="uppercase tracking-widest">Refresh Directory</span>
             </button>
           </div>
         </section>
@@ -563,7 +563,7 @@ const SysAdminUsers: React.FC = () => {
                 <tr className="border-b border-slate-50 bg-slate-50/50">
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">User Details</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Identifier</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Authority Level</th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Access Level</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">State</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
                 </tr>
@@ -573,13 +573,13 @@ const SysAdminUsers: React.FC = () => {
                   <tr>
                     <td colSpan={5} className="px-6 py-20 text-center">
                       <FaCircleNotch className="animate-spin text-2xl text-[#1434A4] mx-auto mb-3" />
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Synchronizing Registry...</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Updating users...</p>
                     </td>
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-20 text-center">
-                      <p className="text-sm font-medium text-gray-500">No institutional identities found.</p>
+                      <p className="text-sm font-medium text-gray-500">No user accounts found.</p>
                     </td>
                   </tr>
                 ) : (
@@ -644,8 +644,8 @@ const SysAdminUsers: React.FC = () => {
               <div className="flex items-center space-x-3">
                 <FaUserPlus className="text-xl" />
                 <div>
-                  <h2 className="text-lg font-bold leading-none tracking-tight">Provision Identity</h2>
-                  <p className="text-[10px] text-blue-50 uppercase tracking-widest font-bold opacity-80 mt-1">Institutional Identity Creation</p>
+                  <h2 className="text-lg font-bold leading-none tracking-tight">Create New User</h2>
+                  <p className="text-[10px] text-blue-50 uppercase tracking-widest font-bold opacity-80 mt-1">User Account Creation</p>
                 </div>
               </div>
               <button onClick={() => !isProvisioning && setShowProvisionModal(false)} className="p-2 hover:bg-white/10 rounded-2xl transition-colors">
@@ -661,7 +661,7 @@ const SysAdminUsers: React.FC = () => {
                   className={`px-4 py-3 text-xs font-bold uppercase tracking-widest transition-all border-b-2 ${provisionTab === tab ? 'border-dyci-blue text-dyci-blue' : 'border-transparent text-gray-400'
                     }`}
                 >
-                  {tab.replace('_', ' ')} Registry
+                  {tab === 'manual' ? 'Manual' : 'Batch Upload'}
                 </button>
               ))}
             </nav>
@@ -674,21 +674,21 @@ const SysAdminUsers: React.FC = () => {
                   <section className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Identity Role</label>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">User Role</label>
                         <select
                           value={formData.role}
                           onChange={(e) => setFormData({ ...formData, role: e.target.value as any, approverPosition: '' })}
                           className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm font-bold focus:ring-1 focus:ring-[#1434A4] outline-none transition-all"
                         >
-                          <option value="student">STUDENT identity</option>
-                          <option value="staff">STAFF identity</option>
-                          <option value="academic_admin">ACADEMIC ADMIN plane</option>
-                          <option value="system_admin">SYSTEM ADMIN plane</option>
+                          <option value="student">Student</option>
+                          <option value="staff">Staff / Faculty</option>
+                          <option value="academic_admin">Academic Administrator</option>
+                          <option value="system_admin">System Administrator</option>
                         </select>
                       </div>
                       {formData.role === 'staff' && (
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-[#1434A4] uppercase tracking-widest ml-1">Institutional Authority</label>
+                          <label className="text-[10px] font-bold text-[#1434A4] uppercase tracking-widest ml-1">System Access Level</label>
                           <select
                             value={formData.approverPosition}
                             onChange={(e) => setFormData({ ...formData, approverPosition: e.target.value })}
@@ -840,7 +840,7 @@ const SysAdminUsers: React.FC = () => {
                     <button type="button" onClick={() => setShowProvisionModal(false)} className="px-6 py-2.5 text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors">Cancel</button>
                     <button disabled={isProvisioning} type="submit" className="bg-[#1434A4] hover:bg-[#102a82] text-white text-xs font-bold px-8 py-3 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center">
                       {isProvisioning ? <FaCircleNotch className="animate-spin mr-2" /> : <FaUserPlus className="mr-2" />}
-                      PROVISION IDENTITY
+                      CREATE USER ACCOUNT
                     </button>
                   </footer>
                 </form>
@@ -867,7 +867,7 @@ const SysAdminUsers: React.FC = () => {
                       </div>
                     </div>
                     <div className="text-center">
-                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Provisioning Identities...</h3>
+                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Setting up accounts...</h3>
                       <p className="text-[10px] text-slate-400 mt-1 font-bold">Processed {batchProgress.current} of {batchProgress.total} students</p>
                     </div>
                   </div>
@@ -877,16 +877,16 @@ const SysAdminUsers: React.FC = () => {
                       <div className="h-20 w-20 bg-blue-50 rounded-2xl flex items-center justify-center text-[#1434A4] mx-auto mb-6 border border-blue-100 shadow-inner">
                         <FaUpload className="text-2xl" />
                       </div>
-                      <h3 className="text-base font-bold text-slate-800 uppercase tracking-tight">Student Batch Import</h3>
+                      <h3 className="text-base font-bold text-slate-800 uppercase tracking-tight">Bulk Account Creation</h3>
                       <p className="text-xs text-slate-500 mt-2 leading-relaxed font-medium">
-                        Upload a standard **CSV** or **Excel** file to provision multiple **STUDENT** identities.
+                        Upload a standard **CSV** or **Excel** file to create multiple accounts simultaneously.
                       </p>
                     </div>
 
                     <div className="flex flex-col items-center space-y-4">
                       <input type="file" id="batchFile" accept=".csv, .xlsx, .xls" onChange={handleBatchFile} className="hidden" />
                       <label htmlFor="batchFile" className="bg-white border-2 border-dashed border-slate-200 hover:border-[#1434A4] rounded-2xl p-12 cursor-pointer group transition-all w-full max-w-sm flex flex-col items-center">
-                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest transition-all group-hover:tracking-[0.2em]">Browse Student Registry</span>
+                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest transition-all group-hover:tracking-[0.2em]">Select Excel/CSV File</span>
                       </label>
 
                       <button
@@ -910,7 +910,7 @@ const SysAdminUsers: React.FC = () => {
                     <div className="bg-amber-50 rounded-2xl p-5 border border-amber-100 flex items-start space-x-4 text-left max-w-md mx-auto shadow-sm">
                       <FaExclamationTriangle className="text-amber-500 mt-1 text-sm flex-shrink-0" />
                       <p className="text-[10px] text-amber-800 font-bold uppercase tracking-widest leading-relaxed">
-                        CRITICAL: Headers must include email, student_id, and temp_password.
+                        Notice: Ensure your file includes headers for email, student_id, and name.
                       </p>
                     </div>
                   </>
@@ -932,8 +932,8 @@ const SysAdminUsers: React.FC = () => {
                   <FaShieldAlt className="text-2xl" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold uppercase tracking-widest leading-none">Review Batch Provisioning</h3>
-                  <p className="text-blue-100 text-[10px] mt-1.5 font-bold uppercase tracking-widest opacity-80">Authoritative Administrative Review</p>
+                  <h3 className="text-lg font-bold uppercase tracking-widest leading-none">Review Bulk Upload</h3>
+                  <p className="text-blue-100 text-[10px] mt-1.5 font-bold uppercase tracking-widest opacity-80">Administrative Review</p>
                 </div>
               </div>
             </div>
@@ -942,18 +942,18 @@ const SysAdminUsers: React.FC = () => {
             <div className="p-8">
               <div className="bg-blue-50/50 rounded-2xl p-6 border border-blue-100 flex items-center justify-between mb-6">
                 <div>
-                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Total Identities Detected</p>
+                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Total Accounts Detected</p>
                   <p className="text-2xl font-bold text-[#1434A4] mt-1">{batchRowsToProcess.length} Students</p>
                 </div>
                 <div className="h-12 w-px bg-blue-100" />
                 <div className="text-right">
                   <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Target Role</p>
-                  <p className="text-sm font-bold text-slate-700 mt-1 uppercase">STUDENT IDENTITY</p>
+                  <p className="text-sm font-bold text-slate-700 mt-1 uppercase">STUDENT ACCOUNT</p>
                 </div>
               </div>
 
               <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Registry Preview (Top 5)</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Directory Preview (Top 5)</p>
                 {batchRowsToProcess.slice(0, 5).map((row, idx) => (
                   <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
                     <div className="flex items-center space-x-3">
@@ -970,7 +970,7 @@ const SysAdminUsers: React.FC = () => {
                 ))}
                 {batchRowsToProcess.length > 5 && (
                   <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-2">
-                    + {batchRowsToProcess.length - 5} more identities in queue
+                    + {batchRowsToProcess.length - 5} more accounts in queue
                   </p>
                 )}
               </div>
@@ -987,7 +987,7 @@ const SysAdminUsers: React.FC = () => {
                   className="bg-[#1434A4] hover:bg-[#102a82] text-white text-xs font-bold px-8 py-3.5 rounded-2xl transition-all shadow-lg shadow-blue-500/20 flex items-center uppercase tracking-widest active:scale-95"
                 >
                   <FaUserPlus className="mr-2" />
-                  Confirm & Provision
+                  Confirm & Create Accounts
                 </button>
               </div>
             </div>
@@ -1004,7 +1004,7 @@ const SysAdminUsers: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-white font-bold text-sm uppercase tracking-widest">Force Password Reset</h3>
-                  <p className="text-rose-100 text-[10px] mt-0.5">System Admin Administrative Override</p>
+                  <p className="text-rose-100 text-[10px] mt-0.5">Administrative Override</p>
                 </div>
                 <button
                   onClick={() => setShowResetModal(false)}
@@ -1019,7 +1019,7 @@ const SysAdminUsers: React.FC = () => {
             <form onSubmit={handlePasswordReset} className="p-6 space-y-4">
               {/* Target User Info */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Target Identity</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Target Account</p>
                 <p className="text-sm font-bold text-slate-800">{resetTarget.first_name} {resetTarget.last_name}</p>
                 <p className="text-[11px] text-slate-500">{resetTarget.email}</p>
                 <p className="text-[10px] font-mono text-slate-400 mt-1">{resetTarget.student_employee_id}</p>
@@ -1106,8 +1106,8 @@ const SysAdminUsers: React.FC = () => {
 
       <footer className="max-w-6xl mx-auto px-6 py-10 opacity-40">
         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400 border-t border-slate-200 pt-6">
-          <span>Identity Node: SYSTEM-ADMIN-CORE</span>
-          <span>DYCI CONSTITUTIONAL COVENANT</span>
+          <span>System Status: Secure</span>
+          <span>DYCI CONNECT v7.0</span>
         </div>
       </footer>
     </div>

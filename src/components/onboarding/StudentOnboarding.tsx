@@ -98,17 +98,33 @@ const StudentOnboarding: React.FC<StudentOnboardingProps> = ({ userId, onComplet
 
   const loadAcademicYear = async () => {
     try {
-      const { data: settings } = await fetchSchoolSettings();
-      if (!settings) return;
-
-      const yearId = settings.current_academic_year_id;
-      setAcademicYearId(yearId);
-
-      const { data: years } = await fetchAcademicYears();
-      if (years) {
-        const currentYear = years.find(y => y.id === yearId);
-        if (currentYear) {
-          setAcademicYearName(currentYear.year_name);
+      // Get current academic year ID using RPC
+      const { data: yearId } = await supabase.rpc('get_current_academic_year_id');
+      
+      if (yearId) {
+        setAcademicYearId(yearId);
+        
+        const { data: years } = await fetchAcademicYears();
+        if (years) {
+          const currentYear = years.find(y => y.id === yearId);
+          if (currentYear) {
+            setAcademicYearName(currentYear.year_name);
+          }
+        }
+      } else {
+        // Fallback
+        const { data: settings } = await fetchSchoolSettings();
+        if (settings) {
+          const yId = settings.current_academic_year_id;
+          setAcademicYearId(yId);
+          
+          const { data: years } = await fetchAcademicYears();
+          if (years) {
+            const currentYear = years.find(y => y.id === yId);
+            if (currentYear) {
+              setAcademicYearName(currentYear.year_name);
+            }
+          }
         }
       }
     } catch (err) {

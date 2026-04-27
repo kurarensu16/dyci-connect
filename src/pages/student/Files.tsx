@@ -356,15 +356,14 @@ const Files: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Standard Header */}
-      <header className="bg-blue-800 text-white shadow-sm font-inter">
-        <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">Cloud Storage</h1>
-          <p className="mt-1 text-xs text-blue-100">Securely manage your academic documents</p>
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Cloud Storage</h1>
+          <p className="unified-header-subtitle">Securely manage your academic documents</p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <main className="unified-main">
         {/* Storage Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Unified Stats Card */}

@@ -164,11 +164,10 @@ const Handbook: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
-      {/* Header */}
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">Student Handbook</h1>
-          <p className="mt-1 text-xs text-blue-100">Academic Year 2025–2026</p>
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Student Handbook</h1>
+          <p className="unified-header-subtitle">Academic Year 2025–2026</p>
         </div>
       </header>
 
@@ -180,7 +179,7 @@ const Handbook: React.FC = () => {
         breadcrumbText={navStack.length > 0 ? breadcrumbs : null}
       />
 
-      <main className="max-w-6xl mx-auto px-6 py-2">
+      <main className="unified-main">
         {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-20 text-slate-400">

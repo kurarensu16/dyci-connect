@@ -46,12 +46,12 @@ const PendingApproval: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-8 text-center space-y-4">
-        <h1 className="text-lg font-semibold text-slate-900">Pending approval</h1>
+        <h1 className="text-lg font-semibold text-slate-900">Account Verification Pending</h1>
         <p className="text-sm text-slate-600">
-          Your account has been submitted. An administrator will verify your details before you can access DYCI Connect.
+          Your profile has been submitted for review. An administrator will verify your information before you gain full access to the platform.
         </p>
         <p className="text-xs text-slate-500">
-          You will not have full access to the app until your account is approved.
+          In the meantime, you can still browse parts of the app but some features will be restricted.
         </p>
         <button
           type="button"

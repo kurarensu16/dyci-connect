@@ -17,6 +17,8 @@ const StudentDashboard: React.FC = () => {
     todoCount: 0,
     fileCount: 0,
     gwa: 0,
+    isEligible: false,
+    classification: null as string | null,
     storageUsed: '0 MB',
   })
   const [activityData, setActivityData] = useState<ActivityPoint[]>([])
@@ -64,11 +66,16 @@ const StudentDashboard: React.FC = () => {
         .is('deleted_at', null)
         .gte('created_at', sevenDaysAgo.toISOString())
 
-      // Calculate GWA from local storage (keeping this for now as per plan focus)
-      const localGrades = JSON.parse(localStorage.getItem('dyci_grades') || '[]')
-      const totalUnits = localGrades.reduce((sum: number, g: Grade) => sum + (g.units || 0), 0) || 0
-      const weightedSum = localGrades.reduce((sum: number, g: Grade) => sum + g.grade * (g.units || 0), 0) || 0
-      const gwa = totalUnits > 0 ? (weightedSum / totalUnits).toFixed(2) : '0'
+      // Fetch real-time GWA from Supabase
+      const { data: gwaRecord } = await supabase
+        .from('student_gwa_results')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      const gwa = gwaRecord?.gwa || 0
+      const isEligible = gwaRecord?.is_eligible || false
+      const classification = gwaRecord?.classification || null
 
       // Calculate storage used (active files only)
       const { data: allFiles } = await supabase
@@ -93,7 +100,9 @@ const StudentDashboard: React.FC = () => {
       setStats({
         todoCount: pendingTasksCount,
         fileCount: totalFileCount || 0,
-        gwa: parseFloat(gwa),
+        gwa: parseFloat(gwa.toString()),
+        isEligible,
+        classification,
         storageUsed,
       })
 
@@ -162,19 +171,18 @@ const StudentDashboard: React.FC = () => {
 
   return (
     <>
-      {/* Dark blue header bar, like admin dashboard */}
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3">
-          <h1 className="text-xl font-semibold">
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">
             Welcome back, {user?.user_metadata?.full_name || 'Student'}!
           </h1>
-          <p className="mt-1 text-xs text-blue-100">
+          <p className="unified-header-subtitle">
             Here&apos;s what&apos;s happening with your academic journey today.
           </p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <main className="unified-main">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsWidget
             title="Pending Tasks"
@@ -189,10 +197,11 @@ const StudentDashboard: React.FC = () => {
             color="text-green-500"
           />
           <StatsWidget
-            title="Current GWA"
-            value={stats.gwa}
+            title="Academic GWA"
+            value={stats.gwa.toFixed(2)}
             icon="book"
             color="text-purple-500"
+            trend={stats.isEligible ? { value: stats.classification || 'PL Eligible', isPositive: true } : undefined}
           />
           <StatsWidget
             title="Storage Used"

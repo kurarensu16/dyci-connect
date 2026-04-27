@@ -442,29 +442,16 @@ const Calendar: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
-      {/* Standard Legacy Header */}
-      <header className="legacy-header">
-        <div className="max-w-6xl mx-auto px-10">
-          <h1 className="legacy-header-title">Academic Calendar</h1>
-          <p className="legacy-header-subtitle">
-            Institutional Schedule & Event Lifecycle Management
-          </p>
-        </div>
-      </header>
-
-      <header className="bg-blue-800 text-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+      <header className="unified-header">
+        <div className="unified-header-content flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold">
-              Welcome back, {user?.user_metadata?.full_name || 'Admin'}!
-            </h1>
-            <p className="mt-1 text-xs text-blue-100">
-              Configure academic milestones and events for the institution.
-            </p>
+            <h1 className="unified-header-title">Academic Calendar</h1>
+            <p className="unified-header-subtitle">Institutional Schedule & Event Lifecycle Management</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-blue-900/40 rounded-lg px-3 py-1.5 border border-white/10">
-              <span className="text-[10px] font-bold text-blue-200 uppercase tracking-wider">Context:</span>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 bg-blue-900/40 rounded-full px-3 py-1 border border-white/10">
+              <span className="text-[9px] font-bold text-blue-200 uppercase tracking-wider">Year:</span>
               <select
                 value={selectedYearId}
                 onChange={async (e) => {
@@ -473,7 +460,7 @@ const Calendar: React.FC = () => {
                   const year = academicYears.find(y => y.id === id)
                   if (year) setGlobalAcademicYear(year.year_name)
                 }}
-                className="bg-transparent text-white text-xs font-bold focus:outline-none cursor-pointer"
+                className="bg-transparent text-white text-[10px] font-bold focus:outline-none cursor-pointer"
               >
                 {academicYears.map(year => (
                   <option key={year.id} value={year.id} className="text-slate-900">
@@ -490,41 +477,41 @@ const Calendar: React.FC = () => {
                   setSavingYear(false)
                   if (!error) {
                     toast.success('System scope updated. All users must re-accept Conforme.')
-                    // Refresh years to update (Current) label
                     const { data } = await fetchAcademicYears()
                     if (data) setAcademicYears(data)
                   }
                   else toast.error(error)
                 }}
                 disabled={savingYear}
-                className="px-2 py-1 ml-1 bg-white hover:bg-slate-100 text-blue-800 rounded text-[10px] font-bold disabled:opacity-50 transition-colors"
+                className="px-2 py-0.5 bg-white hover:bg-slate-100 text-blue-800 rounded text-[9px] font-bold disabled:opacity-50 transition-colors"
                 title="Mark this year as current system-wide"
               >
-                {savingYear ? 'Updating...' : 'Set as Current'}
+                {savingYear ? '...' : 'Set'}
               </button>
               <button
                 onClick={() => setIsYearModalOpen(true)}
-                className="p-1 hover:bg-blue-700 rounded transition-colors"
+                className="text-[10px] opacity-70 hover:opacity-100 transition-opacity"
                 title="Manage Academic Years"
               >
-                <span className="text-lg">⚙️</span>
+                ⚙️
               </button>
             </div>
+
             <button
               onClick={handleExportICS}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all shadow-sm border border-slate-200"
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border border-white/10 shadow-sm"
             >
               Export ICS
             </button>
             <button
               onClick={() => setShowArchived(!showArchived)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${showArchived ? 'bg-amber-100 text-amber-800' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+              className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${showArchived ? 'bg-amber-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
             >
-              {showArchived ? 'View Active' : 'View Archive'}
+              {showArchived ? 'Active' : 'Archive'}
             </button>
             <button
               onClick={() => setIsTargetRunnerOpen(true)}
-              className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white border border-blue-600 rounded-lg text-xs font-semibold transition-all shadow-sm"
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-[10px] font-bold uppercase tracking-wider transition-all shadow-md active:scale-95"
             >
               Add Event
             </button>
@@ -532,7 +519,7 @@ const Calendar: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-10 py-10 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <main className="unified-main animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-5">
           {/* CALENDAR */}
           <div className="xl:col-span-3 space-y-4">

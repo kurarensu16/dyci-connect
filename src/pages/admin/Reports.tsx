@@ -315,16 +315,16 @@ const Reports: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
       {/* Standard Legacy Header */}
-      <header className="legacy-header">
-        <div className="max-w-6xl mx-auto px-10">
-          <h1 className="legacy-header-title">Governance Reports</h1>
-          <p className="legacy-header-subtitle">
-            Export academic audit trails and institutional analytics.
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Activity Analytics</h1>
+          <p className="unified-header-subtitle">
+            View engagement metrics and institutional reading patterns.
           </p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-10 py-10 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <main className="unified-main animate-in fade-in slide-in-from-bottom-4 duration-500">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-slate-400">
             <svg className="animate-spin h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24">
@@ -377,7 +377,7 @@ const Reports: React.FC = () => {
             {/* College color legend - now DYNAMIC from database */}
             {dbDepts.length > 0 && (
               <section className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-3">
-                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Department Legend</p>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Color Key</p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                   {dbDepts.map((dept) => (
                     <div key={dept} className="flex items-center gap-1.5 text-[10px] text-slate-600">
@@ -429,7 +429,7 @@ const Reports: React.FC = () => {
               {/* Top 5 Handbook Browsers (by access count) */}
               <div className="bg-white rounded-lg border border-slate-100 shadow-sm px-4 py-4 flex flex-col">
                 <h2 className="text-sm font-semibold text-slate-900 mb-4">
-                  Top 5 Handbook Browsers
+                  Top 5 Readers
                 </h2>
                 <div className="space-y-4 flex-1">
                   {topBrowsers.length > 0 ? topBrowsers.map((u, idx) => {

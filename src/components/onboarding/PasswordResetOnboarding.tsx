@@ -114,9 +114,7 @@ const PasswordResetOnboarding: React.FC<PasswordResetOnboardingProps> = ({ userI
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-xl p-8 sm:p-10 border border-slate-100">
           <div className="text-center mb-8">
-            <h1 className="text-xs font-bold tracking-[0.3em] text-[#1434A4] uppercase">Security Protocol</h1>
-            <h2 className="mt-2 text-2xl font-bold text-slate-900 tracking-tight">Set New Password</h2>
-            <p className="mt-2 text-xs text-slate-500">For your security, please create a new secure password for your account.</p>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Set password</h1>
           </div>
 
           <form onSubmit={handlePasswordChange} className="space-y-6">
@@ -172,31 +170,13 @@ const PasswordResetOnboarding: React.FC<PasswordResetOnboardingProps> = ({ userI
               disabled={loading}
               className="w-full bg-[#1434A4] hover:bg-[#102a82] text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-900/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center uppercase tracking-widest text-xs"
             >
-              {loading ? 'Processing...' : 'Update Password'}
+              {loading ? 'Processing...' : 'Set password'}
             </button>
           </form>
 
-          {/* Security Tips */}
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Security Guidelines</p>
-            <ul className="space-y-2 text-[11px] text-slate-500 font-medium">
-              <li className="flex items-center">
-                <FaCheck className="text-emerald-500 mr-2 h-3 w-3" />
-                Use a mix of alphanumeric characters
-              </li>
-              <li className="flex items-center">
-                <FaCheck className="text-emerald-500 mr-2 h-3 w-3" />
-                Minimum length of 8 characters
-              </li>
-              <li className="flex items-center">
-                <FaCheck className="text-emerald-500 mr-2 h-3 w-3" />
-                Avoid sequences like &quot;123456&quot;
-              </li>
-            </ul>
-          </div>
         </div>
         <p className="mt-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-          Institutional Security Management
+          Institutional Security Protocol
         </p>
       </div>
     </div>

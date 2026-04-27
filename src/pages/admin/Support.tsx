@@ -415,16 +415,16 @@ const Support: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">
       {/* Standard Legacy Header */}
-      <header className="legacy-header">
-        <div className="max-w-4xl mx-auto px-10">
-          <h1 className="legacy-header-title">Institutional Support</h1>
-          <p className="legacy-header-subtitle">
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Institutional Support</h1>
+          <p className="unified-header-subtitle">
             Technical assistance and platform governance helpdesk.
           </p>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-10 py-10 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <main className="unified-main animate-in fade-in slide-in-from-bottom-4 duration-500">
         <section className="bg-white rounded-lg border border-slate-100 shadow-sm grid grid-cols-1 lg:grid-cols-3 h-full overflow-hidden">
           {/* Left column: conversations list */}
           <div className="border-b lg:border-b-0 lg:border-r border-slate-100 flex flex-col h-full overflow-hidden">

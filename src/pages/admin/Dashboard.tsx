@@ -249,17 +249,16 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <>
-      {/* Standard Legacy Header */}
-      <header className="legacy-header">
-        <div className="max-w-4xl mx-auto px-10">
-          <h1 className="legacy-header-title">Admin Dashboard</h1>
-          <p className="legacy-header-subtitle">
+      <header className="unified-header">
+        <div className="unified-header-content">
+          <h1 className="unified-header-title">Admin Dashboard</h1>
+          <p className="unified-header-subtitle">
             Institutional Academics Overview & Real-time Governance Pulse
           </p>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-10 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <main className="unified-main animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Top metric cards */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-white rounded-2xl border-y border-r border-y-slate-100 border-r-slate-100 border-l-[6px] border-l-blue-600 p-6 shadow-sm">

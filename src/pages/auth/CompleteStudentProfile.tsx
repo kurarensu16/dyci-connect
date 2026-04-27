@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { FaArrowLeft, FaUser, FaIdBadge, FaImage } from 'react-icons/fa'
+import { FaUser, FaCamera } from 'react-icons/fa'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { getAuthProvider } from '../../utils/profileUtils'
@@ -9,14 +9,13 @@ import { getAuthProvider } from '../../utils/profileUtils'
 const CompleteStudentProfile: React.FC = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
 
   const [form, setForm] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
     idNumber: '',
-    address: '',
+    streetAddress: '',
     region: '',
     province: '',
     city: '',
@@ -35,18 +34,12 @@ const CompleteStudentProfile: React.FC = () => {
   const [departments, setDepartments] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [yearLevels, setYearLevels] = useState<any[]>([])
+  const [sections, setSections] = useState<any[]>([])
 
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null)
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
-  const [corFile, setCorFile] = useState<File | null>(null)
-  const [corFileName, setCorFileName] = useState<string>('')
 
   const [submitting, setSubmitting] = useState(false)
-
-  const pathname = location.pathname
-  const isAddressStep = pathname.endsWith('/address')
-  const isAcademicStep = pathname.endsWith('/academic')
-  const isAccountStep = !isAddressStep && !isAcademicStep
 
   useEffect(() => {
     if (!user) {
@@ -59,9 +52,7 @@ const CompleteStudentProfile: React.FC = () => {
     const loadRegions = async () => {
       try {
         const res = await fetch('https://psgc.cloud/api/regions')
-        if (!res.ok) {
-          throw new Error(`Failed to load regions: ${res.status}`)
-        }
+        if (!res.ok) throw new Error(`Failed to load regions: ${res.status}`)
         const data = await res.json()
         setRegions(data)
       } catch (error) {
@@ -74,33 +65,20 @@ const CompleteStudentProfile: React.FC = () => {
       try {
         const [deptRes, progRes, yearRes] = await Promise.all([
           supabase.from('departments').select('id, name').order('name'),
-          supabase
-            .from('programs')
-            .select('id, name, short_code, department_id')
-            .order('name'),
-          supabase
-            .from('year_levels')
-            .select('id, label, sort_order')
-            .order('sort_order'),
+          supabase.from('programs').select('id, name, department_id').order('name'),
+          supabase.from('year_levels').select('id, label, sort_order').order('sort_order'),
         ])
 
-        if (!deptRes.error && deptRes.data) {
-          setDepartments(deptRes.data)
-        } else if (deptRes.error) {
-          console.error('Error loading departments', deptRes.error)
-        }
+        if (!deptRes.error && deptRes.data) setDepartments(deptRes.data)
+        if (!progRes.error && progRes.data) setPrograms(progRes.data)
+        if (!yearRes.error && yearRes.data) setYearLevels(yearRes.data)
 
-        if (!progRes.error && progRes.data) {
-          setPrograms(progRes.data)
-        } else if (progRes.error) {
-          console.error('Error loading programs', progRes.error)
-        }
+        const { data: sectionData, error: sectionError } = await supabase
+          .from('sections')
+          .select('id, label')
+          .order('sort_order')
 
-        if (!yearRes.error && yearRes.data) {
-          setYearLevels(yearRes.data)
-        } else if (yearRes.error) {
-          console.error('Error loading year levels', yearRes.error)
-        }
+        if (!sectionError && sectionData) setSections(sectionData)
       } catch (error) {
         console.error('Error loading academic lookups', error)
       }
@@ -119,97 +97,47 @@ const CompleteStudentProfile: React.FC = () => {
 
   const handleRegionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
-
-    setForm((prev) => ({
-      ...prev,
-      region: value,
-      province: '',
-      city: '',
-      barangay: '',
-    }))
+    setForm((prev) => ({ ...prev, region: value, province: '', city: '', barangay: '' }))
     setProvinces([])
     setCities([])
     setBarangays([])
-
-    if (!value) {
-      return
-    }
+    if (!value) return
 
     try {
       const res = await fetch(`https://psgc.cloud/api/regions/${value}/provinces`)
-      if (!res.ok) {
-        throw new Error(`Failed to load provinces: ${res.status}`)
-      }
       const data = await res.json()
       setProvinces(data)
-
-      // Some regions (e.g. NCR) have no provinces; load cities directly from the region.
       if (Array.isArray(data) && data.length === 0) {
-        const cityRes = await fetch(
-          `https://psgc.cloud/api/regions/${value}/cities-municipalities`
-        )
-        if (!cityRes.ok) {
-          throw new Error(`Failed to load cities: ${cityRes.status}`)
-        }
-        const cityData = await cityRes.json()
-        setCities(cityData)
+        const cityRes = await fetch(`https://psgc.cloud/api/regions/${value}/cities-municipalities`)
+        setCities(await cityRes.json())
       }
     } catch (error) {
-      console.error('Error loading PSGC provinces / cities', error)
+      console.error('Error loading PSGC provinces', error)
     }
   }
 
   const handleProvinceChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
-
-    setForm((prev) => ({
-      ...prev,
-      province: value,
-      city: '',
-      barangay: '',
-    }))
+    setForm((prev) => ({ ...prev, province: value, city: '', barangay: '' }))
     setCities([])
     setBarangays([])
-
-    if (!value) {
-      return
-    }
-
+    if (!value) return
     try {
       const res = await fetch(`https://psgc.cloud/api/provinces/${value}/cities-municipalities`)
-      if (!res.ok) {
-        throw new Error(`Failed to load cities: ${res.status}`)
-      }
-      const data = await res.json()
-      setCities(data)
+      setCities(await res.json())
     } catch (error) {
-      console.error('Error loading PSGC cities/municipalities', error)
+      console.error('Error loading PSGC cities', error)
     }
   }
 
   const handleCityChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
-
-    setForm((prev) => ({
-      ...prev,
-      city: value,
-      barangay: '',
-    }))
+    setForm((prev) => ({ ...prev, city: value, barangay: '' }))
     setBarangays([])
-
-    if (!value) {
-      return
-    }
-
+    if (!value) return
     try {
-      const res = await fetch(
-        `https://psgc.cloud/api/cities-municipalities/${value}/barangays`
-      )
-      if (!res.ok) {
-        throw new Error(`Failed to load barangays: ${res.status}`)
-      }
-      const data = await res.json()
-      setBarangays(data)
+      const res = await fetch(`https://psgc.cloud/api/cities-municipalities/${value}/barangays`)
+      setBarangays(await res.json())
     } catch (error) {
       console.error('Error loading PSGC barangays', error)
     }
@@ -220,81 +148,23 @@ const CompleteStudentProfile: React.FC = () => {
     if (!file) return
     setProfileImageFile(file)
     const reader = new FileReader()
-    reader.onloadend = () => {
-      setProfileImagePreview(reader.result as string)
-    }
+    reader.onloadend = () => setProfileImagePreview(reader.result as string)
     reader.readAsDataURL(file)
-  }
-
-  const handleRemoveProfileImage = () => {
-    setProfileImagePreview(null)
-    setProfileImageFile(null)
-  }
-
-  const handleAccountNext = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!form.firstName.trim() || !form.lastName.trim()) {
-      toast.error('Please enter your first and last name.')
-      return
-    }
-    if (!form.idNumber.trim()) {
-      toast.error('Please enter your student ID.')
-      return
-    }
-    navigate('/complete-profile/student/address')
-  }
-
-  const handleAddressNext = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (
-      !form.region ||
-      !form.city ||
-      !form.barangay ||
-      (provinces.length > 0 && !form.province)
-    ) {
-      toast.error('Please complete your address.')
-      return
-    }
-    if (!form.address.trim()) {
-      toast.error('Please enter your street / house number.')
-      return
-    }
-    navigate('/complete-profile/student/academic')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user || !isSupabaseConfigured) return
 
-    if (!form.nickname.trim()) {
-      toast.error('Please enter a nickname.')
-      return
-    }
-    if (!form.department.trim() || !form.program.trim() || !form.yearLevel.trim()) {
-      toast.error('Please complete your academic info.')
-      return
-    }
+    // Validation
+    if (!form.firstName.trim() || !form.lastName.trim()) return toast.error('Name is required.')
+    if (!form.idNumber.trim()) return toast.error('Student ID is required.')
+    if (!form.region || !form.city || !form.barangay) return toast.error('Address is required.')
+    if (!form.department || !form.program || !form.yearLevel) return toast.error('Academic info is required.')
 
     setSubmitting(true)
     try {
       let avatarUrl: string | undefined
-
-      if (corFile) {
-        const userId = user.id
-        const ext = corFile.name.split('.').pop() || 'pdf'
-        const filePath = `cor/${userId}/${Date.now()}.${ext}`
-
-        const { error: uploadError } = await (supabase as any).storage
-          .from('user-docs')
-          .upload(filePath, corFile)
-
-        if (uploadError) {
-          console.error('Error uploading COR to storage', uploadError)
-          toast.error(
-            'Uploading your COR failed. You can try again later or contact the administrator.'
-          )
-        }
-      }
 
       if (profileImageFile) {
         const userId = user.id
@@ -308,12 +178,7 @@ const CompleteStudentProfile: React.FC = () => {
             contentType: profileImageFile.type || undefined,
           })
 
-        if (avatarUploadError) {
-          console.error('Error uploading profile image to storage', avatarUploadError)
-          toast.error(
-            'Uploading your profile picture failed. You can try again later from your profile.'
-          )
-        } else {
+        if (!avatarUploadError) {
           const { data: avatarPublicData } = (supabase as any).storage
             .from('user-docs')
             .getPublicUrl(filePath)
@@ -325,612 +190,264 @@ const CompleteStudentProfile: React.FC = () => {
         .filter(Boolean)
         .join(' ')
 
-      const authProvider = getAuthProvider(user)
-
-      // 1. Fetch current academic year ID
-      const { data: ayId, error: ayError } = await supabase.rpc('get_current_academic_year_id')
-      if (ayError || !ayId) {
-        throw new Error('Could not resolve current academic year')
-      }
+      const { data: ayId } = await supabase.rpc('get_current_academic_year_id')
+      if (!ayId) throw new Error('Could not resolve current academic year')
 
       const regionName = regions.find((r) => r.code === form.region)?.name || ''
       const provinceName = provinces.find((p) => p.code === form.province)?.name || ''
       const cityName = cities.find((c) => c.code === form.city)?.name || ''
       const barangayName = barangays.find((b) => b.code === form.barangay)?.name || ''
 
-      // 1. Sync Geographic Hierarchy and get barangay_id
       const { data: bid, error: syncError } = await supabase.rpc('sync_geographic_hierarchy', {
-        r_code: form.region,
-        r_name: regionName,
-        p_code: form.province,
-        p_name: provinceName,
-        c_code: form.city,
-        c_name: cityName,
-        b_code: form.barangay,
-        b_name: barangayName,
+        r_code: form.region, r_name: regionName,
+        p_code: form.province, p_name: provinceName,
+        c_code: form.city, c_name: cityName,
+        b_code: form.barangay, b_name: barangayName,
       })
-
-      if (syncError) {
-        console.error('Error syncing geographic data', syncError)
-        throw new Error('Failed to save address information.')
-      }
+      if (syncError) throw syncError
 
       // 2. Identity & Profile Layer
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: user.id,
-        email: user.email ?? '',
-        student_employee_id: form.idNumber.trim(),
-        role: 'student',
-        auth_provider: authProvider,
-        first_name: form.firstName.trim(),
-        middle_name: form.middleName.trim() || null,
-        last_name: form.lastName.trim(),
-        nickname: form.nickname.trim(),
-        avatar_url: avatarUrl,
-        profile_complete: true,
-        verified: false,
-      })
-
+      // Aligned with Profile.tsx update logic: uses .update() instead of .upsert()
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          first_name: form.firstName.trim(),
+          middle_name: form.middleName.trim() || null,
+          last_name: form.lastName.trim(),
+          nickname: form.nickname.trim(),
+          student_employee_id: form.idNumber.trim(),
+          avatar_url: avatarUrl,
+          profile_complete: true,
+          // Note: role, email, verified are typically preserved from provisioning
+        })
+        .eq('id', user.id)
+      
       if (profileError) throw profileError
 
-      // 3. New Student Profile Layer (Academic & Address Metadata)
+      // 3. New Student Profile Layer
       const { error: studentError } = await supabase.from('student_profiles').upsert({
         profile_id: user.id,
         department_id: form.department,
         program_id: form.program,
         year_level_id: parseInt(form.yearLevel),
         section_id: form.section || null,
-        street_address: form.address.trim(),
+        street_address: form.streetAddress.trim(),
         barangay_id: bid,
         enrolled_academic_year_id: ayId,
       })
-
       if (studentError) throw studentError
 
-      if (profileError) {
-        console.error('Error saving profile', profileError)
-        toast.error('Failed to save your profile. Please try again later.')
-        setSubmitting(false)
-        return
+      try {
+        await supabase.auth.updateUser({
+          data: { role: 'student', full_name: fullName },
+        })
+      } catch (authError) {
+        console.warn('Auth metadata update failed (403), but database was saved.', authError)
       }
 
-      await supabase.auth.updateUser({
-        data: { role: 'student', full_name: fullName },
-      })
-
-      toast.success('Profile submitted. Your account is pending administrator approval.')
+      toast.success('Profile saved successfully!')
       navigate('/student/dashboard')
     } catch (error) {
       console.error('Error completing student profile', error)
-      toast.error('Something went wrong while saving your profile.')
+      toast.error('Failed to save profile. Please check your connection.')
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-sm text-slate-500">Loading…</div>
-      </div>
-    )
-  }
+  if (!user) return null
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl px-6 sm:px-8 py-6 sm:py-8">
-        <button
-          type="button"
-          onClick={() => navigate('/complete-profile')}
-          className="mb-4 inline-flex items-center text-xs text-gray-500 hover:text-blue-600"
-        >
-          <FaArrowLeft className="mr-1 h-3 w-3" />
-          Back
-        </button>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-4xl bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+        <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6">
+          {/* Header */}
+          <div className="text-center sm:text-left">
+            <h1 className="text-xl font-bold text-slate-900">Complete Your Profile</h1>
+          </div>
 
-        <h1 className="text-lg font-semibold text-slate-900">Complete your profile</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          {isAccountStep && 'Add your school account details.'}
-          {isAddressStep && 'Add your address information.'}
-          {isAcademicStep &&
-            'Add your academic information. An administrator will verify these details.'}
-        </p>
-
-        {isAccountStep && (
-          <form className="mt-6 space-y-4" onSubmit={handleAccountNext}>
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">Email</label>
-              <p className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                {user.email}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <label htmlFor="firstName" className="block text-xs font-medium text-gray-700">
-                  First name
-                </label>
-                <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                  <FaUser className="h-4 w-4 text-slate-400 mr-2" />
-                  <input
-                    id="firstName"
-                    name="firstName"
-                    type="text"
-                    required
-                    value={form.firstName}
-                    onChange={handleChange}
-                    className="w-full border-0 bg-transparent text-sm text-slate-900 focus:outline-none"
-                    placeholder="Juan"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="middleName" className="block text-xs font-medium text-gray-700">
-                  Middle name
-                </label>
-                <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                  <FaUser className="h-4 w-4 text-slate-400 mr-2" />
-                  <input
-                    id="middleName"
-                    name="middleName"
-                    type="text"
-                    value={form.middleName}
-                    onChange={handleChange}
-                    className="w-full border-0 bg-transparent text-sm text-slate-900 focus:outline-none"
-                    placeholder="Santos"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="lastName" className="block text-xs font-medium text-gray-700">
-                  Last name
-                </label>
-                <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                  <FaUser className="h-4 w-4 text-slate-400 mr-2" />
-                  <input
-                    id="lastName"
-                    name="lastName"
-                    type="text"
-                    required
-                    value={form.lastName}
-                    onChange={handleChange}
-                    className="w-full border-0 bg-transparent text-sm text-slate-900 focus:outline-none"
-                    placeholder="Dela Cruz"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="idNumber" className="block text-xs font-medium text-gray-700">
-                Student ID
-              </label>
-              <div className="mt-1 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                <FaIdBadge className="h-4 w-4 text-slate-400 mr-2" />
-                <input
-                  id="idNumber"
-                  name="idNumber"
-                  type="text"
-                  value={form.idNumber}
-                  onChange={handleChange}
-                  className="w-full border-0 bg-transparent text-sm text-slate-900 focus:outline-none"
-                  placeholder="e.g. 2024-0000"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 flex gap-3">
-              <button
-                type="button"
-                onClick={() => navigate('/complete-profile')}
-                className="flex-1 inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                className="flex-1 inline-flex justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm transition-colors"
-              >
-                Continue
-              </button>
-            </div>
-          </form>
-        )}
-
-        {isAddressStep && (
-          <form className="mt-6 space-y-4" onSubmit={handleAddressNext}>
-            <div className="mt-1 space-y-1">
-              <span className="block text-xs font-medium text-gray-700">Address</span>
-
-              <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label
-                    htmlFor="region"
-                    className="block text-[11px] font-medium text-gray-600"
-                  >
-                    Region
+          <div className="flex flex-col lg:flex-row gap-8 items-start">
+            {/* Left: Avatar & Names */}
+            <div className="w-full lg:w-1/3 space-y-6">
+              <div className="flex justify-center">
+                <div className="relative">
+                  <div className="h-24 w-24 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
+                    {profileImagePreview ? (
+                      <img src={profileImagePreview} alt="Avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      <FaUser className="h-10 w-10 text-slate-300" />
+                    )}
+                  </div>
+                  <label className="absolute bottom-0 right-0 h-8 w-8 bg-[#1434A4] rounded-full flex items-center justify-center cursor-pointer border-2 border-white shadow-sm hover:bg-[#102a82] transition-colors">
+                    <FaCamera className="h-3.5 w-3.5 text-white" />
+                    <input type="file" accept="image/*" className="hidden" onChange={handleProfileImageChange} />
                   </label>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">First name</label>
+                  <input
+                    name="firstName" value={form.firstName} onChange={handleChange}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
+                    placeholder="Carlo" required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Middle name</label>
+                  <input
+                    name="middleName" value={form.middleName} onChange={handleChange}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
+                    placeholder="Matamis"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Last name</label>
+                  <input
+                    name="lastName" value={form.lastName} onChange={handleChange}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
+                    placeholder="Celestino" required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Right: ID, Address & Academic */}
+            <div className="flex-1 w-full space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Student ID</label>
+                  <input
+                    name="idNumber" value={form.idNumber} onChange={handleChange}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
+                    placeholder="2023-02234" required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Nickname</label>
+                  <input
+                    name="nickname" value={form.nickname} onChange={handleChange}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
+                    placeholder="Nickname"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Region</label>
                   <select
-                    id="region"
-                    name="region"
-                    value={form.region}
-                    onChange={handleRegionChange}
-                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    name="region" value={form.region} onChange={handleRegionChange}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
                   >
                     <option value="">Select region</option>
-                    {regions.map((r: any) => (
-                      <option key={r.code} value={r.code}>
-                        {r.name}
-                      </option>
-                    ))}
+                    {regions.map(r => <option key={r.code} value={r.code}>{r.name}</option>)}
                   </select>
                 </div>
-
                 <div className="space-y-1">
-                  <label
-                    htmlFor="province"
-                    className="block text-[11px] font-medium text-gray-600"
-                  >
-                    Province
-                  </label>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Province</label>
                   <select
-                    id="province"
-                    name="province"
-                    value={form.province}
-                    onChange={handleProvinceChange}
+                    name="province" value={form.province} onChange={handleProvinceChange}
                     disabled={!form.region || provinces.length === 0}
-                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm disabled:opacity-50"
                   >
-                    <option value="">
-                      {!form.region
-                        ? 'Select region first'
-                        : provinces.length === 0
-                          ? 'No provinces for this region'
-                          : 'Select province'}
-                    </option>
-                    {provinces.map((p: any) => (
-                      <option key={p.code} value={p.code}>
-                        {p.name}
-                      </option>
-                    ))}
+                    <option value="">{form.region ? 'Select province' : '-'}</option>
+                    {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
                   </select>
                 </div>
-
                 <div className="space-y-1">
-                  <label
-                    htmlFor="city"
-                    className="block text-[11px] font-medium text-gray-600"
-                  >
-                    City / Municipality
-                  </label>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">City</label>
                   <select
-                    id="city"
-                    name="city"
-                    value={form.city}
-                    onChange={handleCityChange}
+                    name="city" value={form.city} onChange={handleCityChange}
                     disabled={!form.region || (provinces.length > 0 && !form.province)}
-                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm disabled:opacity-50"
                   >
-                    <option value="">
-                      {!form.region
-                        ? 'Select region first'
-                        : provinces.length > 0 && !form.province
-                          ? 'Select province first'
-                          : 'Select city / municipality'}
-                    </option>
-                    {cities.map((c: any) => (
-                      <option key={c.code} value={c.code}>
-                        {c.name}
-                      </option>
-                    ))}
+                    <option value="">{form.city ? 'Select city' : '-'}</option>
+                    {cities.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                   </select>
                 </div>
-
                 <div className="space-y-1">
-                  <label
-                    htmlFor="barangay"
-                    className="block text-[11px] font-medium text-gray-600"
-                  >
-                    Barangay
-                  </label>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Barangay</label>
                   <select
-                    id="barangay"
-                    name="barangay"
-                    value={form.barangay}
-                    onChange={handleChange}
+                    name="barangay" value={form.barangay} onChange={handleChange}
                     disabled={!form.city}
-                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm disabled:opacity-50"
                   >
-                    <option value="">
-                      {form.city ? 'Select barangay' : 'Select city / municipality first'}
-                    </option>
-                    {barangays.map((b: any) => (
-                      <option key={b.code} value={b.code}>
-                        {b.name}
-                      </option>
-                    ))}
+                    <option value="">{form.city ? 'Select barangay' : '-'}</option>
+                    {barangays.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
                   </select>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label
-                  htmlFor="address"
-                  className="block text-[11px] font-medium text-gray-600"
-                >
-                  Street / House number
-                </label>
-                <input
-                  id="address"
-                  name="address"
-                  type="text"
-                  value={form.address}
-                  onChange={handleChange}
-                  className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="e.g. 123 Sampaguita St., Brgy. Sample"
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Address</label>
+                <textarea
+                  name="streetAddress" value={form.streetAddress} onChange={handleChange}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm resize-none"
+                  placeholder="Street name, Bldg, etc." rows={2} required
                 />
               </div>
-            </div>
 
-            <div className="mt-4 flex gap-3">
-              <button
-                type="button"
-                onClick={() => navigate('/complete-profile/student/account')}
-                className="flex-1 inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                className="flex-1 inline-flex justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm transition-colors"
-              >
-                Continue
-              </button>
-            </div>
-          </form>
-        )}
-
-        {isAcademicStep && (
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-              <h2 className="text-sm font-semibold text-gray-700">Academic info</h2>
-
-              <div className="space-y-1">
-                <span className="block text-xs font-medium text-gray-700">
-                  Certificate of Registration (COR)
-                </span>
-                <div className="mt-1 flex items-center space-x-3">
-                  <label className="inline-flex items-center px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
-                    <span>Upload COR</span>
-                    <input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        setCorFile(file || null)
-                        setCorFileName(file ? file.name : '')
-                      }}
-                    />
-                  </label>
-                  {corFileName && (
-                    <span className="text-[11px] text-gray-600 truncate max-w-[160px]">
-                      {corFileName}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-[11px] text-gray-500">
-                  Upload your latest DYCI Certificate of Registration (PDF or clear image).
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <span className="block text-xs font-medium text-gray-700">
-                  Profile picture
-                </span>
-                <div className="mt-1 flex items-center space-x-3">
-                  <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200">
-                    {profileImagePreview ? (
-                      <img
-                        src={profileImagePreview}
-                        alt="Profile preview"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <FaUser className="h-5 w-5 text-gray-400" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <label className="inline-flex items-center px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
-                      <FaImage className="h-3.5 w-3.5 mr-2 text-gray-400" />
-                      <span>Upload photo</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleProfileImageChange}
-                      />
-                    </label>
-                    <div className="mt-1 flex items-center space-x-3">
-                      <button
-                        type="button"
-                        onClick={handleRemoveProfileImage}
-                        className="text-[11px] text-gray-500 hover:text-gray-700"
-                      >
-                        Skip for now
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 space-y-1">
-                  <label
-                    htmlFor="nickname"
-                    className="block text-xs font-medium text-gray-700"
-                  >
-                    Nickname (for greetings & dashboard)
-                  </label>
-                  <input
-                    id="nickname"
-                    name="nickname"
-                    type="text"
-                    value={form.nickname}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="e.g. Juan, CJ, Ate Ann"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mt-2">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label
-                    htmlFor="department"
-                    className="block text-xs font-medium text-gray-700"
-                  >
-                    Department
-                  </label>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Department</label>
                   <select
-                    id="department"
-                    name="department"
-                    value={form.department}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    name="department" value={form.department}
+                    onChange={(e) => setForm(prev => ({ ...prev, department: e.target.value, program: '', yearLevel: '', section: '' }))}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
                   >
-                    <option value="">Select department</option>
-                    {departments.length > 0 ? (
-                      departments.map((d: any) => (
-                        <option key={d.id} value={d.name}>
-                          {d.name}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="College of Computer Studies">College of Computer Studies</option>
-                        <option value="College of Education">College of Education</option>
-                        <option value="College of Business Administration">College of Business Administration</option>
-                        <option value="College of Health Sciences">College of Health Sciences</option>
-                        <option value="Other">Other</option>
-                      </>
-                    )}
+                    <option value="">Select dept</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
-
                 <div className="space-y-1">
-                  <label
-                    htmlFor="program"
-                    className="block text-xs font-medium text-gray-700"
-                  >
-                    Program
-                  </label>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Program</label>
                   <select
-                    id="program"
-                    name="program"
-                    value={form.program}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    name="program" value={form.program} onChange={handleChange}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
                   >
-                    <option value="">Select program</option>
-                    {departments.length > 0 && programs.length > 0 && form.department ? (
-                      programs
-                        .filter((p: any) =>
-                          departments.find(
-                            (d: any) => d.id === p.department_id && d.name === form.department
-                          )
-                        )
-                        .map((p: any) => (
-                          <option key={p.id} value={p.short_code || p.name}>
-                            {p.name}
-                          </option>
-                        ))
-                    ) : (
-                      <>
-                        <option value="BSIT">BSIT</option>
-                        <option value="BSCS">BSCS</option>
-                        <option value="BSEd">BSEd</option>
-                        <option value="BSA">BSA</option>
-                        <option value="Other">Other</option>
-                      </>
-                    )}
+                    <option value="">Select prog</option>
+                    {programs.filter(p => p.department_id === form.department).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Year level</label>
+                  <select
+                    name="yearLevel" value={form.yearLevel} onChange={handleChange}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
+                  >
+                    <option value="">Select year</option>
+                    {yearLevels.map(y => <option key={y.id} value={y.id}>{y.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Section</label>
+                  <select
+                    name="section" value={form.section} onChange={handleChange}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#1434A4] focus:ring-1 focus:ring-[#1434A4] outline-none transition-all text-sm"
+                  >
+                    <option value="">Select section</option>
+                    {sections.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label
-                    htmlFor="yearLevel"
-                    className="block text-xs font-medium text-gray-700"
-                  >
-                    Year level
-                  </label>
-                  <select
-                    id="yearLevel"
-                    name="yearLevel"
-                    value={form.yearLevel}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">Select year level</option>
-                    {yearLevels.length > 0 ? (
-                      yearLevels.map((y: any) => (
-                        <option key={y.id} value={y.label}>
-                          {y.label}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="1st Year">1st Year</option>
-                        <option value="2nd Year">2nd Year</option>
-                        <option value="3rd Year">3rd Year</option>
-                        <option value="4th Year">4th Year</option>
-                        <option value="Graduate">Graduate</option>
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label
-                    htmlFor="section"
-                    className="block text-xs font-medium text-gray-700"
-                  >
-                    Section
-                  </label>
-                  <input
-                    id="section"
-                    name="section"
-                    type="text"
-                    value={form.section}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="e.g. A"
-                  />
-                </div>
-              </div>
             </div>
+          </div>
 
-            <div className="mt-4 flex gap-3">
-              <button
-                type="button"
-                onClick={() => navigate('/complete-profile/student/address')}
-                className="flex-1 inline-flex justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="flex-1 inline-flex justify-center rounded-2xl bg-[#1434A4] hover:bg-[#102a82] text-white text-sm font-semibold py-2.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {submitting ? 'Submitting…' : 'Submit for approval'}
-              </button>
-            </div>
-          </form>
-        )}
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+            <button
+              type="submit" disabled={submitting}
+              className="w-full sm:w-auto px-8 py-2.5 rounded-xl bg-[#1434A4] text-white text-sm font-bold shadow-lg shadow-blue-900/20 hover:bg-[#102a82] disabled:opacity-50 transition-all"
+            >
+              {submitting ? 'Saving...' : 'Finalize Profile'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
 }
 
 export default CompleteStudentProfile
-
