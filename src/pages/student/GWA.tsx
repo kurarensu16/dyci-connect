@@ -230,6 +230,7 @@ const GWA: React.FC = () => {
           </div>
         </div>
       </div>
+      </main>
     </div>
   )
 }
