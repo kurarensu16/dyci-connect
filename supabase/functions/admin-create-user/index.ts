@@ -187,8 +187,6 @@ Deno.serve(async (req: Request) => {
             section_id: payload.sectionId || null,
             street_address: payload.streetAddress || null,
             barangay_id: payload.barangayId || null,
-            guardian_name: payload.guardianName || null,
-            guardian_contact: payload.guardianContact || null,
             enrolled_academic_year_id: null, // FORCE NULL for Gate 2
             updated_at: new Date().toISOString()
           }, { onConflict: 'profile_id' })

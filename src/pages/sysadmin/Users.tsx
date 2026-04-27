@@ -874,9 +874,6 @@ const SysAdminUsers: React.FC = () => {
                 ) : (
                   <>
                     <div className="max-w-xs mx-auto">
-                      <div className="h-20 w-20 bg-blue-50 rounded-2xl flex items-center justify-center text-[#1434A4] mx-auto mb-6 border border-blue-100 shadow-inner">
-                        <FaUpload className="text-2xl" />
-                      </div>
                       <h3 className="text-base font-bold text-slate-800 uppercase tracking-tight">Bulk Account Creation</h3>
                       <p className="text-xs text-slate-500 mt-2 leading-relaxed font-medium">
                         Upload a standard **CSV** or **Excel** file to create multiple accounts simultaneously.
