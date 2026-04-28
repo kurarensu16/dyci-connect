@@ -4,10 +4,12 @@ import {
   FaTrash, FaTimes, FaDownload, FaSpinner,
   FaFilePdf, FaFileImage, FaFileVideo, FaFileAudio, FaSearch,
   FaSortAmountDown, FaSortAmountUp, FaThLarge, FaList,
-  FaArchive, FaArrowLeft, FaHome, FaChevronRight, FaFileUpload, FaEdit
+  FaArchive, FaArrowLeft, FaHome, FaChevronRight, FaFileUpload, FaEdit,
+  FaFileWord, FaFileExcel, FaFilePowerpoint
 } from 'react-icons/fa'
 import { supabase } from '../../lib/supabaseClient'
 import { toast } from 'react-hot-toast'
+import { FileSkeleton } from '../../components/ui/Skeleton'
 
 interface StoredItem {
   id: string
@@ -20,7 +22,7 @@ interface StoredItem {
   isArchived: boolean
 }
 
-type PreviewType = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'other'
+type PreviewType = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'office' | 'other'
 type ViewMode = 'list' | 'grid'
 type SortBy = 'name' | 'date' | 'size'
 
@@ -30,6 +32,14 @@ const getPreviewType = (contentType: string): PreviewType => {
   if (contentType.startsWith('video/')) return 'video'
   if (contentType.startsWith('audio/')) return 'audio'
   if (contentType.startsWith('text/') || contentType === 'application/json') return 'text'
+  if (
+    contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    contentType === 'application/msword' ||
+    contentType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    contentType === 'application/vnd.ms-excel' ||
+    contentType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+    contentType === 'application/vnd.ms-powerpoint'
+  ) return 'office'
   return 'other'
 }
 
@@ -39,6 +49,9 @@ const getFileIcon = (contentType?: string) => {
   if (contentType === 'application/pdf') return FaFilePdf
   if (contentType.startsWith('video/')) return FaFileVideo
   if (contentType.startsWith('audio/')) return FaFileAudio
+  if (contentType.includes('word') || contentType.includes('officedocument.word')) return FaFileWord
+  if (contentType.includes('excel') || contentType.includes('officedocument.spreadsheet')) return FaFileExcel
+  if (contentType.includes('powerpoint') || contentType.includes('officedocument.presentation')) return FaFilePowerpoint
   return FaFileAlt
 }
 
@@ -168,7 +181,7 @@ const Files: React.FC = () => {
 
     } catch (err: any) {
       console.error('Fetch error:', err)
-      toast.error(err.message || 'Failed to fetch items')
+      toast.error('Failed to load items. Please refresh and try again.')
     } finally {
       setLoading(false)
     }
@@ -207,6 +220,10 @@ const Files: React.FC = () => {
     if (!file) return
     if (file.size > 25 * 1024 * 1024) {
       toast.error("File size exceeds 25MB limit")
+      return
+    }
+    if (usedBytes + file.size > quotaBytes) {
+      toast.error("Storage quota exceeded. Please delete some files to free up space.")
       return
     }
     const toastId = toast.loading('Preparing upload...')
@@ -493,10 +510,7 @@ const Files: React.FC = () => {
           {/* List/Grid Area */}
           <div className="flex-1 p-4">
             {loading ? (
-              <div className="h-64 flex flex-col items-center justify-center text-slate-400 text-xs gap-3">
-                <FaSpinner className="h-6 w-6 animate-spin text-blue-500/50" />
-                <span>Synchronizing storage...</span>
-              </div>
+              <FileSkeleton />
             ) : filteredAndSortedItems.length === 0 ? (
               <div className="h-64 flex flex-col items-center justify-center text-slate-400 text-center gap-2">
                 <FaFileAlt className="h-10 w-10 opacity-10" />
@@ -573,12 +587,12 @@ const Files: React.FC = () => {
                       <h4 className="text-[11px] font-bold text-slate-800 text-center line-clamp-2">{item.name}</h4>
                       <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase">{isFolder ? 'Dir' : `${item.sizeMb?.toFixed(1)} MB`}</p>
 
-                      <button
-                        onClick={(e) => toggleActionMenu(item.id, e)}
-                        className="absolute top-2 right-2 p-1 text-slate-200 hover:text-slate-500 opacity-0 group-hover:opacity-100"
-                      >
-                        <FaEllipsisV className="h-2.5 w-2.5" />
-                      </button>
+                        <button
+                          onClick={(e) => toggleActionMenu(item.id, e)}
+                          className="absolute top-2 right-2 p-1 text-slate-200 hover:text-slate-500 opacity-0 group-hover:opacity-100"
+                        >
+                          <FaEllipsisV className="h-2.5 w-2.5" />
+                        </button>
 
                       {actionMenuOpenId === item.id && (
                         <div className="absolute top-8 right-2 w-32 bg-white rounded-lg shadow-xl border border-slate-100 z-20 py-1 text-[10px] font-bold">
@@ -711,6 +725,18 @@ const Files: React.FC = () => {
                           <FaFileAudio className="h-12 w-12 text-blue-500" />
                           <audio controls className="w-full"><source src={previewUrl} type={previewContentType} /></audio>
                           <p className="text-[11px] font-bold text-slate-500 px-4 text-center">{previewFileName}</p>
+                        </div>
+                      )
+                      case 'office': return (
+                        <iframe 
+                          src={`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(previewUrl)}`} 
+                          className="w-full h-full rounded-2xl border border-slate-200 bg-white" 
+                          title={previewFileName}
+                        />
+                      )
+                      case 'text': return (
+                        <div className="w-full h-full bg-white rounded-2xl border border-slate-200 p-6 overflow-auto">
+                          <pre className="text-xs font-mono text-slate-700 whitespace-pre-wrap">{previewUrl}</pre>
                         </div>
                       )
                       default: return (

@@ -4,6 +4,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { checkProfileCompleteness, createIncompleteProfileNotification } from '../../utils/profileUtils'
+import { DashboardSkeleton } from '../ui/Skeleton'
 
 interface ProfileGuardProps {
   children: ReactNode
@@ -68,11 +69,7 @@ const ProfileGuard: React.FC<ProfileGuardProps> = ({ children, allowedRoles }) =
   }, [user?.id])
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-sm text-slate-500">Loading…</div>
-      </div>
-    )
+    return <DashboardSkeleton />;
   }
 
   const role = authoritativeRole ?? ''

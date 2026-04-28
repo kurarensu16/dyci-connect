@@ -73,7 +73,7 @@ export const VideoCarousel: React.FC<VideoCarouselProps> = ({ category, userRole
             toast.success('Video purged successfully.', { id: toastId });
             setVideos(prev => prev.filter(v => v.id !== video.id));
         } else {
-            toast.error('Purge Failed: ' + error?.message, { id: toastId });
+            toast.error('Purge failed. Network node rejection.', { id: toastId });
         }
     };
 
@@ -108,7 +108,7 @@ export const VideoCarousel: React.FC<VideoCarouselProps> = ({ category, userRole
                             if (url) {
                                 setActiveStreamUrl(url);
                             } else {
-                                toast.error('Secure stream link expired or blocked.');
+                                toast.error('Secure stream link expired. Please re-establish connection.');
                                 setSelectedVideo(null);
                             }
                             setIsGeneratingStream(false);

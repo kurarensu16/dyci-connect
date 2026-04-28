@@ -8,10 +8,17 @@ import {
   FaTimes,
   FaUpload,
   FaExclamationTriangle,
-  FaShieldAlt
+  FaShieldAlt,
+  FaEllipsisV,
+  FaKey,
+  FaUserTag,
+  FaUserSlash,
+  FaUserCheck,
+  FaEye
 } from 'react-icons/fa';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
+import { Skeleton } from '../../components/ui/Skeleton';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -25,6 +32,7 @@ interface LocalProfile {
   verified: boolean;
   last_login: string | null;
   level: number;
+  disabled_at: string | null;
 }
 
 const SysAdminUsers: React.FC = () => {
@@ -49,6 +57,21 @@ const SysAdminUsers: React.FC = () => {
     requireChange: true,
   });
   const [generatedPreview, setGeneratedPreview] = useState('');
+
+  // Action Menu State
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
+  const [viewingUser, setViewingUser] = useState<LocalProfile | null>(null);
+
+  // Confirmation State
+  const [confirmConfig, setConfirmConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: '',
+    confirmColor: '',
+    onConfirm: () => {}
+  });
 
   // Manual Form State
   const [formData, setFormData] = useState({
@@ -144,7 +167,7 @@ const SysAdminUsers: React.FC = () => {
       // Fetch profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, email, student_employee_id, first_name, last_name, verified, last_login')
+        .select('id, email, student_employee_id, first_name, last_name, verified, last_login, disabled_at')
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
@@ -170,13 +193,14 @@ const SysAdminUsers: React.FC = () => {
           role: role.toUpperCase(),
           verified: p.verified,
           last_login: p.last_login ? new Date(p.last_login).toLocaleDateString() : 'Never',
-          level: role === 'system_admin' ? 90 : role === 'academic_admin' ? 80 : role === 'staff' ? 50 : 10
+          level: role === 'system_admin' ? 90 : role === 'academic_admin' ? 80 : role === 'staff' ? 50 : 10,
+          disabled_at: p.disabled_at
         };
       });
       setUsers(formatted);
     } catch (err: any) {
       console.error('Fetch users error:', err);
-      toast.error('Failed to sync institutional registry: ' + err.message);
+      toast.error('Failed to sync institutional registry. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -260,7 +284,7 @@ const SysAdminUsers: React.FC = () => {
       });
       fetchUsers();
     } catch (err: any) {
-      toast.error(err.message || 'Provisioning sequence failed');
+      toast.error('Provisioning sequence failed. Please check inputs and try again.');
     } finally {
       setIsProvisioning(false);
     }
@@ -468,15 +492,64 @@ const SysAdminUsers: React.FC = () => {
         p_require_change: resetForm.requireChange,
       });
 
+      // Audit log
+      await supabase.rpc('log_system_event', {
+        p_action: 'PASSWORD_RESET',
+        p_entity_type: 'USER',
+        p_entity_id: resetTarget.id,
+        p_metadata: { email: resetTarget.email, auto_gen: resetForm.useAutoGenerate }
+      });
+
       toast.success(`Password reset for ${resetTarget.email}. Temp password: ${tempPassword}`);
       setShowResetModal(false);
       setResetTarget(null);
     } catch (err: any) {
       console.error('Password reset error:', err);
-      toast.error(err.message || 'Failed to reset password');
+      toast.error('Failed to reset password. Please contact system administration.');
     } finally {
       setResetLoading(false);
     }
+  };
+
+  const toggleUserStatus = async (user: LocalProfile) => {
+    const isCurrentlyDisabled = !!user.disabled_at;
+    const actionLabel = isCurrentlyDisabled ? 'ACTIVATE' : 'DEACTIVATE';
+
+    setConfirmConfig({
+      isOpen: true,
+      title: `${isCurrentlyDisabled ? 'Activate' : 'Deactivate'} User Account`,
+      message: `Are you sure you want to ${isCurrentlyDisabled ? 'reactivate' : 'suspend'} access for ${user.first_name} ${user.last_name}?`,
+      confirmLabel: isCurrentlyDisabled ? 'Activate' : 'Deactivate',
+      confirmColor: isCurrentlyDisabled ? 'bg-emerald-600' : 'bg-rose-600',
+      onConfirm: async () => {
+        const newStatus = isCurrentlyDisabled ? null : new Date().toISOString();
+        setIsUpdatingStatus(user.id);
+        
+        try {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ disabled_at: newStatus })
+            .eq('id', user.id);
+
+          if (error) throw error;
+
+          // Manual log for audit
+          await supabase.rpc('log_system_event', {
+            p_action: actionLabel,
+            p_entity_type: 'USER',
+            p_entity_id: user.id,
+            p_metadata: { email: user.email }
+          });
+
+          toast.success(`User ${isCurrentlyDisabled ? 'activated' : 'deactivated'} successfully`);
+          fetchUsers();
+        } catch (err: any) {
+          toast.error('Failed to update user status. Please try again.');
+        } finally {
+          setIsUpdatingStatus(null);
+        }
+      }
+    });
   };
 
   const filteredUsers = users.filter(u =>
@@ -570,12 +643,23 @@ const SysAdminUsers: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {loading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-20 text-center">
-                      <FaCircleNotch className="animate-spin text-2xl text-[#1434A4] mx-auto mb-3" />
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Updating users...</p>
-                    </td>
-                  </tr>
+                  [...Array(8)].map((_, i) => (
+                    <tr key={i}>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-3">
+                          <Skeleton variant="circle" width={40} height={40} className="rounded-2xl" />
+                          <div className="space-y-2">
+                            <Skeleton variant="text" width={120} />
+                            <Skeleton variant="text" width={180} height={12} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4"><Skeleton variant="text" width={80} /></td>
+                      <td className="px-6 py-4"><Skeleton height={20} width={100} className="rounded-full" /></td>
+                      <td className="px-6 py-4"><Skeleton height={20} width={80} className="rounded-full" /></td>
+                      <td className="px-6 py-4 text-right"><Skeleton variant="circle" width={24} height={24} className="ml-auto" /></td>
+                    </tr>
+                  ))
                 ) : filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-20 text-center">
@@ -617,15 +701,65 @@ const SysAdminUsers: React.FC = () => {
                           {user.verified ? 'VERIFIED' : 'PENDING'}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => openResetModal(user)}
-                          className="px-3 py-1.5 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-lg hover:bg-rose-100 transition-colors"
-                          title="Reset Password"
-                        >
-                          Reset Password
-                        </button>
-                      </td>
+                        <td className="px-6 py-4 text-right relative">
+                          <div className="flex justify-end">
+                            <div className="relative inline-block text-left">
+                                  <button
+                                    onClick={() => setActiveMenuId(activeMenuId === user.id ? null : user.id)}
+                                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                                  >
+                                    <FaEllipsisV className="w-3.5 h-3.5" />
+                                  </button>
+
+                              {activeMenuId === user.id && (
+                                <>
+                                  <div 
+                                    className="fixed inset-0 z-10" 
+                                    onClick={() => setActiveMenuId(null)} 
+                                  />
+                                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-20 animate-in fade-in zoom-in duration-150">
+                                    <div className="px-4 py-2 border-b border-slate-50 mb-1">
+                                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Account Actions</p>
+                                    </div>
+                                    <button
+                                      onClick={() => { openResetModal(user); setActiveMenuId(null); }}
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                                    >
+                                      <FaKey className="w-3 h-3 text-slate-400" />
+                                      Reset Password
+                                    </button>
+                                    <button
+                                      onClick={() => { setViewingUser(user); setActiveMenuId(null); }}
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                                    >
+                                      <FaEye className="w-3 h-3 text-slate-400" />
+                                      View Profile
+                                    </button>
+                                    <div className="h-px bg-slate-50 my-1" />
+                                    <button
+                                      onClick={() => toggleUserStatus(user)}
+                                      disabled={isUpdatingStatus === user.id}
+                                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-[11px] font-bold transition-colors ${
+                                        user.disabled_at 
+                                          ? 'text-emerald-600 hover:bg-emerald-50' 
+                                          : 'text-rose-600 hover:bg-rose-50'
+                                      }`}
+                                    >
+                                      {isUpdatingStatus === user.id ? (
+                                        <FaCircleNotch className="w-3 h-3 animate-spin" />
+                                      ) : user.disabled_at ? (
+                                        <FaUserCheck className="w-3 h-3" />
+                                      ) : (
+                                        <FaUserSlash className="w-3 h-3" />
+                                      )}
+                                      {user.disabled_at ? 'Activate Account' : 'Deactivate Account'}
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </td>
                     </tr>
                   ))
                 )}
@@ -1107,6 +1241,123 @@ const SysAdminUsers: React.FC = () => {
           <span>DYCI CONNECT v7.0</span>
         </div>
       </footer>
+      {/* User Profile Detail Modal */}
+      {viewingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setViewingUser(null)} />
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between px-8 py-6 border-b border-slate-50 bg-slate-50/30">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center text-lg font-black text-slate-300">
+                  {viewingUser.first_name[0]}{viewingUser.last_name[0]}
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 leading-none">{viewingUser.first_name} {viewingUser.last_name}</h3>
+                  <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">{viewingUser.role}</p>
+                </div>
+              </div>
+              <button onClick={() => setViewingUser(null)} className="p-2 text-slate-300 hover:text-slate-600 transition-colors">
+                <FaTimes className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-8">
+              <div className="grid grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Institutional Email</label>
+                    <p className="text-sm font-bold text-slate-800">{viewingUser.email}</p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">ID Number</label>
+                    <p className="text-sm font-mono font-bold text-slate-800">{viewingUser.student_employee_id}</p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Account Status</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className={`h-2 w-2 rounded-full ${viewingUser.disabled_at ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                      <span className={`text-[10px] font-black uppercase ${viewingUser.disabled_at ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {viewingUser.disabled_at ? 'Suspended' : 'Active'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Last Activity</label>
+                    <p className="text-sm font-bold text-slate-800">{viewingUser.last_login}</p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Security Level</label>
+                    <p className="text-sm font-bold text-slate-800">Level {viewingUser.level}</p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Verification</label>
+                    <p className={`text-[10px] font-black uppercase ${viewingUser.verified ? 'text-blue-600' : 'text-amber-600'}`}>
+                      {viewingUser.verified ? 'Institutional Verified' : 'Pending Verification'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-10 pt-6 border-t border-slate-50 flex gap-3">
+                <button 
+                  onClick={() => { openResetModal(viewingUser); setViewingUser(null); }}
+                  className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+                >
+                  Force Password Reset
+                </button>
+                <button 
+                  onClick={() => { toggleUserStatus(viewingUser); setViewingUser(null); }}
+                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    viewingUser.disabled_at 
+                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100' 
+                      : 'bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100'
+                  }`}
+                >
+                  {viewingUser.disabled_at ? 'Reactivate Access' : 'Suspend Access'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmConfig.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" />
+          <div className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in slide-in-from-bottom-8 duration-500">
+            <div className="p-10 text-center">
+              <div className="w-20 h-20 bg-rose-50 rounded-[2rem] flex items-center justify-center mx-auto mb-8 animate-bounce duration-[2000ms]">
+                <FaExclamationTriangle className="w-8 h-8 text-rose-500" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 mb-4">{confirmConfig.title}</h3>
+              <p className="text-sm text-slate-500 leading-relaxed mb-10 font-medium">
+                {confirmConfig.message}
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    confirmConfig.onConfirm();
+                    setConfirmConfig({ ...confirmConfig, isOpen: false });
+                  }}
+                  className={`w-full py-4 ${confirmConfig.confirmColor} text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-[0.98] transition-all`}
+                >
+                  {confirmConfig.confirmLabel}
+                </button>
+                <button
+                  onClick={() => setConfirmConfig({ ...confirmConfig, isOpen: false })}
+                  className="w-full py-4 bg-slate-50 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-100 transition-all"
+                >
+                  Cancel Operation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

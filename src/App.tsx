@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { useAuth } from './contexts/AuthContext'
@@ -11,57 +11,58 @@ import MaintenanceGuard from './components/auth/MaintenanceGuard'
 import AuthOverrideGuard from './components/auth/AuthOverrideGuard'
 import ReadOnlyGuard from './components/auth/ReadOnlyGuard'
 import PasswordResetOnboarding from './components/onboarding/PasswordResetOnboarding'
+import { DashboardSkeleton } from './components/ui/Skeleton'
 
 // Public Pages
-import Home from './pages/Home'
-import Login from './pages/auth/Login'
-import ConformePage from './pages/auth/Conforme'
-import AuthCallback from './pages/auth/AuthCallback'
-import ForgotPassword from './pages/auth/ForgotPassword'
-import ResetPassword from './pages/auth/ResetPassword'
-import CompleteProfile from './pages/auth/CompleteProfile'
-import CompleteStudentProfile from './pages/auth/CompleteStudentProfile'
-import CompleteFacultyProfile from './pages/auth/CompleteFacultyProfile'
-import PendingApproval from './pages/auth/PendingApproval'
-import NotFound from './pages/NotFound'
-import Maintenance from './pages/Maintenance'
-import SessionSuspended from './pages/SessionSuspended'
+// Public Pages
+const Home = lazy(() => import('./pages/Home'))
+const Login = lazy(() => import('./pages/auth/Login'))
+const ConformePage = lazy(() => import('./pages/auth/Conforme'))
+const AuthCallback = lazy(() => import('./pages/auth/AuthCallback'))
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'))
+const CompleteProfile = lazy(() => import('./pages/auth/CompleteProfile'))
+const CompleteStudentProfile = lazy(() => import('./pages/auth/CompleteStudentProfile'))
+const CompleteFacultyProfile = lazy(() => import('./pages/auth/CompleteFacultyProfile'))
+const PendingApproval = lazy(() => import('./pages/auth/PendingApproval'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+const Maintenance = lazy(() => import('./pages/Maintenance'))
+const SessionSuspended = lazy(() => import('./pages/SessionSuspended'))
 
 // Student Pages
-import StudentDashboard from './pages/student/Dashboard'
-import Calendar from './pages/student/Calendar'
-import Handbook from './pages/student/Handbook'
-import Files from './pages/student/Files'
-import Tools from './pages/student/Tools'
-import StudentNotifications from './pages/student/Notifications'
+const StudentDashboard = lazy(() => import('./pages/student/Dashboard'))
+const Calendar = lazy(() => import('./pages/student/Calendar'))
+const Handbook = lazy(() => import('./pages/student/Handbook'))
+const Files = lazy(() => import('./pages/student/Files'))
+const Tools = lazy(() => import('./pages/student/Tools'))
+const StudentNotifications = lazy(() => import('./pages/student/Notifications'))
 
 // Admin Pages
-import AdminDashboard from './pages/admin/Dashboard'
-
-import Support from './pages/admin/Support'
-import AdminCalendar from './pages/admin/Calendar'
-import HandbookPreview from './pages/admin/HandbookPreview'
-import Cms from './pages/admin/Cms'
-import Reports from './pages/admin/Reports'
-import AdminNotifications from './pages/student/Notifications'
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'))
+const Support = lazy(() => import('./pages/admin/Support'))
+const AdminCalendar = lazy(() => import('./pages/admin/Calendar'))
+const HandbookPreview = lazy(() => import('./pages/admin/HandbookPreview'))
+const Cms = lazy(() => import('./pages/admin/Cms'))
+const Reports = lazy(() => import('./pages/admin/Reports'))
+const AdminNotifications = lazy(() => import('./pages/student/Notifications'))
 
 // SysAdmin (L90) Pages
-import SysAdminDashboard from './pages/sysadmin/Dashboard'
-import SysAdminUsers from './pages/sysadmin/Users'
-import SysAdminOrganization from './pages/sysadmin/Organization'
-import SysAdminForensics from './pages/sysadmin/Forensics'
-import SysAdminSettings from './pages/sysadmin/Settings'
-import SysAdminStorage from './pages/sysadmin/Storage'
-import SysAdminProfile from './pages/sysadmin/Profile'
-import SysAdminAlerts from './pages/sysadmin/Alerts'
-import SysAdminBroadcastNetwork from './pages/sysadmin/BroadcastNetwork'
+const SysAdminDashboard = lazy(() => import('./pages/sysadmin/Dashboard'))
+const SysAdminUsers = lazy(() => import('./pages/sysadmin/Users'))
+const SysAdminOrganization = lazy(() => import('./pages/sysadmin/Organization'))
+const SysAdminForensics = lazy(() => import('./pages/sysadmin/Forensics'))
+const SysAdminSettings = lazy(() => import('./pages/sysadmin/Settings'))
+const SysAdminStorage = lazy(() => import('./pages/sysadmin/Storage'))
+const SysAdminProfile = lazy(() => import('./pages/sysadmin/Profile'))
+const SysAdminAlerts = lazy(() => import('./pages/sysadmin/Alerts'))
+const SysAdminBroadcastNetwork = lazy(() => import('./pages/sysadmin/BroadcastNetwork'))
 
 // Staff Pages
-import StaffDashboard from './pages/faculty/Dashboard'
-import StaffCalendar from './pages/faculty/Calendar'
-import StaffHandbook from './pages/faculty/Handbook'
-import HandbookApprovals from './pages/faculty/HandbookApprovals'
-import StaffNotifications from './pages/student/Notifications'
+const StaffDashboard = lazy(() => import('./pages/faculty/Dashboard'))
+const StaffCalendar = lazy(() => import('./pages/faculty/Calendar'))
+const StaffHandbook = lazy(() => import('./pages/faculty/Handbook'))
+const HandbookApprovals = lazy(() => import('./pages/faculty/HandbookApprovals'))
+const StaffNotifications = lazy(() => import('./pages/student/Notifications'))
 
 // Shared Components
 import StudentLayout from './components/layout/StudentLayout'
@@ -176,14 +177,7 @@ const OnboardingGuard: React.FC<{ children: React.ReactNode }> = ({ children }) 
   }
 
   if (!checked || authLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <FaFingerprint className="animate-pulse text-4xl text-[#1434A4] mx-auto mb-4" />
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Verifying Identity...</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // GATE 1: Password Reset (Force Overlay)
@@ -229,7 +223,8 @@ const AppContent: React.FC = () => {
         <MaintenanceGuard>
           <AuthOverrideGuard>
             <ReadOnlyGuard>
-              <Routes>
+              <Suspense fallback={null}>
+                <Routes>
                 {/* Maintenance Route - Always accessible */}
                 <Route path="/maintenance" element={<Maintenance />} />
 
@@ -596,6 +591,7 @@ const AppContent: React.FC = () => {
                 {/* 404 */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
+            </Suspense>
             </ReadOnlyGuard>
           </AuthOverrideGuard>
         </MaintenanceGuard>

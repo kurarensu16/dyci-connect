@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
 import toast from 'react-hot-toast'
+import { Skeleton, TableSkeleton, KanbanSkeleton } from '../../components/ui/Skeleton'
 import { 
   FaPlus, FaTrash, FaCalculator, FaListCheck, FaStar, FaPen, FaCheck, 
   FaArrowRight, FaClock, FaCircle, FaXmark, FaBoxArchive, FaTriangleExclamation 
@@ -434,6 +435,50 @@ const Tools: React.FC = () => {
     })
   }
 
+  const [draggingTodoId, setDraggingTodoId] = useState<string | null>(null)
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData('todoId', id)
+    setDraggingTodoId(id)
+  };
+
+  const handleDragEnd = () => {
+    setDraggingTodoId(null)
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+  };
+
+  const handleDrop = async (e: React.DragEvent, newStatus: TodoStatus) => {
+    e.preventDefault()
+    const id = e.dataTransfer.getData('todoId')
+    setDraggingTodoId(null)
+    
+    const todoToUpdate = todos.find(t => t.id === id)
+    if (!todoToUpdate || todoToUpdate.status === newStatus) return
+
+    try {
+      // Optimistic update
+      setTodos(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t))
+      
+      const { error } = await supabase
+        .from('todos')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+
+      if (error) throw error
+      toast.success(`Task moved to ${TOOLS_COLUMNS.find(c => c.id === newStatus)?.label}`)
+    } catch (err) {
+      // Revert on error
+      fetchTodos()
+      toast.error('Failed to move task')
+    }
+  };
+
   const trashTodoConfirm = (todo: Todo) => {
     setConfirmConfig({
       isOpen: true,
@@ -478,7 +523,12 @@ const Tools: React.FC = () => {
     }[todo.priority as TodoPriority] || { dot: 'bg-slate-300', label: 'text-slate-400 bg-slate-50 border-slate-50', shadow: '' }
 
     return (
-      <div className={`group bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all relative overflow-hidden ${todo.is_archived ? 'opacity-60 grayscale' : ''}`}>
+      <div 
+        draggable={!todo.is_archived}
+        onDragStart={(e) => handleDragStart(e, todo.id)}
+        onDragEnd={handleDragEnd}
+        className={`group bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all relative overflow-hidden cursor-grab active:cursor-grabbing ${todo.is_archived ? 'opacity-60 grayscale' : ''} ${draggingTodoId === todo.id ? 'opacity-20 scale-95' : ''}`}
+      >
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className={`px-2 py-0.5 rounded-lg border text-[8px] font-black uppercase tracking-widest ${priorityConfig.label}`}>
             {todo.priority} PRIORITY
@@ -550,6 +600,17 @@ const Tools: React.FC = () => {
 
       <main className="unified-main">
         {activeTab === 'gwa' && (
+          loading ? (
+            <div className="flex flex-col lg:flex-row gap-6">
+              <div className="flex-1 space-y-6">
+                <Skeleton height={200} className="rounded-3xl" />
+                <TableSkeleton rows={8} />
+              </div>
+              <aside className="w-full lg:w-72 space-y-4">
+                <Skeleton height={300} className="rounded-3xl" />
+              </aside>
+            </div>
+          ) : (
           <div className="flex flex-col lg:flex-row gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Main Calculator */}
             <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8">
@@ -800,7 +861,8 @@ const Tools: React.FC = () => {
               </div>
             </aside>
           </div>
-        )}
+        )
+      )}
 
         {activeTab === 'todo' && (
           <div className="flex flex-col lg:flex-row gap-6 items-start animate-in fade-in duration-500">
@@ -837,9 +899,7 @@ const Tools: React.FC = () => {
               {/* Kanban Grid - Unified System Style (4 Columns) */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                 {fetchLoading ? (
-                   Array(4).fill(0).map((_, i) => (
-                    <div key={i} className="animate-pulse bg-white border border-slate-100 rounded-3xl h-[500px]" />
-                  ))
+                  <KanbanSkeleton />
                 ) : (
                   TOOLS_COLUMNS.map(col => {
                     const colTodos = filteredTodos.filter(t => t.status === col.id)
@@ -858,7 +918,11 @@ const Tools: React.FC = () => {
                           <span className="bg-white border border-slate-100 text-slate-400 text-[9px] font-black px-2 py-0.5 rounded-lg shadow-sm">{colTodos.length}</span>
                         </div>
                         
-                        <div className="flex-1 bg-slate-50/50 rounded-3xl p-3 border border-slate-100/50">
+                        <div 
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, col.id as TodoStatus)}
+                          className={`flex-1 bg-slate-50/50 rounded-3xl p-3 border border-slate-100/50 transition-colors ${draggingTodoId ? 'bg-blue-50/50 border-blue-200 ring-2 ring-blue-100 ring-offset-2' : ''}`}
+                        >
                           {colTodos.length === 0 ? (
                             <div className="h-full min-h-[150px] border-2 border-dashed border-slate-200/50 rounded-3xl flex flex-col items-center justify-center p-6 bg-white/30">
                               <FaListCheck className="w-6 h-6 text-slate-200 mb-2" />

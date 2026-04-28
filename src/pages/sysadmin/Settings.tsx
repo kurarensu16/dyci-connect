@@ -76,6 +76,16 @@ const SysAdminSettings: React.FC = () => {
   const [readOnlyMode, setReadOnlyMode] = useState<ReadOnlyStatus | null>(null);
   const [lockdownLoading, setLockdownLoading] = useState(false);
 
+  // Confirmation State
+  const [confirmConfig, setConfirmConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: '',
+    confirmColor: '',
+    onConfirm: () => {}
+  });
+
   // Fetch current maintenance mode and metrics on mount
   useEffect(() => {
     fetchMaintenanceStatus();
@@ -113,40 +123,38 @@ const SysAdminSettings: React.FC = () => {
   };
 
   const toggleMaintenanceMode = async () => {
-    setLoading(true);
-    try {
-      const newState = !maintenanceMode;
-
-      if (newState) {
-        // Enable maintenance mode
-        const { error } = await supabase.rpc('enable_maintenance_mode', {
-          p_message: 'The system is currently under maintenance. Please check back later.'
-        });
-
-        if (error) {
-          toast.error('Failed to enable maintenance mode: ' + error.message);
-          return;
+    const newState = !maintenanceMode;
+    
+    setConfirmConfig({
+      isOpen: true,
+      title: `${newState ? 'Enable' : 'Disable'} Maintenance Mode`,
+      message: newState 
+        ? "This will redirect all non-admin users to the maintenance page. Are you sure you want to proceed?"
+        : "This will restore full system access to all users. Proceed?",
+      confirmLabel: newState ? 'Enable' : 'Disable',
+      confirmColor: newState ? 'bg-rose-600' : 'bg-emerald-600',
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          if (newState) {
+            const { error } = await supabase.rpc('enable_maintenance_mode', {
+              p_message: 'The system is currently under maintenance. Please check back later.'
+            });
+            if (error) throw error;
+            toast.success('System node entering maintenance state');
+          } else {
+            const { error } = await supabase.rpc('disable_maintenance_mode');
+            if (error) throw error;
+            toast.success('System node returned to active state');
+          }
+          setMaintenanceMode(newState);
+        } catch (err: any) {
+          toast.error('System update failed. Please try again or contact IT.');
+        } finally {
+          setLoading(false);
         }
-
-        toast.success('Maintenance mode enabled. All non-System Admin users will be redirected.');
-      } else {
-        // Disable maintenance mode
-        const { error } = await supabase.rpc('disable_maintenance_mode');
-
-        if (error) {
-          toast.error('Failed to disable maintenance mode: ' + error.message);
-          return;
-        }
-
-        toast.success('Maintenance mode disabled. System is now accessible to all users.');
       }
-
-      setMaintenanceMode(newState);
-    } catch (err: any) {
-      toast.error('Error: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   // Fetch infrastructure metrics
@@ -227,73 +235,72 @@ const SysAdminSettings: React.FC = () => {
 
   // Toggle Auth Override
   const toggleAuthOverride = async () => {
-    setLockdownLoading(true);
-    try {
-      if (authOverride?.is_active) {
-        // Release override
-        console.log('Calling release_auth_override...');
-        const { error } = await supabase.rpc('release_auth_override');
-        if (error) {
-          console.error('Release override error:', error);
-          toast.error('Failed: ' + error.message + ' (Code: ' + error.code + ')');
-          return;
-        }
-        toast.success('Auth override released. Standard users can now access the system.');
-      } else {
-        // Engage override
-        console.log('Calling engage_auth_override...');
-        const { error } = await supabase.rpc('engage_auth_override', {
-          p_reason: 'Emergency security lockdown'
-        });
-        if (error) {
-          console.error('Engage override error:', error);
-          toast.error('Failed: ' + error.message + ' (Code: ' + error.code + ')');
-          return;
-        }
-        toast.success('Auth override engaged! All standard user sessions suspended.');
-      }
+    const isEngaged = authOverride?.is_active;
 
-      // Refresh status
-      await fetchLockdownStatus();
-    } catch (err: any) {
-      console.error('Toggle auth override error:', err);
-      toast.error('Error: ' + err.message);
-    } finally {
-      setLockdownLoading(false);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: `${isEngaged ? 'Release' : 'Engage'} Auth Override`,
+      message: isEngaged 
+        ? "This will allow users with active sessions to resume normal operations. Proceed?"
+        : "CRITICAL: This will suspend ALL active user sessions immediately. Use only in case of suspected breach. Proceed?",
+      confirmLabel: isEngaged ? 'Release' : 'Engage',
+      confirmColor: isEngaged ? 'bg-emerald-600' : 'bg-rose-600',
+      onConfirm: async () => {
+        setLockdownLoading(true);
+        try {
+          if (isEngaged) {
+            const { error } = await supabase.rpc('release_auth_override');
+            if (error) throw error;
+            toast.success('Session override released');
+          } else {
+            const { error } = await supabase.rpc('engage_auth_override', {
+              p_reason: 'System Security Protocol'
+            });
+            if (error) throw error;
+            toast.success('Institutional lockdown engaged');
+          }
+          fetchLockdownStatus();
+        } catch (err: any) {
+          toast.error('Security protocol update failed. Please verify your permissions.');
+        } finally {
+          setLockdownLoading(false);
+        }
+      }
+    });
   };
 
   // Toggle Read-Only Mode
   const toggleReadOnlyMode = async (enable: boolean) => {
-    setLockdownLoading(true);
-    try {
-      if (enable) {
-        console.log('Calling enable_read_only_mode...');
-        const { error } = await supabase.rpc('enable_read_only_mode', {
-          p_reason: 'System maintenance - data freeze'
-        });
-        if (error) {
-          console.error('Enable read-only error:', error);
-          toast.error('Failed: ' + error.message + ' (Code: ' + error.code + ')');
-          return;
+    setConfirmConfig({
+      isOpen: true,
+      title: `${enable ? 'Enable' : 'Disable'} Read-Only Mode`,
+      message: enable 
+        ? "All database mutations will be blocked for non-admin users. Proceed?"
+        : "Normal database operations will be restored. Proceed?",
+      confirmLabel: enable ? 'Enable' : 'Disable',
+      confirmColor: enable ? 'bg-amber-600' : 'bg-emerald-600',
+      onConfirm: async () => {
+        setLockdownLoading(true);
+        try {
+          if (enable) {
+            const { error } = await supabase.rpc('enable_read_only_mode', {
+              p_reason: 'Integrity Verification'
+            });
+            if (error) throw error;
+            toast.success('Integrity plane synchronized (Read-Only)');
+          } else {
+            const { error } = await supabase.rpc('disable_read_only_mode');
+            if (error) throw error;
+            toast.success('Write-access plane restored');
+          }
+          fetchLockdownStatus();
+        } catch (err: any) {
+          toast.error('Maintenance mode toggle failed. System integrity check recommended.');
+        } finally {
+          setLockdownLoading(false);
         }
-        toast.success('Read-only mode enabled. All mutations blocked.');
-      } else {
-        const { error } = await supabase.rpc('disable_read_only_mode');
-        if (error) {
-          toast.error('Failed to disable read-only: ' + error.message);
-          return;
-        }
-        toast.success('Read-only mode disabled. Normal operations resumed.');
       }
-
-      // Refresh status
-      await fetchLockdownStatus();
-    } catch (err: any) {
-      toast.error('Error: ' + err.message);
-    } finally {
-      setLockdownLoading(false);
-    }
+    });
   };
 
   // Helper to format database size
@@ -564,26 +571,26 @@ const SysAdminSettings: React.FC = () => {
                     : 'Prevent system-wide mutations.'}
                 </p>
                 <div className="mt-5 flex items-center space-x-2">
-                  <button
-                    onClick={() => toggleReadOnlyMode(true)}
-                    disabled={lockdownLoading || readOnlyMode?.is_active}
-                    className={`flex-1 py-2 border rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${readOnlyMode?.is_active
-                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                      : 'bg-white text-gray-900 border-slate-200 hover:text-[#1434A4]'
-                      }`}
-                  >
-                    Enable
-                  </button>
-                  <button
-                    onClick={() => toggleReadOnlyMode(false)}
-                    disabled={lockdownLoading || !readOnlyMode?.is_active}
-                    className={`flex-1 py-2 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm transition-all ${!readOnlyMode?.is_active
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-[#1434A4] text-white'
-                      }`}
-                  >
-                    Disable
-                  </button>
+                    <button
+                      onClick={() => toggleReadOnlyMode(true)}
+                      disabled={lockdownLoading || readOnlyMode?.is_active}
+                      className={`flex-1 py-2 border rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${readOnlyMode?.is_active
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : 'bg-white text-gray-900 border-slate-200 hover:text-[#1434A4]'
+                        }`}
+                    >
+                      Enable
+                    </button>
+                    <button
+                      onClick={() => toggleReadOnlyMode(false)}
+                      disabled={lockdownLoading || !readOnlyMode?.is_active}
+                      className={`flex-1 py-2 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm transition-all ${!readOnlyMode?.is_active
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-[#1434A4] text-white'
+                        }`}
+                    >
+                      Disable
+                    </button>
                 </div>
               </div>
             </div>
@@ -597,6 +604,40 @@ const SysAdminSettings: React.FC = () => {
           SYSTEM SETTINGS :: VERSION 7.0 :: DYCI CONNECT
         </div>
       </footer>
+      {/* Confirmation Modal */}
+      {confirmConfig.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" />
+          <div className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in slide-in-from-bottom-8 duration-500">
+            <div className="p-10 text-center">
+              <div className="w-20 h-20 bg-rose-50 rounded-[2rem] flex items-center justify-center mx-auto mb-8 animate-bounce duration-[2000ms]">
+                <FaExclamationCircle className="w-8 h-8 text-rose-500" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 mb-4">{confirmConfig.title}</h3>
+              <p className="text-sm text-slate-500 leading-relaxed mb-10 font-medium">
+                {confirmConfig.message}
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    confirmConfig.onConfirm();
+                    setConfirmConfig({ ...confirmConfig, isOpen: false });
+                  }}
+                  className={`w-full py-4 ${confirmConfig.confirmColor} text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-[0.98] transition-all`}
+                >
+                  {confirmConfig.confirmLabel}
+                </button>
+                <button
+                  onClick={() => setConfirmConfig({ ...confirmConfig, isOpen: false })}
+                  className="w-full py-4 bg-slate-50 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-100 transition-all"
+                >
+                  Cancel Operation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

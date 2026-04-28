@@ -5,6 +5,7 @@ import {
   FaEye,
   FaEyeSlash
 } from 'react-icons/fa';
+import { DashboardSkeleton } from '../../components/ui/Skeleton';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -190,6 +191,8 @@ const SysAdminProfile: React.FC = () => {
       </div>
     );
   }
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">

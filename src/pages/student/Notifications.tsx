@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import toast from 'react-hot-toast'
 import { FaBell, FaCheck, FaTrash, FaExternalLinkAlt } from 'react-icons/fa'
+import { Skeleton } from '../../components/ui/Skeleton'
 
 interface Notification {
   id: string
@@ -146,7 +147,20 @@ const Notifications: React.FC = () => {
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-sm text-slate-500">Loading notifications…</div>
+          <div className="space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-slate-200 p-4">
+                <div className="flex gap-4">
+                  <Skeleton variant="circle" width={32} height={32} className="shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton variant="text" width="40%" height={20} />
+                    <Skeleton variant="text" width="90%" />
+                    <Skeleton variant="text" width="20%" height={12} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : notifications.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
             <FaBell className="h-12 w-12 text-slate-300 mx-auto mb-3" />

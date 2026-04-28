@@ -30,11 +30,11 @@ export const VideoUploadModal: React.FC<VideoUploadModalProps> = ({ isOpen, onCl
         if (e.target.files && e.target.files[0]) {
             const selectedFile = e.target.files[0];
             if (!selectedFile.type.startsWith('video/')) {
-                toast.error('Only video files (MP4, WebM) are allowed.');
+                toast.error('Unsupported file format. Please use MP4 or WebM.')
                 return;
             }
-            if (selectedFile.size > 500 * 1024 * 1024) { // 500 MB limit frontend check
-                toast.error('File size exceeds 500MB safety limit.');
+            if (selectedFile.size > 100 * 1024 * 1024) { // 100 MB limit frontend check
+                toast.error('Payload size too large. Maximum 100MB allowed.')
                 return;
             }
             setFile(selectedFile);
@@ -95,7 +95,7 @@ export const VideoUploadModal: React.FC<VideoUploadModalProps> = ({ isOpen, onCl
                     console.log('Thumbnail uploaded to:', thumbUrl);
                 } else if (thumbError) {
                     console.error('Thumbnail upload error:', thumbError);
-                    toast.error('Thumbnail failed to upload, but video is proceeding.');
+                    toast.error('Cover card transmission failed. Video upload is still in progress.');
                 }
             }
 
@@ -125,7 +125,7 @@ export const VideoUploadModal: React.FC<VideoUploadModalProps> = ({ isOpen, onCl
             setDuration('');
         } catch (err: any) {
             console.error(err);
-            toast.error('Upload Failed: ' + err.message, { id: toastId });
+            toast.error('Transmission failed. Network uplink disrupted.', { id: toastId });
         } finally {
             setIsUploading(false);
         }
@@ -164,7 +164,7 @@ export const VideoUploadModal: React.FC<VideoUploadModalProps> = ({ isOpen, onCl
                                         <input id="file-upload" name="file-upload" type="file" accept="video/mp4,video/webm" className="sr-only" onChange={handleFileChange} />
                                     </label>
                                 </div>
-                                <p className="text-xs text-slate-500">{file ? file.name : 'MP4, WebM up to 500MB'}</p>
+                                <p className="text-xs text-slate-500">{file ? file.name : 'MP4, WebM up to 100MB'}</p>
                             </div>
                         </div>
                     </div>

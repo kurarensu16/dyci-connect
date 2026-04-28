@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FaClock, FaServer, FaSync } from 'react-icons/fa';
 import { supabase } from '../lib/supabaseClient';
+import { DashboardSkeleton } from '../components/ui/Skeleton';
 
 const Maintenance: React.FC = () => {
   const [message, setMessage] = useState('The system is currently under maintenance. Please check back later.');
@@ -60,14 +61,7 @@ const Maintenance: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <FaServer className="text-4xl text-blue-600 animate-pulse mx-auto mb-4" />
-          <p className="text-slate-500">Checking system status...</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (

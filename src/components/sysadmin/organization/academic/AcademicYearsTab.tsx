@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes } from 'react-icons/fa';
+import { Skeleton } from '../../../ui/Skeleton';
 
 interface AcademicYear {
   id: string;
@@ -26,11 +27,10 @@ const AcademicYearsTab: React.FC = () => {
     try {
       setLoading(true);
       const { data, error } = await supabase.from('academic_years').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
       setYears(data || []);
-    } catch (error) {
-      console.error('Error fetching academic years:', error);
-      toast.error('Failed to load academic years');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to load academic year registry.');
     } finally {
       setLoading(false);
     }
@@ -63,7 +63,7 @@ const AcademicYearsTab: React.FC = () => {
       setShowModal(false);
       fetchYears();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save');
+      toast.error('Failed to save academic year. Please verify your entries.')
     } finally {
       setSaving(false);
     }
@@ -77,11 +77,10 @@ const AcademicYearsTab: React.FC = () => {
       toast.success(!currentStatus ? 'Marked as Active' : 'Marked as Inactive');
       fetchYears();
     } catch (error: any) {
-      toast.error('Failed to toggle status');
+      toast.error('Status transition failed. Please try again.')
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Loading academic years...</div>;
 
   return (
     <div>
@@ -103,7 +102,16 @@ const AcademicYearsTab: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50 font-sans text-sm">
-            {years.map((year) => (
+            {loading ? (
+              [...Array(5)].map((_, i) => (
+                <tr key={i}>
+                  <td className="px-6 py-4"><Skeleton variant="text" width="60%" /></td>
+                  <td className="px-6 py-4"><Skeleton height={20} width={100} className="rounded-full" /></td>
+                  <td className="px-6 py-4"><Skeleton height={20} width={80} className="rounded-full" /></td>
+                  <td className="px-6 py-4 text-right"><Skeleton variant="text" width={40} className="ml-auto" /></td>
+                </tr>
+              ))
+            ) : years.map((year) => (
               <tr key={year.id} className="hover:bg-slate-50">
                 <td className="px-6 py-4 font-bold text-slate-700">{year.year_name}</td>
                 <td className="px-6 py-4">

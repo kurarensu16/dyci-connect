@@ -65,7 +65,7 @@ const ResetPassword: React.FC = () => {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) {
-        toast.error(error.message || 'Failed to update password.')
+        toast.error('Failed to update password. Your reset link may have expired.')
         return
       }
       toast.success('Password updated. You can now sign in with your new password.')

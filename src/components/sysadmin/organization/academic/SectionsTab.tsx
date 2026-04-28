@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
 import toast from 'react-hot-toast';
-import { FaPlus, FaEdit, FaTrash, FaTimes, FaCircleNotch } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaTimes } from 'react-icons/fa';
+import { Skeleton } from '../../../ui/Skeleton';
 
 interface Section { id: string; label: string; sort_order: number; }
 
@@ -19,11 +20,10 @@ const SectionsTab: React.FC = () => {
     try {
       setLoading(true);
       const { data, error } = await supabase.from('sections').select('*').order('sort_order', { ascending: true });
-      if (error) throw error;
       setSections(data || []);
-    } catch (error) {
-      console.error('Error fetching sections:', error);
-      toast.error('Failed to load sections');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to load section configuration.');
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ const SectionsTab: React.FC = () => {
       setShowModal(false);
       fetchData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save section');
+      toast.error('Failed to save section label. Please verify your entries.')
     } finally {
       setSaving(false);
     }
@@ -80,7 +80,7 @@ const SectionsTab: React.FC = () => {
       toast.success('Section deleted');
       fetchData();
     } catch (error: any) {
-      toast.error(error.message || 'Deletion failed');
+      toast.error('Deletion failed. Ensure no students are assigned to this section.')
     }
   };
 
@@ -105,7 +105,13 @@ const SectionsTab: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
-                <tr><td colSpan={3} className="px-6 py-20 text-center"><FaCircleNotch className="animate-spin text-2xl text-dyci-blue mx-auto mb-3" /><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loading sections...</p></td></tr>
+                [...Array(5)].map((_, i) => (
+                  <tr key={i}>
+                    <td className="px-6 py-4"><Skeleton variant="text" width="20%" /></td>
+                    <td className="px-6 py-4"><Skeleton variant="text" width="60%" /></td>
+                    <td className="px-6 py-4 text-right"><Skeleton variant="text" width={40} className="ml-auto" /></td>
+                  </tr>
+                ))
               ) : sections.length === 0 ? (
                 <tr><td colSpan={3} className="px-6 py-20 text-center"><p className="text-sm font-medium text-gray-500">No sections found.</p></td></tr>
               ) : sections.map((sec) => (

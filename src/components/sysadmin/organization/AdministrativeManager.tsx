@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabaseClient';
 import toast from 'react-hot-toast';
-import { FaPlus, FaEdit, FaTimes, FaCircleNotch, FaCheck, FaBan } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTimes, FaCheck, FaBan } from 'react-icons/fa';
+import { Skeleton } from '../../ui/Skeleton';
 
 interface CollegeOffice {
   id: string;
@@ -29,11 +30,10 @@ const AdministrativeManager: React.FC = () => {
         .select('*')
         .order('level', { ascending: true })
         .order('name', { ascending: true });
-      if (error) throw error;
       setOffices(data || []);
-    } catch (error) {
-      console.error('Error fetching offices:', error);
-      toast.error('Failed to load offices');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to load administrative office registry.');
     } finally {
       setLoading(false);
     }
@@ -76,7 +76,7 @@ const AdministrativeManager: React.FC = () => {
       setEditingId(null);
       fetchOffices();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save office');
+      toast.error('Failed to save office configuration. Please verify your permissions.')
     } finally {
       setSaving(false);
     }
@@ -90,7 +90,7 @@ const AdministrativeManager: React.FC = () => {
       fetchOffices();
     } catch (error) {
       console.error('Error toggling status:', error);
-      toast.error('Failed to update status');
+      toast.error('Status transition failed. Please try again.')
     }
   };
 
@@ -119,7 +119,15 @@ const AdministrativeManager: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
-                <tr><td colSpan={5} className="px-6 py-20 text-center"><FaCircleNotch className="animate-spin text-2xl text-dyci-blue mx-auto mb-3" /><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loading offices...</p></td></tr>
+                [...Array(5)].map((_, i) => (
+                  <tr key={i}>
+                    <td className="px-6 py-4"><Skeleton variant="text" width="70%" /></td>
+                    <td className="px-6 py-4"><Skeleton variant="text" width="40%" /></td>
+                    <td className="px-6 py-4"><Skeleton height={20} width={80} className="rounded-full" /></td>
+                    <td className="px-6 py-4"><Skeleton height={20} width={60} className="rounded-full" /></td>
+                    <td className="px-6 py-4 text-right"><Skeleton variant="circle" width={24} height={24} className="ml-auto" /></td>
+                  </tr>
+                ))
               ) : offices.length === 0 ? (
                 <tr><td colSpan={5} className="px-6 py-20 text-center"><p className="text-sm font-medium text-gray-500">No offices found.</p></td></tr>
               ) : offices.map((office) => (

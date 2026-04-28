@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
+import { DashboardSkeleton } from '../ui/Skeleton';
 
 interface MaintenanceGuardProps {
   children: React.ReactNode;
@@ -86,14 +87,7 @@ const MaintenanceGuard: React.FC<MaintenanceGuardProps> = ({ children }) => {
   };
 
   if (checking) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-slate-500 text-sm">Checking system status...</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return <>{children}</>;

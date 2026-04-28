@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { getSystemHealth, getSystemAlerts } from '../../lib/api/system';
 import type { InfrastructureHealth } from '../../lib/api/system';
 import { useNavigate } from 'react-router-dom';
+import { DashboardSkeleton } from '../../components/ui/Skeleton';
 
 const SysAdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -119,6 +120,8 @@ const SysAdminDashboard: React.FC = () => {
       color: 'border-l-amber-500'
     },
   ];
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight">

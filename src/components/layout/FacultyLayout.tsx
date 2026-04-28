@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { FaBookOpen, FaSignOutAlt, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaBars, FaUserCircle, FaBell, FaCheckSquare } from 'react-icons/fa'
@@ -8,6 +8,7 @@ import { checkAndSendWelcomeNotification } from '../../utils/profileUtils'
 import { derivePositionFromProfile, fetchPendingApprovalCount } from '../../lib/api/handbookWorkflow'
 const logo = '/icons/icon-512x512.png'
 import { MdSpaceDashboard } from "react-icons/md";
+import { DashboardSkeleton } from '../ui/Skeleton'
 
 interface StaffLayoutProps {
   children: ReactNode
@@ -298,7 +299,9 @@ const StaffLayout: React.FC<StaffLayoutProps> = ({ children }) => {
           {isLocked && (
             <div className="pointer-events-none absolute inset-0 bg-slate-50/70" />
           )}
-          {children}
+          <Suspense fallback={<DashboardSkeleton />}>
+            {children}
+          </Suspense>
         </div>
       </main>
     </div>

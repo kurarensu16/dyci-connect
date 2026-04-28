@@ -1,18 +1,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  FaSearch,
   FaChevronLeft,
   FaChevronRight,
+  FaSearch,
+  FaHdd,
+  FaFileAlt,
+  FaDatabase,
+  FaArchive,
+  FaVideo,
+  FaFileImage,
+  FaFileVideo,
+  FaFileArchive,
+  FaExternalLinkAlt,
+  FaTrash,
+  FaUsers,
   FaSort,
   FaSortUp,
   FaSortDown,
-  FaRegFileAlt,
-  FaRegFileImage,
-  FaRegFileVideo,
-  FaRegFileArchive,
-  FaArchive,
-  FaUsers,
 } from 'react-icons/fa';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { supabase } from '../../lib/supabaseClient';
 
 // ─── Utilities ───────────────────────────────────────────────────────
@@ -39,12 +45,12 @@ const timeAgo = (dateStr: string): string => {
 };
 
 const getFileIcon = (type: string | null) => {
-  if (!type) return FaRegFileAlt;
-  if (type.startsWith('image/')) return FaRegFileImage;
-  if (type.startsWith('video/')) return FaRegFileVideo;
+  if (!type) return FaFileAlt;
+  if (type.startsWith('image/')) return FaFileImage;
+  if (type.startsWith('video/')) return FaFileVideo;
   if (type.includes('zip') || type.includes('rar') || type.includes('tar'))
-    return FaRegFileArchive;
-  return FaRegFileAlt;
+    return FaFileArchive;
+  return FaFileAlt;
 };
 
 // ─── Constants ───────────────────────────────────────────────────────
@@ -557,11 +563,16 @@ const SysAdminStorage: React.FC = () => {
               </thead>
               <tbody>
                 {filesLoading ? (
-                  <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-slate-400">
-                      Loading files...
-                    </td>
-                  </tr>
+                  [...Array(10)].map((_, i) => (
+                    <tr key={i} className="border-b border-slate-50">
+                      <td className="px-5 py-3"><Skeleton variant="text" width={180} /></td>
+                      <td className="px-5 py-3"><Skeleton variant="text" width={120} /></td>
+                      <td className="px-5 py-3"><Skeleton variant="text" width={60} /></td>
+                      <td className="px-5 py-3"><Skeleton variant="text" width={80} /></td>
+                      <td className="px-5 py-3"><Skeleton variant="text" width={100} /></td>
+                      <td className="px-5 py-3"><Skeleton height={20} width={60} className="rounded-full" /></td>
+                    </tr>
+                  ))
                 ) : files.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-10 text-center text-slate-400">

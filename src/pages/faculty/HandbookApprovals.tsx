@@ -12,6 +12,7 @@ import {
   FaHistory,
   FaCheckDouble,
 } from 'react-icons/fa'
+import { DashboardSkeleton } from '../../components/ui/Skeleton'
 import toast from 'react-hot-toast'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import {
@@ -498,7 +499,7 @@ const HandbookApprovals: React.FC = () => {
             </div>
           )}
 
-          {loading && <div className="flex items-center justify-center py-16 text-slate-400"><FaSpinner className="animate-spin mr-2" /> Loading…</div>}
+          {loading && <DashboardSkeleton />}
 
           {!loading && monitorData.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white">
@@ -726,7 +727,7 @@ const HandbookApprovals: React.FC = () => {
             </div>
           )}
 
-          {loading && <div className="flex items-center justify-center py-16 text-slate-400"><FaSpinner className="animate-spin mr-2" /> Loading…</div>}
+          {loading && <DashboardSkeleton />}
 
           {!loading && position && pending.length === 0 && (
             <div className="mt-8 flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white">

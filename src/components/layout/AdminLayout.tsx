@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -24,6 +24,7 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { checkAndSendWelcomeNotification } from '../../utils/profileUtils'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatRole } from '../../utils/roleUtils'
+import { DashboardSkeleton } from '../ui/Skeleton'
 const logo = '/icons/icon-512x512.png'
 
 interface AdminLayoutProps {
@@ -292,7 +293,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           <span className="text-xs font-semibold text-slate-700">Main Menu</span>
         </div>
 
-        <div className="min-h-screen">{children}</div>
+        <div className="min-h-screen">
+          <Suspense fallback={<DashboardSkeleton />}>
+            {children}
+          </Suspense>
+        </div>
       </main>
     </div>
   )

@@ -9,6 +9,7 @@ import { fetchHandbooks } from '../../lib/api/handbookWorkflow'
 import { searchHandbook, findPathToNode, type HandbookSearchHit } from '../../lib/handbookSearch'
 import HandbookSearchToolbar from '../../components/handbook/HandbookSearchToolbar'
 import HandbookSearchResults from '../../components/handbook/HandbookSearchResults'
+import { DashboardSkeleton } from '../../components/ui/Skeleton'
 import { handbookData } from '../../data/handbookData'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { useAuth } from '../../contexts/AuthContext'
@@ -162,6 +163,8 @@ const Handbook: React.FC = () => {
   // Breadcrumb path
   const breadcrumbs = navStack.map((n) => n.title).join(' / ')
 
+  if (loading) return <DashboardSkeleton />
+
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
       <header className="unified-header">
@@ -180,16 +183,6 @@ const Handbook: React.FC = () => {
       />
 
       <main className="unified-main">
-        {/* Loading */}
-        {loading && (
-          <div className="flex items-center justify-center py-20 text-slate-400">
-            <svg className="animate-spin h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            Loading handbook…
-          </div>
-        )}
 
         {/* Error banner */}
         {error && !loading && (

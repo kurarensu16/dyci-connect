@@ -3,7 +3,8 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { getAuthProvider } from '../../utils/profileUtils'
-import { FaEye, FaEyeSlash } from 'react-icons/fa'
+import { FaEye, FaEyeSlash, FaFingerprint, FaUserCircle, FaEdit, FaCamera, FaSave, FaTimes, FaMapMarkerAlt, FaSchool, FaIdCard, FaBriefcase } from 'react-icons/fa'
+import { DashboardSkeleton } from '../../components/ui/Skeleton'
 import PasswordStrengthIndicator from '../../components/auth/PasswordStrengthIndicator'
 
 const StudentProfile: React.FC = () => {
@@ -485,7 +486,7 @@ const StudentProfile: React.FC = () => {
     try {
       const { error } = await updatePassword(currentPassword, newPassword)
       if (error) {
-        toast.error(error.message || 'Failed to update password.')
+        toast.error('Failed to update password. Please verify your current credentials.')
         return
       }
       toast.success('Password updated. Use your new password next time you sign in.')
@@ -568,6 +569,8 @@ const StudentProfile: React.FC = () => {
       setAvatarSaving(false)
     }
   }
+
+  if (loading) return <DashboardSkeleton />
 
   return (
     <>

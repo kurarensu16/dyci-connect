@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
 import toast from 'react-hot-toast';
-import { FaPlus, FaEdit, FaTrash, FaTimes, FaCircleNotch } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaTimes } from 'react-icons/fa';
+import { Skeleton } from '../../../ui/Skeleton';
 
 interface Program {
   id: string;
@@ -31,13 +32,11 @@ const ProgramsTab: React.FC = () => {
         supabase.from('programs').select('*, department:departments(name, short_name)').order('name'),
         supabase.from('departments').select('id, name').order('name')
       ]);
-      if (progRes.error) throw progRes.error;
-      if (deptRes.error) throw deptRes.error;
       setPrograms(progRes.data || []);
       setDepartments(deptRes.data || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load programs');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to load academic program registry.');
     } finally {
       setLoading(false);
     }
@@ -71,7 +70,7 @@ const ProgramsTab: React.FC = () => {
       setShowModal(false);
       fetchData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save');
+      toast.error('Failed to save program configuration. Please verify your entries.')
     } finally {
       setSaving(false);
     }
@@ -85,7 +84,7 @@ const ProgramsTab: React.FC = () => {
       toast.success('Program deleted');
       fetchData();
     } catch (error: any) {
-      toast.error(error.message || 'Deletion failed');
+      toast.error('Deletion failed. Ensure no students or sections are linked to this program.')
     }
   };
 
@@ -120,7 +119,14 @@ const ProgramsTab: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
-                <tr><td colSpan={4} className="px-6 py-20 text-center"><FaCircleNotch className="animate-spin text-2xl text-dyci-blue mx-auto mb-3" /><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loading programs...</p></td></tr>
+                [...Array(5)].map((_, i) => (
+                  <tr key={i}>
+                    <td className="px-6 py-4"><Skeleton variant="text" width="80%" /></td>
+                    <td className="px-6 py-4"><Skeleton variant="text" width="30%" /></td>
+                    <td className="px-6 py-4"><Skeleton height={20} width={60} className="rounded-md" /></td>
+                    <td className="px-6 py-4 text-right"><Skeleton variant="text" width={40} className="ml-auto" /></td>
+                  </tr>
+                ))
               ) : programs.length === 0 ? (
                 <tr><td colSpan={4} className="px-6 py-20 text-center"><p className="text-sm font-medium text-gray-500">No programs found.</p></td></tr>
               ) : programs.map((prog) => {

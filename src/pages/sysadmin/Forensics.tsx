@@ -5,6 +5,7 @@ import {
   FaChevronRight,
 } from 'react-icons/fa';
 import { supabase } from '../../lib/supabaseClient';
+import { Skeleton } from '../../components/ui/Skeleton';
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface AuditLog {
@@ -23,6 +24,7 @@ interface AuditLog {
     first_name: string | null;
     last_name: string | null;
     email: string | null;
+    role: string | null;
   };
 }
 
@@ -201,17 +203,23 @@ const SysAdminForensics: React.FC = () => {
     return logs.filter(log => {
       const actorName = log.actor ? `${log.actor.first_name} ${log.actor.last_name}`.toLowerCase() : 'system';
       const actorEmail = log.actor?.email?.toLowerCase() || '';
-      const actorRole = (log.actor_role || '').toLowerCase();
+      const actorRole = (log.actor_role || log.actor?.role || 'system').toLowerCase();
       const actionLabel = getActionLabel(log.action, log.table_name, log.old_data, log.new_data).toLowerCase();
       const tableName = log.table_name.toLowerCase();
-      const recordId = (log.record_id || '').toLowerCase();
+      const category = getEventType(log.action, log.table_name, log.old_data, log.new_data).toLowerCase();
+      const dateStr = formatDate(log.created_at).toLowerCase();
+      const timeStr = formatTime(log.created_at).toLowerCase();
+      const actionType = log.action.toLowerCase();
 
       return actorName.includes(s) || 
              actorEmail.includes(s) || 
              actorRole.includes(s) || 
              actionLabel.includes(s) || 
              tableName.includes(s) || 
-             recordId.includes(s);
+             category.includes(s) ||
+             dateStr.includes(s) ||
+             timeStr.includes(s) ||
+             actionType.includes(s);
     });
   }, [logs, search]);
 
@@ -238,15 +246,27 @@ const SysAdminForensics: React.FC = () => {
         .from('audit_logs')
         .select(`
           id, actor_id, actor_role, action, table_name, record_id, old_data, new_data, ip_address, user_agent, created_at,
-          actor:profiles!actor_id(first_name, last_name, email)
+          actor:profiles!actor_id(first_name, last_name, email, role)
         `, { count: 'exact' });
 
-      // Filter by action type
+      // 1. Fetch matching actor IDs if searching (Supabase .or doesn't support joined tables in one string)
+      let actorIds: string[] = [];
+      if (search.trim()) {
+        const { data: matchedProfiles } = await supabase
+          .from('profiles')
+          .select('id')
+          .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
+        if (matchedProfiles && matchedProfiles.length > 0) {
+          actorIds = matchedProfiles.map(p => p.id);
+        }
+      }
+
+      // 2. Filter by action type
       if (filterAction !== 'ALL') {
         query = query.eq('action', filterAction);
       }
 
-      // Filter by event class (table groups)
+      // 3. Filter by event class (table groups)
       if (filterEventClass !== 'ALL') {
         const securityTables = ['user_roles', 'profiles', 'student_profiles', 'staff_profiles', 'migration_state_machine'];
         const governanceTables = ['handbook_views', 'handbook_sections', 'handbook_approvals', 'handbook_approval_requirements', 'handbooks'];
@@ -257,40 +277,29 @@ const SysAdminForensics: React.FC = () => {
         const chatTables = ['chat_messages', 'conversations', 'conversation_participants', 'chat_message_edits'];
 
         switch (filterEventClass) {
-          case 'Security':
-            query = query.in('table_name', securityTables);
-            break;
-          case 'Governance':
-            query = query.in('table_name', governanceTables);
-            break;
-          case 'Publication':
-            query = query.in('table_name', publicationTables);
-            break;
-          case 'Storage':
-            query = query.in('table_name', storageTables);
-            break;
-          case 'Academic':
-            query = query.in('table_name', academicTables);
-            break;
-          case 'Student':
-            query = query.in('table_name', studentTables);
-            break;
-          case 'Chat':
-            query = query.in('table_name', chatTables);
-            break;
-          case 'Mutation':
-            query = query.eq('action', 'DELETE');
-            break;
+          case 'Security': query = query.in('table_name', securityTables); break;
+          case 'Governance': query = query.in('table_name', governanceTables); break;
+          case 'Publication': query = query.in('table_name', publicationTables); break;
+          case 'Storage': query = query.in('table_name', storageTables); break;
+          case 'Academic': query = query.in('table_name', academicTables); break;
+          case 'Student': query = query.in('table_name', studentTables); break;
+          case 'Chat': query = query.in('table_name', chatTables); break;
         }
       }
 
-      // Search across multiple columns (Actor Name, Email, Role, Table, ID)
+      // 4. Multi-column search
       if (search.trim()) {
         const s = search.trim();
-        const roleQuery = s.replace(/\s+/g, '_'); // helps match "system admin" to "system_admin"
+        const roleQuery = s.replace(/\s+/g, '_'); 
+        let orFilter = `table_name.ilike.%${s}%,actor_role.ilike.%${roleQuery}%`;
         
-        // Target table_name, actor_role, and extract IDs from jsonb for safe text-based ID search
-        query = query.or(`table_name.ilike.%${s}%,actor_role.ilike.%${roleQuery}%,old_data->>id.eq.${s},new_data->>id.eq.${s}`);
+        // If we found matching actors, include their IDs in the search
+        if (actorIds.length > 0) {
+          // Use .in notation for actor_id
+          orFilter += `,actor_id.in.(${actorIds.map(id => `"${id}"`).join(',')})`;
+        }
+        
+        query = query.or(orFilter);
       }
 
       // Sort by newest first
@@ -387,7 +396,7 @@ const SysAdminForensics: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search actions or record IDs..."
+              placeholder="Search by date, actor, role, category, or action..."
               className="w-full bg-white border border-slate-200 rounded-2xl py-2.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
             />
           </div>
@@ -434,7 +443,7 @@ const SysAdminForensics: React.FC = () => {
         {error && (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-center">
             <p className="text-rose-700 font-medium">Access Denied or Error</p>
-            <p className="text-rose-500 text-sm mt-1">{error}</p>
+            <p className="text-rose-500 text-sm mt-1">Failed to retrieve audit data. Please try again or contact support.</p>
             <p className="text-rose-400 text-xs mt-2">Activity Logs require System Admin access</p>
           </div>
         )}
@@ -446,7 +455,6 @@ const SysAdminForensics: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-50 bg-slate-50/50">
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Timestamp</th>
-                  <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">ID</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Category</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Action</th>
                   <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Actor</th>
@@ -456,11 +464,16 @@ const SysAdminForensics: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-50 font-mono">
                 {loading ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-10 text-center text-slate-400">
-                      Loading audit logs...
-                    </td>
-                  </tr>
+                  [...Array(15)].map((_, i) => (
+                    <tr key={i} className="border-b border-slate-50">
+                      <td className="px-6 py-4"><div className="space-y-1"><Skeleton variant="text" width={80} /><Skeleton variant="text" width={60} height={10} /></div></td>
+                      <td className="px-6 py-4"><Skeleton height={20} width={70} className="rounded-lg" /></td>
+                      <td className="px-6 py-4"><Skeleton variant="text" width={60} /></td>
+                      <td className="px-6 py-4"><Skeleton variant="text" width={120} /></td>
+                      <td className="px-6 py-4"><Skeleton height={20} width={90} className="rounded-full" /></td>
+                      <td className="px-6 py-4"><Skeleton variant="text" width={140} /></td>
+                    </tr>
+                  ))
                 ) : filteredLogs.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-6 py-10 text-center text-slate-400">
@@ -475,7 +488,8 @@ const SysAdminForensics: React.FC = () => {
                       : 'System';
 
                     // Format actor role for display
-                    const actorRole = log.actor_role || 'system';
+                    // Prioritize persisted role, fallback to current profile role, then 'system'
+                    const actorRole = log.actor_role || log.actor?.role || 'system';
                     const roleDisplay = actorRole.replace(/_/g, ' ').toUpperCase();
 
                     return (
@@ -483,9 +497,6 @@ const SysAdminForensics: React.FC = () => {
                         <td className="px-6 py-4 text-[10px] text-gray-400">
                           <div>{formatDate(log.created_at)}</div>
                           <div className="text-gray-300">{formatTime(log.created_at)}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-[10px] font-bold text-gray-900 tracking-widest">[{log.id.slice(0, 8).toUpperCase()}]</span>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${eventType === 'Security' ? 'text-rose-600 border-rose-100 bg-rose-50' :

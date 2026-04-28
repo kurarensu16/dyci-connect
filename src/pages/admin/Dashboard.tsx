@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient'
 import { fetchPublishedHandbook } from '../../lib/api/handbookWorkflow'
 import { VideoCarousel } from '../../components/video/VideoCarousel'
+import { DashboardSkeleton } from '../../components/ui/Skeleton'
+
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate()
+  const [isLoading, setIsLoading] = useState(true)
   const [chapterCount, setChapterCount] = useState<number | null>(null)
   const [sectionCount, setSectionCount] = useState<number | null>(null)
   const [engagement, setEngagement] = useState<{ count: number; seconds: number } | null>(null)
@@ -67,183 +70,190 @@ const AdminDashboard: React.FC = () => {
     if (!isSupabaseConfigured) return
 
     const load = async () => {
-      // Active users (verified profiles) call - not used in UI currently but keeping logic reference
-      await supabase
-        .from('profiles')
-        .select('id', { count: 'exact', head: true })
-        .eq('verified', true)
-
-      // Get published handbook only
-      const { data: publishedHandbook } = await fetchPublishedHandbook()
-
-      // 1. Metric Counts
-      if (publishedHandbook) {
-        const { count: cCount } = await supabase
-          .from('handbook_sections')
+      setIsLoading(true)
+      try {
+        // Active users (verified profiles) call - not used in UI currently but keeping logic reference
+        await supabase
+          .from('profiles')
           .select('id', { count: 'exact', head: true })
-          .eq('handbook_id', publishedHandbook.id)
-          .is('parent_id', null)
-        if (typeof cCount === 'number') setChapterCount(cCount)
+          .eq('verified', true)
 
-        const { count: sCount } = await supabase
-          .from('handbook_sections')
-          .select('id', { count: 'exact', head: true })
-          .eq('handbook_id', publishedHandbook.id)
-          .not('parent_id', 'is', null)
-        if (typeof sCount === 'number') setSectionCount(sCount)
+        // Get published handbook only
+        const { data: publishedHandbook } = await fetchPublishedHandbook()
 
-        const { data: sections } = await supabase
-          .from('handbook_sections')
-          .select('id')
-          .eq('handbook_id', publishedHandbook.id)
+        // 1. Metric Counts
+        if (publishedHandbook) {
+          const { count: cCount } = await supabase
+            .from('handbook_sections')
+            .select('id', { count: 'exact', head: true })
+            .eq('handbook_id', publishedHandbook.id)
+            .is('parent_id', null)
+          if (typeof cCount === 'number') setChapterCount(cCount)
 
-        if (sections && sections.length > 0) {
-          const sectionIds = sections.map(s => s.id)
-          const { data: viewData } = await supabase
-            .from('handbook_views')
-            .select('duration_seconds')
-            .in('section_id', sectionIds)
-          if (viewData) {
-            const totalSeconds = viewData.reduce((sum, v) => sum + (v.duration_seconds || 0), 0)
-            setEngagement({ count: viewData.length, seconds: totalSeconds })
+          const { count: sCount } = await supabase
+            .from('handbook_sections')
+            .select('id', { count: 'exact', head: true })
+            .eq('handbook_id', publishedHandbook.id)
+            .not('parent_id', 'is', null)
+          if (typeof sCount === 'number') setSectionCount(sCount)
+
+          const { data: sections } = await supabase
+            .from('handbook_sections')
+            .select('id')
+            .eq('handbook_id', publishedHandbook.id)
+
+          if (sections && sections.length > 0) {
+            const sectionIds = sections.map(s => s.id)
+            const { data: viewData } = await supabase
+              .from('handbook_views')
+              .select('duration_seconds')
+              .in('section_id', sectionIds)
+            if (viewData) {
+              const totalSeconds = viewData.reduce((sum, v) => sum + (v.duration_seconds || 0), 0)
+              setEngagement({ count: viewData.length, seconds: totalSeconds })
+            }
           }
+        } else {
+          setChapterCount(0); setSectionCount(0); setEngagement({ count: 0, seconds: 0 })
         }
-      } else {
-        setChapterCount(0); setSectionCount(0); setEngagement({ count: 0, seconds: 0 })
-      }
 
-      // 2. UNIFIED ACTIVITY FETCH (Increased limit for scrolling)
-      const LIMIT = 20
-      const [viewsRes, l2Res, l3Res, sectionsRes] = await Promise.all([
-        // Engagement
-        supabase.from('handbook_views').select(`
-          viewed_at,
-          profiles(
-            first_name, last_name, 
-            student:student_profiles(departments(name)), 
-            staff:staff_profiles(departments(name))
-          ),
-          handbook_sections(title)
-        `).order('viewed_at', { ascending: false }).limit(LIMIT),
+        // 2. UNIFIED ACTIVITY FETCH (Increased limit for scrolling)
+        const LIMIT = 20
+        const [viewsRes, l2Res, l3Res, sectionsRes] = await Promise.all([
+          // Engagement
+          supabase.from('handbook_views').select(`
+            viewed_at,
+            profiles(
+              first_name, last_name, 
+              student:student_profiles(departments(name)), 
+              staff:staff_profiles(departments(name))
+            ),
+            handbook_sections(title)
+          `).order('viewed_at', { ascending: false }).limit(LIMIT),
 
-        // L2 Departmental Approvals
-        supabase.from('handbook_approvals').select(`
-          decided_at, position, decision,
-          profiles:approver_user_id(
-            first_name, last_name, 
-            student:student_profiles(departments(name)), 
-            staff:staff_profiles(departments(name))
-          ),
-          handbook_sections(title)
-        `).order('decided_at', { ascending: false }).limit(LIMIT),
+          // L2 Departmental Approvals
+          supabase.from('handbook_approvals').select(`
+            decided_at, position, decision,
+            profiles:approver_user_id(
+              first_name, last_name, 
+              student:student_profiles(departments(name)), 
+              staff:staff_profiles(departments(name))
+            ),
+            handbook_sections(title)
+          `).order('decided_at', { ascending: false }).limit(LIMIT),
 
-        // L3 Executive Approvals
-        supabase.from('handbook_l3_approvals').select(`
-          created_at, approver_position, decision,
-          profiles:approver_user_id(
-            first_name, last_name, 
-            student:student_profiles(departments(name)), 
-            staff:staff_profiles(departments(name))
-          ),
-          handbooks(title)
-        `).order('created_at', { ascending: false }).limit(LIMIT),
+          // L3 Executive Approvals
+          supabase.from('handbook_l3_approvals').select(`
+            created_at, approver_position, decision,
+            profiles:approver_user_id(
+              first_name, last_name, 
+              student:student_profiles(departments(name)), 
+              staff:staff_profiles(departments(name))
+            ),
+            handbooks(title)
+          `).order('created_at', { ascending: false }).limit(LIMIT),
 
-        // Handbook-level Publications (Simplified to avoid section noise)
-        supabase.from('handbooks').select(`
-          updated_at, published_at, title, status
-        `).eq('status', 'published').order('published_at', { ascending: false }).limit(LIMIT)
-      ])
+          // Handbook-level Publications (Simplified to avoid section noise)
+          supabase.from('handbooks').select(`
+            updated_at, published_at, title, status
+          `).eq('status', 'published').order('published_at', { ascending: false }).limit(LIMIT)
+        ])
 
-      const allItems: any[] = []
-      const now = new Date()
+        const allItems: any[] = []
+        const now = new Date()
 
-      // Map Views
-      if (viewsRes.data) {
-        viewsRes.data.forEach(v => {
-          const p = v.profiles as any
-          const sp = Array.isArray(p?.student) ? p.student[0] : p?.student
-          const sfp = Array.isArray(p?.staff) ? p.staff[0] : p?.staff
-          const dept = getDeptNameFromJoin(sp) || getDeptNameFromJoin(sfp) || ''
-          const actor = p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'Student'
-          const actionDate = new Date(v.viewed_at)
+        // Map Views
+        if (viewsRes.data) {
+          viewsRes.data.forEach(v => {
+            const p = v.profiles as any
+            const sp = Array.isArray(p?.student) ? p.student[0] : p?.student
+            const sfp = Array.isArray(p?.staff) ? p.staff[0] : p?.staff
+            const dept = getDeptNameFromJoin(sp) || getDeptNameFromJoin(sfp) || ''
+            const actor = p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'Student'
+            const actionDate = new Date(v.viewed_at)
 
-          allItems.push({
-            date: actionDate,
-            isNew: now.getTime() - actionDate.getTime() < 24 * 60 * 60 * 1000,
-            title: (v.handbook_sections as any)?.title || 'Handbook Section',
-            subtitle: `${actor}${dept ? ` (${dept})` : ''} read this section`,
-            time: getTimeAgo(v.viewed_at),
-            statusColor: 'bg-blue-500',
-            deptColor: getDeptColor(dept)
+            allItems.push({
+              date: actionDate,
+              isNew: now.getTime() - actionDate.getTime() < 24 * 60 * 60 * 1000,
+              title: (v.handbook_sections as any)?.title || 'Handbook Section',
+              subtitle: `${actor}${dept ? ` (${dept})` : ''} read this section`,
+              time: getTimeAgo(v.viewed_at),
+              statusColor: 'bg-blue-500',
+              deptColor: getDeptColor(dept)
+            })
           })
-        })
-      }
+        }
 
-      // Map L2 Approvals
-      if (l2Res.data) {
-        l2Res.data.forEach(a => {
-          const p = a.profiles as any
-          const sp = Array.isArray(p?.student) ? p.student[0] : p?.student
-          const sfp = Array.isArray(p?.staff) ? p.staff[0] : p?.staff
-          const dept = getDeptNameFromJoin(sp) || getDeptNameFromJoin(sfp) || ''
-          const actor = p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : a.position
-          const actionDate = new Date(a.decided_at)
+        // Map L2 Approvals
+        if (l2Res.data) {
+          l2Res.data.forEach(a => {
+            const p = a.profiles as any
+            const sp = Array.isArray(p?.student) ? p.student[0] : p?.student
+            const sfp = Array.isArray(p?.staff) ? p.staff[0] : p?.staff
+            const dept = getDeptNameFromJoin(sp) || getDeptNameFromJoin(sfp) || ''
+            const actor = p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : a.position
+            const actionDate = new Date(a.decided_at)
 
-          allItems.push({
-            date: actionDate,
-            isNew: now.getTime() - actionDate.getTime() < 24 * 60 * 60 * 1000,
-            title: (a.handbook_sections as any)?.title || 'Handbook Section',
-            subtitle: `${a.decision === 'approved' ? 'Approved' : 'Rejected'} by ${actor}${dept ? ` (${dept})` : ''}`,
-            time: getTimeAgo(a.decided_at),
-            statusColor: a.decision === 'approved' ? 'bg-indigo-500' : 'bg-rose-500',
-            deptColor: getDeptColor(dept)
+            allItems.push({
+              date: actionDate,
+              isNew: now.getTime() - actionDate.getTime() < 24 * 60 * 60 * 1000,
+              title: (a.handbook_sections as any)?.title || 'Handbook Section',
+              subtitle: `${a.decision === 'approved' ? 'Approved' : 'Rejected'} by ${actor}${dept ? ` (${dept})` : ''}`,
+              time: getTimeAgo(a.decided_at),
+              statusColor: a.decision === 'approved' ? 'bg-indigo-500' : 'bg-rose-500',
+              deptColor: getDeptColor(dept)
+            })
           })
-        })
-      }
+        }
 
-      // Map L3 Approvals
-      if (l3Res.data) {
-        l3Res.data.forEach(a => {
-          const p = a.profiles as any
-          const actor = p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : a.approver_position
-          const actionDate = new Date(a.created_at)
+        // Map L3 Approvals
+        if (l3Res.data) {
+          l3Res.data.forEach(a => {
+            const p = a.profiles as any
+            const actor = p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : a.approver_position
+            const actionDate = new Date(a.created_at)
 
-          allItems.push({
-            date: actionDate,
-            isNew: now.getTime() - actionDate.getTime() < 24 * 60 * 60 * 1000,
-            title: (a.handbooks as any)?.title || 'Academics Handbook',
-            subtitle: `Executive ${a.decision === 'approved' ? 'Approval' : 'Rejection'} by ${actor} (${a.approver_position})`,
-            time: getTimeAgo(a.created_at),
-            statusColor: 'bg-purple-600',
-            deptColor: '#7c3aed' // Purple for executive
+            allItems.push({
+              date: actionDate,
+              isNew: now.getTime() - actionDate.getTime() < 24 * 60 * 60 * 1000,
+              title: (a.handbooks as any)?.title || 'Academics Handbook',
+              subtitle: `Executive ${a.decision === 'approved' ? 'Approval' : 'Rejection'} by ${actor} (${a.approver_position})`,
+              time: getTimeAgo(a.created_at),
+              statusColor: 'bg-purple-600',
+              deptColor: '#7c3aed' // Purple for executive
+            })
           })
-        })
-      }
+        }
 
-      // Map Handbook Publications
-      if (sectionsRes.data) {
-        sectionsRes.data.forEach(h => {
-          const actionDate = new Date(h.published_at || h.updated_at)
+        // Map Handbook Publications
+        if (sectionsRes.data) {
+          sectionsRes.data.forEach(h => {
+            const actionDate = new Date(h.published_at || h.updated_at)
 
-          allItems.push({
-            date: actionDate,
-            isNew: now.getTime() - actionDate.getTime() < 24 * 60 * 60 * 1000,
-            title: h.title,
-            subtitle: `Handbook is now Live / Published`,
-            time: getTimeAgo(h.published_at || h.updated_at),
-            statusColor: 'bg-emerald-500',
-            deptColor: FALLBACK_COLOR
+            allItems.push({
+              date: actionDate,
+              isNew: now.getTime() - actionDate.getTime() < 24 * 60 * 60 * 1000,
+              title: h.title,
+              subtitle: `Handbook is now Live / Published`,
+              time: getTimeAgo(h.published_at || h.updated_at),
+              statusColor: 'bg-emerald-500',
+              deptColor: FALLBACK_COLOR
+            })
           })
-        })
-      }
+        }
 
-      // Sort and take top 20
-      allItems.sort((a, b) => b.date.getTime() - a.date.getTime())
-      setActivities(allItems.slice(0, LIMIT))
+        // Sort and take top 20
+        allItems.sort((a, b) => b.date.getTime() - a.date.getTime())
+        setActivities(allItems.slice(0, LIMIT))
+      } finally {
+        setIsLoading(false)
+      }
     }
 
     load()
   }, [])
+
+  if (isLoading) return <DashboardSkeleton />
 
   const fmt = (n: number | null | undefined) => (n !== null && n !== undefined ? n.toLocaleString() : '—')
 

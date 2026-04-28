@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
 import toast from 'react-hot-toast';
-import { FaPlus, FaEdit, FaTrash, FaTimes, FaCircleNotch } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaTimes } from 'react-icons/fa';
+import { Skeleton } from '../../../ui/Skeleton';
 
 interface Department {
   id: string;
@@ -24,11 +25,10 @@ const DepartmentsTab: React.FC = () => {
     try {
       setLoading(true);
       const { data, error } = await supabase.from('departments').select('*').order('name');
-      if (error) throw error;
       setDepartments(data || []);
-    } catch (error) {
-      console.error('Error fetching departments:', error);
-      toast.error('Failed to load departments');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to load department registry.');
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ const DepartmentsTab: React.FC = () => {
       setShowModal(false);
       fetchDepartments();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save');
+      toast.error('Failed to save department details. Please verify your entries.')
     } finally {
       setSaving(false);
     }
@@ -80,7 +80,7 @@ const DepartmentsTab: React.FC = () => {
       toast.success('Department deleted');
       fetchDepartments();
     } catch (error: any) {
-      toast.error(error.message || 'Deletion failed (Check dependencies)');
+      toast.error('Deletion failed. Ensure no programs are linked to this department.')
     }
   };
 
@@ -107,12 +107,13 @@ const DepartmentsTab: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-20 text-center">
-                    <FaCircleNotch className="animate-spin text-2xl text-dyci-blue mx-auto mb-3" />
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Loading departments...</p>
-                  </td>
-                </tr>
+                [...Array(5)].map((_, i) => (
+                  <tr key={i}>
+                    <td className="px-6 py-4"><Skeleton variant="text" width="70%" /></td>
+                    <td className="px-6 py-4"><Skeleton variant="text" width="20%" /></td>
+                    <td className="px-6 py-4 text-right"><Skeleton variant="text" width={40} className="ml-auto" /></td>
+                  </tr>
+                ))
               ) : departments.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-20 text-center">

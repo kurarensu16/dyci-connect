@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaFingerprint, FaCheck, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { DashboardSkeleton } from '../ui/Skeleton';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 import PasswordStrengthIndicator from '../auth/PasswordStrengthIndicator';
@@ -85,14 +86,7 @@ const PasswordResetOnboarding: React.FC<PasswordResetOnboardingProps> = ({ userI
   };
 
   if (step === 'check') {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <FaFingerprint className="animate-pulse text-4xl text-[#1434A4] mx-auto mb-4" />
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Checking Account Status...</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (step === 'success') {

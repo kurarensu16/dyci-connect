@@ -65,7 +65,7 @@ const Login: React.FC = () => {
         navigate('/')
       }
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error('Authentication failed. Please check your credentials or network connection.');
     } finally {
       setLoading(false)
     }

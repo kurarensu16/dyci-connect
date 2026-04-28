@@ -15,8 +15,10 @@ import {
   FaMicrochip,
   FaShieldAlt,
   FaCheckCircle,
+  FaEyeSlash,
   FaSearch
 } from 'react-icons/fa';
+import { DashboardSkeleton } from '../../components/ui/Skeleton';
 import { toast } from 'react-hot-toast';
 import {
   getSystemHealth,
@@ -109,7 +111,7 @@ const SysAdminAlerts: React.FC = () => {
       setBroadcastTitle('');
       setBroadcastMessage('');
     } catch (err: any) {
-      toast.error('Transmission Failure: ' + err.message);
+      toast.error('Failed to broadcast alert. Please try again.');
     } finally {
       setSending(false);
     }
@@ -127,11 +129,13 @@ const SysAdminAlerts: React.FC = () => {
       setResolutionNotes('');
       fetchPulseAndLedger();
     } catch (err: any) {
-      toast.error('Resolution Error: ' + err.message);
+      toast.error('Resolution update failed. Please try again.');
     }
   };
 
   const bypassedCount = rlsDetail.filter(r => !r.rls_enabled).length;
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans tracking-tight pb-20">

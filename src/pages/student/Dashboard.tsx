@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabaseClient'
 import toast from 'react-hot-toast'
 import type { FileMetadata, Grade, Todo } from '../../types'
 import { VideoCarousel } from '../../components/video/VideoCarousel'
+import { DashboardSkeleton } from '../../components/ui/Skeleton'
 
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth()
@@ -24,12 +25,14 @@ const StudentDashboard: React.FC = () => {
   const [activityData, setActivityData] = useState<ActivityPoint[]>([])
   const [recentFiles, setRecentFiles] = useState<FileMetadata[]>([])
   const [todos, setTodos] = useState<Todo[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     fetchDashboardData()
   }, [])
 
   const fetchDashboardData = async () => {
+    setIsLoading(true)
     try {
       if (!user) return
 
@@ -163,11 +166,12 @@ const StudentDashboard: React.FC = () => {
         }
       }))
 
-    } catch (error: any) {
-      toast.error('Error loading dashboard data')
-      console.error(error)
+    } finally {
+      setIsLoading(false)
     }
   }
+
+  if (isLoading) return <DashboardSkeleton />
 
   return (
     <>
