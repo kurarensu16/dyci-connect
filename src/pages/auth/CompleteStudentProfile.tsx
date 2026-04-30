@@ -76,7 +76,7 @@ const CompleteStudentProfile: React.FC = () => {
           supabase.from('departments').select('id, name').order('name'),
           supabase
             .from('programs')
-            .select('id, name, short_code, department_id')
+            .select('id, name, department_id')
             .order('name'),
           supabase
             .from('year_levels')
